@@ -34,13 +34,13 @@ import java.util.List;
 import java.util.Locale;
 
 public final class MainActivity extends Activity {
-    private static final int BG=Color.rgb(10,16,22);
-    private static final int CARD=Color.rgb(23,33,42);
-    private static final int CARD2=Color.rgb(29,42,53);
-    private static final int TEAL=Color.rgb(46,215,188);
-    private static final int TEXT=Color.rgb(240,247,250);
-    private static final int MUTED=Color.rgb(154,174,188);
-    private static final int BORDER=Color.rgb(48,64,75);
+    private static final int BG=Color.rgb(10,17,22);
+    private static final int CARD=Color.rgb(25,38,46);
+    private static final int CARD2=Color.rgb(35,52,61);
+    private static final int TEAL=Color.rgb(99,229,198);
+    private static final int TEXT=Color.rgb(250,253,255);
+    private static final int MUTED=Color.rgb(194,209,216);
+    private static final int BORDER=Color.rgb(66,86,97);
     private static final int EXPORT_REQUEST=1901;
 
     private WorkoutDb db;
@@ -51,6 +51,9 @@ public final class MainActivity extends Activity {
     private long openSession=-1, detailSession=-1;
     private int openWorkout=Plan.UPPER_A;
     private String selectedExercise="db_flat";
+    private String expandedExerciseId="";
+    private LinearLayout expandedBody;
+    private TextView expandedChevron;
     private final Handler handler=new Handler(Looper.getMainLooper());
     private long restUntil=0, sessionStartedAt=0;
     private TextView timerLabel, sessionCount, elapsedLabel;
@@ -88,6 +91,7 @@ public final class MainActivity extends Activity {
             openWorkout=state.getInt("openWorkout",Plan.UPPER_A);
             detailSession=state.getLong("detailSession",-1);
             selectedExercise=state.getString("selectedExercise","db_flat");
+            expandedExerciseId=state.getString("expandedExerciseId","");
         }
         render();
         handler.post(ticker);
@@ -99,6 +103,7 @@ public final class MainActivity extends Activity {
         state.putInt("openWorkout",openWorkout);
         state.putLong("detailSession",detailSession);
         state.putString("selectedExercise",selectedExercise);
+        state.putString("expandedExerciseId",expandedExerciseId);
         super.onSaveInstanceState(state);
     }
     @Override protected void onResume() {
@@ -133,10 +138,10 @@ public final class MainActivity extends Activity {
         View v=new View(this); target.addView(v,new LinearLayout.LayoutParams(1,dp(height)));
     }
     private LinearLayout card(LinearLayout target) {
-        LinearLayout c=col(); c.setPadding(dp(15),dp(15),dp(15),dp(15));
+        LinearLayout c=col(); c.setPadding(dp(18),dp(18),dp(18),dp(18));
         c.setBackground(rounded(CARD,18,BORDER));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
-        lp.bottomMargin=dp(12);
+        lp.bottomMargin=dp(14);
         target.addView(c,lp);
         return c;
     }
@@ -153,128 +158,202 @@ public final class MainActivity extends Activity {
     }
     private Button button(String s,boolean primary) {
         Button b=new Button(this);
-        b.setAllCaps(false); b.setText(s); b.setTextSize(13);
+        b.setAllCaps(false); b.setText(s); b.setTextSize(15);
+        b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
         b.setTextColor(primary?BG:TEXT);
         b.setBackgroundTintList(ColorStateList.valueOf(primary?TEAL:CARD2));
         b.setMinimumHeight(0); b.setMinHeight(0);
-        b.setPadding(dp(10),dp(10),dp(10),dp(10));
+        b.setPadding(dp(12),dp(12),dp(12),dp(12));
+        b.setMinHeight(dp(48));
         return b;
     }
+
     private void render() {
-        timerLabel=null; sessionCount=null; elapsedLabel=null;
-        root=col(); root.setBackgroundColor(BG);
-        root.setPadding(dp(17),dp(15),dp(17),dp(10));
+        timerLabel=null; sessionCount=null; elapsedLabel=null; expandedBody=null; expandedChevron=null;
+        root=col();
+        root.setBackgroundColor(BG);
+        root.setPadding(dp(18),dp(12),dp(18),dp(10));
         root.setOnApplyWindowInsetsListener((v,insets)->{
-            root.setPadding(dp(17),insets.getSystemWindowInsetTop()+dp(12),
-                    dp(17),insets.getSystemWindowInsetBottom()+dp(8));
+            root.setPadding(dp(18),insets.getSystemWindowInsetTop()+dp(12),
+                dp(18),insets.getSystemWindowInsetBottom()+dp(10));
             return insets;
         });
         setContentView(root);
-        add(root,text("FORMA  /  TRAINING",14,TEAL,true));
-        space(root,4);
-        add(root,text("Dziennik treningowy",21,TEXT,true));
-        space(root,16);
-        if(!page.equals("session") && !page.equals("detail")) {
-            LinearLayout tabs=row();
-            String[] tabNames={"Plan","Historia","Progres"};
-            String[] pages={"plan","history","progress"};
-            for(int i=0;i<3;i++) {
-                final String destination=pages[i];
-                TextView t=pill(tabNames[i],page.equals(destination));
-                LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(42),1);
-                if(i>0) lp.leftMargin=dp(7);
-                tabs.addView(t,lp);
-                t.setOnClickListener(v->{page=destination;render();});
-            }
-            add(root,tabs); space(root,15);
-        }
+
+        LinearLayout brand=row();
+        TextView logo=text("FORMA",20,TEAL,true);
+        logo.setLetterSpacing(0.10f);
+        brand.addView(logo,new LinearLayout.LayoutParams(0,dp(39),1));
+        TextView version=text("0.3.0",12,MUTED,true);
+        version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        brand.addView(version,new LinearLayout.LayoutParams(dp(76),dp(39)));
+        add(root,brand);
+        space(root,5);
+
+        if(page.equals("session")) showFixedSessionHeader();
         ScrollView scroll=new ScrollView(this);
-        scroll.setFillViewport(false);
         scroll.setVerticalScrollBarEnabled(false);
+        scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
         root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         content=col();
-        content.setPadding(0,0,0,dp(16));
+        content.setPadding(0,dp(7),0,dp(16));
         scroll.addView(content);
         if(page.equals("plan")) showPlan();
         else if(page.equals("session")) showSession();
         else if(page.equals("history")) showHistory();
         else if(page.equals("detail")) showDetail();
-        else showProgress();
+        else if(page.equals("progress")) showProgress();
+        else showSettings();
+
+        if(!page.equals("session") && !page.equals("detail")) showNavigation();
     }
 
+    private void showNavigation() {
+        LinearLayout nav=row();
+        nav.setPadding(dp(4),dp(8),dp(4),0);
+        String[] names={"Plan","Historia","Progres","Więcej"};
+        String[] pages={"plan","history","progress","settings"};
+        for(int i=0;i<names.length;i++) {
+            final String selected=pages[i];
+            boolean active=page.equals(selected);
+            LinearLayout item=col();
+            item.setGravity(Gravity.CENTER);
+            TextView name=text(names[i],14,active?TEAL:MUTED,active);
+            name.setGravity(Gravity.CENTER);
+            add(item,name);
+            space(item,5);
+            View indicator=new View(this);
+            indicator.setBackground(rounded(active?TEAL:BG,3,0));
+            item.addView(indicator,new LinearLayout.LayoutParams(dp(active?29:14),dp(3)));
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(55),1);
+            nav.addView(item,lp);
+            item.setContentDescription("Otwórz "+names[i]);
+            item.setOnClickListener(v->{page=selected;render();});
+        }
+        add(root,nav);
+    }
+
+    private void smallLabel(LinearLayout target,String value) {
+        TextView t=text(value,12,TEAL,true);
+        t.setLetterSpacing(0.08f);
+        add(target,t);
+    }
+    private void summaryLine(LinearLayout target,String title,String value) {
+        LinearLayout r=row();
+        TextView l=text(title,14,MUTED,false);
+        r.addView(l,new LinearLayout.LayoutParams(0,dp(33),1));
+        TextView v=text(value,14,TEXT,true);
+        v.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        r.addView(v,new LinearLayout.LayoutParams(-2,dp(33)));
+        add(target,r);
+    }
     private void showPlan() {
-        headline(content,"Twój tydzień");
-        add(content,text("2 × góra • 1 × nogi • sesje do 60 minut",14,MUTED,false));
-        space(content,13);
-        LinearLayout intro=card(content);
-        add(intro,text("CEL: KLATKA + SZEROKOŚĆ PLECÓW",12,TEAL,true));
-        space(intro,8);
-        add(intro,text("Ćwicz na hantlach, wyciągach i maszynach. Każdą serię zapisujesz jednym kliknięciem.",14,TEXT,false));
+        space(content,8);
+        headline(content,"Twój plan treningowy");
+        add(content,text("Góra A  •  Nogi  •  Góra B",16,MUTED,false));
+        space(content,17);
+
         WorkoutDb.Session active=db.active();
         if(active!=null) {
-            space(content,6);
             LinearLayout resume=card(content);
-            add(resume,text("ROZPOCZĘTY TRENING",12,TEAL,true)); space(resume,6);
-            add(resume,text(Plan.title(active.workout)+" • "+active.sets+" zapisanych serii",16,TEXT,true));
-            space(resume,9);
-            Button b=button("Wznów trening",true);
+            smallLabel(resume,"TRENING W TOKU");
+            space(resume,7);
+            add(resume,text(Plan.title(active.workout),22,TEXT,true));
+            space(resume,4);
+            add(resume,text(active.sets+" zapisanych serii",15,MUTED,false));
+            space(resume,10);
+            Button b=button("Wróć do treningu →",true);
             add(resume,b);
-            b.setOnClickListener(v->{openSession=active.id;openWorkout=active.workout;page="session";render();});
-        }
-        LinearLayout ota=card(content);
-        add(ota,text("AKTUALIZACJE OTA",12,TEAL,true));
-        space(ota,7);
-        add(ota,text(updater.feed().isEmpty()
-            ? "Kanał aktualizacji nie jest jeszcze skonfigurowany"
-            : "Sprawdzanie automatyczne raz dziennie",12,MUTED,false));
-        space(ota,9);
-        Button check=button("Sprawdź aktualizacje",true);
-        add(ota,check);
-        check.setOnClickListener(v->updater.check(true));
-        space(ota,5);
-        Button config=button("Ustawienia kanału OTA",false);
-        add(ota,config);
-        config.setOnClickListener(v->updater.configure());
-        LinearLayout cloudCard=card(content);
-        add(cloudCard,text("KOPIA TRENINGÓW W CHMURZE",12,TEAL,true));
-        space(cloudCard,6);
-        add(cloudCard,text(cloud.signedIn()
-            ? "Zalogowano do Supabase • dane na telefonie pozostają dostępne offline"
-            : "Opcjonalna kopia danych w Supabase. Bez logowania trening działa offline.",
-            13,MUTED,false));
-        space(cloudCard,9);
-        Button syncButton=button(cloud.signedIn()?"Synchronizuj treningi":"Zaloguj się / utwórz konto",true);
-        add(cloudCard,syncButton);
-        syncButton.setOnClickListener(v->{
-            if(cloud.signedIn()) runCloudSync();
-            else showCloudLogin();
-        });
-        if(cloud.signedIn()) {
-            space(cloudCard,5);
-            Button logout=button("Wyloguj z chmury",false);
-            add(cloudCard,logout);
-            logout.setOnClickListener(v->{
-                new AlertDialog.Builder(this)
-                    .setTitle("Wylogować?")
-                    .setMessage("Treningi lokalne pozostaną zapisane. Powtórne logowanie włączy synchronizację.")
-                    .setNegativeButton("Anuluj",null)
-                    .setPositiveButton("Wyloguj",(d,w)->{cloud.signOut();render();}).show();
+            b.setOnClickListener(v->{
+                openSession=active.id;
+                openWorkout=active.workout;
+                expandedExerciseId="";
+                page="session";
+                render();
             });
         }
+        int[] dayNums={1,3,5};
         String[] days={"PONIEDZIAŁEK","ŚRODA","PIĄTEK"};
+        String[] tags={"KLATKA + PLECY","NOGI","PLECY + KLATKA"};
         for(int w=0;w<3;w++) {
             final int workout=w;
             LinearLayout c=card(content);
-            add(c,text(days[w],12,TEAL,true)); space(c,6);
-            add(c,text(Plan.title(w),23,TEXT,true)); space(c,5);
-            add(c,text(Plan.focus(w),13,MUTED,false)); space(c,9);
-            int count=0; for(Plan.Exercise ex:Plan.exercises(w))count+=ex.sets;
-            add(c,text(Plan.exercises(w).size()+" ćwiczeń • "+count+" serii roboczych",12,MUTED,false));
-            space(c,11);
-            Button start=button("Otwórz / rozpocznij",true); add(c,start);
-            start.setOnClickListener(v->startWorkout(workout));
+            LinearLayout tag=row();
+            TextView day=text(days[w],12,TEAL,true);
+            tag.addView(day,new LinearLayout.LayoutParams(0,dp(27),1));
+            TextView no=text("0"+(w+1),20,MUTED,true);
+            tag.addView(no);
+            add(c,tag);
+            space(c,8);
+            add(c,text(Plan.title(w),26,TEXT,true));
+            space(c,5);
+            add(c,text(tags[w],14,MUTED,false));
+            space(c,12);
+            int sets=0;for(Plan.Exercise e:Plan.exercises(w))sets+=e.sets;
+            add(c,text(Plan.exercises(w).size()+" ćwiczeń     •     "+sets+" serii",14,MUTED,false));
+            space(c,14);
+            Button open=button(active!=null?"Otwórz plan →":"Rozpocznij trening →",true);
+            add(c,open);
+            open.setOnClickListener(v->startWorkout(workout));
         }
-        add(content,text("Przy bólu lędźwi nie wykonuj ćwiczeń przez narastający ból. Dostosuj zakres ruchu i ciężar.",12,MUTED,false));
+        TextView info=text("Seria po serii zapisujesz ciężar i powtórzenia. Poprzednie wyniki podpowiadamy automatycznie.",14,MUTED,false);
+        info.setLineSpacing(dp(3),1f);
+        add(content,info);
+    }
+
+    private void showSettings() {
+        space(content,8);
+        headline(content,"Ustawienia");
+        add(content,text("Aktualizacje, kopia zapasowa i dane",15,MUTED,false));
+        space(content,17);
+
+        LinearLayout cloudCard=card(content);
+        smallLabel(cloudCard,"KOPIA W CHMURZE");
+        space(cloudCard,8);
+        add(cloudCard,text(cloud.signedIn()?"Konto Supabase połączone":"Twoje treningi są zapisane na telefonie",18,TEXT,true));
+        space(cloudCard,6);
+        add(cloudCard,text(cloud.signedIn()?"Możesz synchronizować historię z chmurą.":"Logowanie jest opcjonalne. Aplikacja działa też offline.",15,MUTED,false));
+        space(cloudCard,12);
+        Button syncButton=button(cloud.signedIn()?"Synchronizuj teraz":"Zaloguj się / utwórz konto",true);
+        add(cloudCard,syncButton);
+        syncButton.setOnClickListener(v->{if(cloud.signedIn())runCloudSync();else showCloudLogin();});
+        if(cloud.signedIn()) {
+            space(cloudCard,6);
+            Button logout=button("Wyloguj",false);
+            add(cloudCard,logout);
+            logout.setOnClickListener(v->new AlertDialog.Builder(this)
+                .setTitle("Wylogować?")
+                .setMessage("Treningi zapisane lokalnie pozostaną na telefonie.")
+                .setNegativeButton("Anuluj",null)
+                .setPositiveButton("Wyloguj",(d,w)->{cloud.signOut();render();}).show());
+        }
+
+        LinearLayout ota=card(content);
+        smallLabel(ota,"AKTUALIZACJE APLIKACJI");
+        space(ota,7);
+        add(ota,text("FORMA 0.3.0",20,TEXT,true));
+        space(ota,4);
+        add(ota,text("Sprawdzanie OTA odbywa się automatycznie przy uruchomieniu.",14,MUTED,false));
+        space(ota,12);
+        Button check=button("Sprawdź aktualizacje",true);
+        add(ota,check);
+        check.setOnClickListener(v->updater.check(true));
+        space(ota,6);
+        Button config=button("Zaawansowane ustawienia OTA",false);
+        add(ota,config);
+        config.setOnClickListener(v->updater.configure());
+
+        LinearLayout backup=card(content);
+        smallLabel(backup,"EKSPORT DANYCH");
+        space(backup,7);
+        add(backup,text("Kopia historii treningów",18,TEXT,true));
+        space(backup,5);
+        add(backup,text("Zapisz serie jako plik CSV, który możesz przechować poza telefonem.",14,MUTED,false));
+        space(backup,12);
+        Button export=button("Eksportuj CSV",false);
+        add(backup,export);
+        export.setOnClickListener(v->exportCsv());
     }
 
     private void showCloudLogin() {
