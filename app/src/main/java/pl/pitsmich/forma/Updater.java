@@ -51,10 +51,16 @@ public final class Updater {
 
     public Updater(Activity activity) { this.activity=activity; }
 
+    // Must match res/xml/update_paths.xml: <cache-path path="updates/" />.
+    // All OTA flows (download, resume after Android permissions, install) use one path.
+    private File updateFile() {
+        return new File(new File(activity.getCacheDir(),"updates"),"forma-update.apk");
+    }
+
     public void afterPermissionReturn() {
         if(awaitingPermission && (Build.VERSION.SDK_INT<26 || activity.getPackageManager().canRequestPackageInstalls())) {
             awaitingPermission=false;
-            File apk=new File(new File(activity.getCacheDir(),"updates"),"forma-update.apk");
+            File apk=updateFile();
             if(apk.isFile()) install(apk);
         }
     }
@@ -148,7 +154,7 @@ public final class Updater {
     private void download(Release release) {
         Toast.makeText(activity,"Pobieranie aktualizacji…",Toast.LENGTH_LONG).show();
         new Thread(()->{
-            File target=new File(activity.getCacheDir(),"forma-update.apk");
+            File target=updateFile();
             try {
                 File parent=target.getParentFile();
                 if(parent==null || (!parent.isDirectory() && !parent.mkdirs()))
