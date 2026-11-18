@@ -1514,6 +1514,143 @@ public final class MainActivity extends Activity {
         remove.setOnClickListener(v->confirmDeleteCompleted(session));
     }
 
+    private void changeCalendarMonth(int delta) {
+        Calendar date=Calendar.getInstance();
+        date.clear();
+        date.set(calendarYear,calendarMonth,1);
+        date.add(Calendar.MONTH,delta);
+        calendarYear=date.get(Calendar.YEAR);
+        calendarMonth=date.get(Calendar.MONTH);
+        render();
+    }
+
+    private void showCalendar() {
+        space(content,3);
+        headline(content,"Kalendarz i statystyki");
+        add(content,text("Treningi, regularność i objętość",13,MUTED,false));
+        space(content,12);
+        Calendar start=Calendar.getInstance();
+        start.clear();
+        start.set(calendarYear,calendarMonth,1);
+        Calendar end=(Calendar)start.clone();
+        end.add(Calendar.MONTH,1);
+        Calendar previous=(Calendar)start.clone();
+        previous.add(Calendar.MONTH,-1);
+        long startMs=start.getTimeInMillis(),endMs=end.getTimeInMillis();
+        long previousMs=previous.getTimeInMillis();
+        java.util.HashMap<Integer,java.util.ArrayList<WorkoutDb.Session>> days=new java.util.HashMap<>();
+        int count=0,previousCount=0;
+        double volume=0,previousVolume=0;
+        int thisWeek=0;
+        long lastWeek=System.currentTimeMillis()-7L*24*60*60*1000;
+        Calendar itemDate=Calendar.getInstance();
+        for(WorkoutDb.Session session:db.completed()) {
+            long time=session.startedAt;
+            if(time>=lastWeek && time<=System.currentTimeMillis())thisWeek++;
+            if(time>=startMs && time<endMs) {
+                count++;volume+=session.volume;
+                itemDate.setTimeInMillis(time);
+                int day=itemDate.get(Calendar.DAY_OF_MONTH);
+                if(!days.containsKey(day))days.put(day,new java.util.ArrayList<>());
+                days.get(day).add(session);
+            } else if(time>=previousMs&&time<startMs) {
+                previousCount++;previousVolume+=session.volume;
+            }
+        }
+        LinearLayout top=row();
+        TextView back=actionLabel("‹",SKY);
+        back.setTextSize(26);
+        back.setGravity(Gravity.CENTER);
+        top.addView(back,new LinearLayout.LayoutParams(dp(48),dp(44)));
+        back.setOnClickListener(v->changeCalendarMonth(-1));
+        String title=new SimpleDateFormat("LLLL yyyy",Locale.forLanguageTag("pl-PL")).format(start.getTime());
+        TextView period=text(title,18,TEXT,true);
+        period.setGravity(Gravity.CENTER);
+        top.addView(period,new LinearLayout.LayoutParams(0,dp(44),1));
+        TextView next=actionLabel("›",SKY);
+        next.setTextSize(26);next.setGravity(Gravity.CENTER);
+        top.addView(next,new LinearLayout.LayoutParams(dp(48),dp(44)));
+        next.setOnClickListener(v->changeCalendarMonth(1));
+        add(content,top);
+        space(content,7);
+        LinearLayout calendarCard=card(content);
+        GridLayout grid=new GridLayout(this);
+        grid.setColumnCount(7);
+        String[] daysOfWeek={"Pn","Wt","Śr","Cz","Pt","Sb","Nd"};
+        for(int col=0;col<7;col++) {
+            TextView heading=text(daysOfWeek[col],12,MUTED,true);
+            heading.setGravity(Gravity.CENTER);
+            GridLayout.LayoutParams lp=new GridLayout.LayoutParams(GridLayout.spec(0),GridLayout.spec(col,1f));
+            lp.width=0;lp.height=dp(29);
+            grid.addView(heading,lp);
+        }
+        int offset=(start.get(Calendar.DAY_OF_WEEK)+5)%7;
+        int length=start.getActualMaximum(Calendar.DAY_OF_MONTH);
+        int slots=((offset+length+6)/7)*7;
+        for(int n=0;n<slots;n++) {
+            final int day=n-offset+1;
+            int rowIndex=1+n/7;
+            int column=n%7;
+            boolean inRange=day>=1&&day<=length;
+            java.util.ArrayList<WorkoutDb.Session> workouts=inRange?days.get(day):null;
+            LinearLayout cell=col();
+            cell.setGravity(Gravity.CENTER);
+            int accent=workouts==null?BORDER:dayColor(workouts.get(0).workout);
+            if(workouts!=null)cell.setBackground(rounded(CARD2,10,accent));
+            if(inRange) {
+                TextView date=text(Integer.toString(day),14,workouts==null?TEXT:accent,workouts!=null);
+                date.setGravity(Gravity.CENTER);
+                add(cell,date);
+                if(workouts!=null) {
+                    TextView dot=text(workouts.size()>1?"●●":"●",10,accent,true);
+                    dot.setGravity(Gravity.CENTER);
+                    add(cell,dot);
+                    cell.setOnClickListener(v->openCalendarDay(day,workouts));
+                }
+            }
+            GridLayout.LayoutParams lp=new GridLayout.LayoutParams(
+                GridLayout.spec(rowIndex),GridLayout.spec(column,1f));
+            lp.width=0;lp.height=dp(48);
+            lp.setMargins(dp(2),dp(2),dp(2),dp(2));
+            grid.addView(cell,lp);
+        }
+        add(calendarCard,grid);
+        space(content,8);
+        add(content,text("Podsumowanie miesiąca",18,TEXT,true));
+        space(content,7);
+        LinearLayout stats=card(content);
+        summaryLine(stats,"Treningi",count+"  ("+(count-previousCount>=0?"+":"")+(count-previousCount)+" m/m)");
+        summaryLine(stats,"Dni z treningiem",days.size()+" / "+length);
+        summaryLine(stats,"Objętość robocza",weight(volume)+" kg");
+        summaryLine(stats,"Poprzedni miesiąc",weight(previousVolume)+" kg");
+        double delta=previousVolume>0?(volume-previousVolume)*100/previousVolume:0;
+        if(previousVolume>0) {
+            add(stats,text("Zmiana objętości: "+(delta>=0?"+":"")+
+                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",delta)+"%",14,delta>=0?GREEN:AMBER,true));
+        }
+        space(content,7);
+        LinearLayout cadence=card(content);
+        smallLabel(cadence,"REGULARNOŚĆ");
+        space(cadence,8);
+        add(cadence,text(thisWeek+" treningi w ostatnich 7 dniach",19,TEXT,true));
+        space(cadence,5);
+        add(cadence,text("Cel orientacyjny: 3 sesje na tydzień. Dzień na kalendarzu otwiera zapisane treningi.",13,MUTED,false));
+    }
+
+    private void openCalendarDay(int day,java.util.ArrayList<WorkoutDb.Session> sessions) {
+        String[] options=new String[sessions.size()];
+        for(int i=0;i<sessions.size();i++)
+            options[i]=Plan.title(sessions.get(i).workout)+" • "+
+                new SimpleDateFormat("HH:mm",Locale.forLanguageTag("pl-PL")).format(new Date(sessions.get(i).startedAt))+
+                " • "+sessions.get(i).sets+" serii";
+        new AlertDialog.Builder(this)
+            .setTitle(day+"."+(calendarMonth+1)+"."+calendarYear)
+            .setItems(options,(d,idx)->{
+                detailSession=sessions.get(idx).id;
+                page="detail";render();
+            }).setNegativeButton("Zamknij",null).show();
+    }
+
     private WorkoutDb.Entry bestInExercise(List<WorkoutDb.Entry> entries,String exerciseId) {
         WorkoutDb.Entry best=null;
         for(WorkoutDb.Entry entry:entries) {
