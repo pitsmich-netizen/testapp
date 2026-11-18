@@ -32,8 +32,8 @@ assert "RestTimer.reschedule(this)" in main
 assert "RestTimer.finishIfExpired(MainActivity.this)" in main
 assert "showCompletedEditor()" in main
 assert "initialImportAudit(" in main and "initialImportAudit(" in database
-assert 'super(context, "forma_workouts.db", null, 5);' in database
+assert 'super(context, "forma_workouts.db", null, 7);' in database
 assert "db.deleteSession(sessionId)" not in database[database.index("public String initialImportAudit"):database.index("public String sessionNotes")]
-assert "versionCode 7" in read("app/build.gradle")
-assert "versionName '0.6.0'" in read("app/build.gradle")
+assert "versionCode 8" in read("app/build.gradle")
+assert "versionName '0.7.0'" in read("app/build.gradle")
 print("Timer wiring, permissions, safe import audit and database compatibility: OK")
