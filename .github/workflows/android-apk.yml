@@ -23,6 +23,8 @@ jobs:
         run: python3 scripts/verify_forma_07.py
       - name: Validate v0.8 schedule, backup and workout UX
         run: python3 scripts/verify_forma_08.py
+      - name: Validate FBW 1.0 plan and v9 data migration
+        run: python3 scripts/verify_forma_081.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
