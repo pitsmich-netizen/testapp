@@ -1351,9 +1351,16 @@ public final class MainActivity extends Activity {
                 LinearLayout row=row();
                 TextView left=text("Seria "+(entry.setIndex+1),14,MUTED,false);
                 row.addView(left,new LinearLayout.LayoutParams(0,dp(35),1));
-                TextView right=text(weight(entry.weight)+" kg  ×  "+entry.reps,16,TEAL,true);
+                TextView right=text(weight(entry.weight)+" kg × "+entry.reps,16,entry.warmup?AMBER:TEAL,true);
                 row.addView(right);
                 add(current,row);
+                if(entry.warmup||entry.rir>=0||!entry.note.isEmpty()) {
+                    String extra=(entry.warmup?"Rozgrzewka  •  ":"")+
+                        (entry.rir>=0?"RIR "+entry.rir+"  ":"")+
+                        (entry.note.isEmpty()?"":entry.note);
+                    add(current,text(extra,12,MUTED,false));
+                    space(current,5);
+                }
             }
         }
     }
@@ -1513,7 +1520,19 @@ public final class MainActivity extends Activity {
         add(dateCard,note);
         note.setOnClickListener(v->changeWorkoutNote(session));
 
-        for(Plan.Exercise ex:db.workoutPlan(session.workout)) {
+        java.util.ArrayList<Plan.Exercise> historyExercises=new java.util.ArrayList<>(db.workoutPlan(session.workout));
+        java.util.HashSet<String> visible=new java.util.HashSet<>();
+        for(Plan.Exercise e:historyExercises)visible.add(e.id);
+        for(WorkoutDb.Entry entry:db.sets(session.id)) {
+            if(!visible.contains(entry.exerciseId)) {
+                Plan.Exercise original=Plan.byId(entry.exerciseId);
+                if(original!=null) {
+                    historyExercises.add(original);
+                    visible.add(original.id);
+                }
+            }
+        }
+        for(Plan.Exercise ex:historyExercises) {
             LinearLayout c=card(content);
             add(c,text(ex.name,18,TEXT,true));
             space(c,9);
@@ -1522,11 +1541,18 @@ public final class MainActivity extends Activity {
                 if(!entry.exerciseId.equals(ex.id))continue;
                 count++;
                 LinearLayout line=row();
-                TextView value=text((entry.setIndex+1)+".  "+weight(entry.weight)+" kg × "+entry.reps,16,TEXT,true);
+                TextView value=text((entry.setIndex+1)+".  "+weight(entry.weight)+" kg × "+entry.reps+
+                    (entry.warmup?"  ○":""),15,entry.warmup?AMBER:TEXT,true);
                 line.addView(value,new LinearLayout.LayoutParams(0,dp(49),1));
                 Button edit=button("Edytuj",false);
-                line.addView(edit,new LinearLayout.LayoutParams(dp(91),dp(49)));
+                edit.setTextSize(12);
+                line.addView(edit,new LinearLayout.LayoutParams(dp(78),dp(49)));
                 edit.setOnClickListener(v->editSavedSet(session,ex,entry.setIndex,entry));
+                TextView detail=actionLabel("RIR",SKY);
+                detail.setGravity(Gravity.CENTER);
+                detail.setContentDescription("Edytuj RIR, notatkę i rozgrzewkę");
+                line.addView(detail,new LinearLayout.LayoutParams(dp(43),dp(49)));
+                detail.setOnClickListener(v->editSetMetadata(session.id,ex,entry.setIndex,()->render()));
                 TextView remove=text("×",23,MUTED,true);
                 remove.setGravity(Gravity.CENTER);
                 line.addView(remove,new LinearLayout.LayoutParams(dp(43),dp(49)));
