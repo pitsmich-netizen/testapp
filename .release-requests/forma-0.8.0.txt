@@ -1,0 +1,2 @@
+Publish FORMA v0.8.0, versionCode 9, signed using the existing production keystore (same package and certificate). Build release APK forma-v0.8.0.apk and latest.json via GitHub Releases. Include compact set rows, colored per-exercise load increments, undo and PR, drag-and-drop workout schedule with weekday and title customization, custom exercise database, working-set volume multiplier (x1/x2), completion summary and JSON backup v2 compatible with v1.
+Preserve on-device data and OTA behavior. Triggered 2026-11-18.
