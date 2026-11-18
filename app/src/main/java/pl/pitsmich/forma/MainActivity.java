@@ -4,6 +4,10 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.Dialog;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.provider.Settings;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
@@ -60,6 +64,8 @@ public final class MainActivity extends Activity {
     private Updater updater;
     private CloudSync cloud;
     private LinearLayout root, content;
+    private ScrollView contentScroll;
+    private LinearLayout expandedCard;
     private String page="plan";
     private long openSession=-1, detailSession=-1;
     private int openWorkout=Plan.UPPER_A;
@@ -76,15 +82,10 @@ public final class MainActivity extends Activity {
 
     private final Runnable ticker=new Runnable() {
         @Override public void run() {
-            if(timerLabel!=null) {
-                long remaining=Math.max(0,(restUntil-System.currentTimeMillis()+999)/1000);
-                timerLabel.setText(restUntil==0?"00:00":
-                    (remaining>0?formatTime(remaining):"00:00"));
-                if(restUntil>0 && remaining==0) {
-                    restUntil=0;
-                    getSharedPreferences("forma_timer",0).edit().remove("restUntil").apply();
-                }
-            }
+            RestTimer.finishIfExpired(MainActivity.this);
+            restUntil=RestTimer.endTime(MainActivity.this);
+            if(timerLabel!=null)
+                timerLabel.setText(restUntil==0?"00:00":formatTime(RestTimer.secondsRemaining(MainActivity.this)));
             if(elapsedLabel!=null && sessionStartedAt>0) {
                 WorkoutDb.Session active=db.active();
                 if(active!=null) elapsedLabel.setText(formatTime(db.durationMillis(active)/1000));
@@ -100,7 +101,8 @@ public final class MainActivity extends Activity {
         db=new WorkoutDb(this);
         updater=new Updater(this);
         cloud=new CloudSync(this,db);
-        restUntil=getSharedPreferences("forma_timer",0).getLong("restUntil",0);
+        RestTimer.reschedule(this);
+        restUntil=RestTimer.endTime(this);
         if(state!=null) {
             page=state.getString("page","plan");
             openSession=state.getLong("openSession",-1);
@@ -127,6 +129,7 @@ public final class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if(updater!=null) updater.afterPermissionReturn();
+        RestTimer.reschedule(this);
     }
     @Override protected void onDestroy() {
         handler.removeCallbacks(ticker);
@@ -187,7 +190,8 @@ public final class MainActivity extends Activity {
     }
 
     private void render() {
-        timerLabel=null; sessionCount=null; elapsedLabel=null; sessionProgress=null; expandedBody=null; expandedChevron=null;
+        timerLabel=null; sessionCount=null; elapsedLabel=null; sessionProgress=null;
+        expandedBody=null; expandedChevron=null; expandedCard=null; contentScroll=null;
         root=col();
         root.setBackgroundColor(BG);
         root.setPadding(dp(16),dp(9),dp(16),dp(8));
@@ -219,6 +223,7 @@ public final class MainActivity extends Activity {
             else showFixedSessionHeader();
         }
         ScrollView scroll=new ScrollView(this);
+        contentScroll=scroll;
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setFillViewport(true);
         scroll.setClipToPadding(false);
@@ -848,13 +853,18 @@ public final class MainActivity extends Activity {
     }
 
     private void startRest(int seconds) {
-        restUntil=System.currentTimeMillis()+seconds*1000L;
-        getSharedPreferences("forma_timer",0).edit().putLong("restUntil",restUntil).apply();
+        if(Build.VERSION.SDK_INT>=33 && !RestTimer.canNotify(this) &&
+            !getSharedPreferences("forma_timer",0).getBoolean("notifications_asked",false)) {
+            getSharedPreferences("forma_timer",0).edit().putBoolean("notifications_asked",true).apply();
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},6071);
+        }
+        RestTimer.start(this,seconds);
+        restUntil=RestTimer.endTime(this);
         if(timerLabel!=null) timerLabel.setText(formatTime(seconds));
     }
     private void stopRest() {
+        RestTimer.stop(this);
         restUntil=0;
-        getSharedPreferences("forma_timer",0).edit().remove("restUntil").apply();
         if(timerLabel!=null) timerLabel.setText("00:00");
     }
     private String date(long millis) {
