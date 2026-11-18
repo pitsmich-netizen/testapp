@@ -2,7 +2,14 @@
 
 Natywna aplikacja Android dla planu **Góra A / Nogi / Góra B** (3 treningi po około 60 minut), z naciskiem na klatkę i szerokość pleców.
 
-## Funkcje (0.6.0)
+## Funkcje (0.7.0)
+- Edytowalny plan: zamiana i kolejność ćwiczeń, serie, zakres powtórzeń i czas przerw, bez zmian w starej historii.
+- Ustawienia serii: opcjonalny RIR 0–4, notatki, serie rozgrzewkowe nie liczone do rekordów ani objętości.
+- Kalendarz treningów, regularność, objętość oraz porównanie z poprzednim miesiącem.
+- Pełna kopia JSON (bez haseł/tokenów), import łączący sesje, przywracanie edycji i ustawień.
+- Dźwięk końca przerwy z przełącznikiem w ustawieniach.
+- Możliwość zatwierdzenia lub odrzucenia ostrzeżenia o imporcie 18.11 bez usuwania serii.
+- ±2,5 kg i pamięć ostatniej liczby serii oraz ciężaru w obrębie dnia treningowego.
 - Timer przerw działający przy zablokowanym telefonie: systemowe alarmy, powiadomienie i wibracja (za zgodą użytkownika). Dokładność na Androidzie zależy od uprawnienia do dokładnych alarmów i oszczędzania energii.
 - Opcjonalne automatyczne przejście do kolejnego ćwiczenia po wykonaniu wszystkich serii; propozycja nieznacznego zwiększenia ciężaru po uzyskaniu pełnego zakresu powtórzeń.
 - Audyt pierwszego treningu z 18.11.2026: porównanie 18 pierwotnych serii z zapisanymi wpisami bez usuwania danych (np. 24 w historii).
@@ -23,7 +30,7 @@ Natywna aplikacja Android dla planu **Góra A / Nogi / Góra B** (3 treningi po 
 - Timer przerw (autostart po zapisaniu serii; 60 / 90 / 120 s, +15 s, pomiń) oraz licznik czasu sesji.
 - Eksport historii do CSV.
 - **Import notatek:** sesja Góra A z 18.11.2026, 18 serii, z oryginalnymi ciężarami i uwagą „2 linki”.
-- **OTA:** gotowe: najnowsze podpisane wydanie [FORMA 0.6.0](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.6.0), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
+- **OTA:** gotowe: wcześniejsze podpisane wydanie [FORMA 0.6.0](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.6.0), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
 
 ## Kopia treningów w Supabase (opcjonalna)
 - Bez konta FORMA działa w pełni offline.

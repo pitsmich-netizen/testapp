@@ -173,7 +173,7 @@ public final class CloudSync {
         Map<String,String> remoteIds=new HashMap<>();
         Set<String> justDownloaded=new HashSet<>();
         int pulledSessions=0;
-        for(JSONObject remote:allPages("forma_sessions","id,client_id,workout,started_at,finished_at,notes",access)) {
+        for(JSONObject remote:allPages("forma_sessions","id,client_id,workout,started_at,finished_at,notes,audit_resolution",access)) {
             String cloudId=remote.getString("client_id");
             String serverId=remote.getString("id");
             remoteIds.put(cloudId,serverId);
@@ -181,7 +181,8 @@ public final class CloudSync {
             long finished=remote.isNull("finished_at")?0:parseTime(remote.getString("finished_at"));
             if(finished==0) continue; // Do not overwrite or duplicate an active workout.
             if(!db.hasCloudId(cloudId)) {
-                db.insertCloudSession(cloudId,remote.getInt("workout"),started,finished,remote.optString("notes",""));
+                long newId=db.insertCloudSession(cloudId,remote.getInt("workout"),started,finished,remote.optString("notes",""));
+                if(newId>0)db.setAuditResolution(newId,remote.optString("audit_resolution","pending"));
                 justDownloaded.add(cloudId);
                 pulledSessions++;
             }
@@ -191,7 +192,7 @@ public final class CloudSync {
         for(WorkoutDb.Session session:db.completed()) {
             if(session.cloudId!=null) localIds.put(session.cloudId,session.id);
         }
-        List<JSONObject> remoteSets=allPages("forma_sets","session_id,exercise_id,set_index,weight_kg,reps",access);
+        List<JSONObject> remoteSets=allPages("forma_sets","session_id,exercise_id,set_index,weight_kg,reps,rir,note,warmup",access);
         for(JSONObject remote:remoteSets) {
             String remoteSessionId=remote.getString("session_id");
             String cloudId=null;
@@ -202,7 +203,8 @@ public final class CloudSync {
             Long localId=localIds.get(cloudId);
             if(localId==null) continue;
             db.insertCloudSet(localId,remote.getString("exercise_id"),
-                remote.getInt("set_index"),remote.getDouble("weight_kg"),remote.getInt("reps"));
+                remote.getInt("set_index"),remote.getDouble("weight_kg"),remote.getInt("reps"),
+                remote.optInt("rir",-1),remote.optString("note",""),remote.optBoolean("warmup",false));
         }
 
         int uploaded=0;
@@ -217,6 +219,7 @@ public final class CloudSync {
                 body.put("started_at",iso(session.startedAt));
                 body.put("finished_at",iso(session.finishedAt));
                 body.put("notes",session.notes==null?"":session.notes);
+                body.put("audit_resolution",db.auditResolution(session.id));
                 JSONArray res=new JSONArray(request("POST",
                     BASE+"/rest/v1/forma_sessions?on_conflict=user_id,client_id",
                     new JSONArray().put(body).toString(),access,"resolution=merge-duplicates,return=representation"));
@@ -230,6 +233,7 @@ public final class CloudSync {
             edit.put("started_at",iso(session.startedAt));
             edit.put("finished_at",iso(session.finishedAt));
             edit.put("notes",session.notes==null?"":session.notes);
+            edit.put("audit_resolution",db.auditResolution(session.id));
             request("PATCH",BASE+"/rest/v1/forma_sessions?id=eq."+remoteId,
                 edit.toString(),access,"return=minimal");
 
@@ -244,6 +248,9 @@ public final class CloudSync {
                 row.put("set_index",entry.setIndex);
                 row.put("weight_kg",entry.weight);
                 row.put("reps",entry.reps);
+                row.put("rir",entry.rir);
+                row.put("note",entry.note);
+                row.put("warmup",entry.warmup);
                 sets.put(row);
             }
             // Remove sets deleted locally. Only the owning session is ever modified.
