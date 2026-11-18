@@ -57,15 +57,15 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         if(oldVersion<2) {
             db.execSQL("ALTER TABLE sessions ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
-            seedInitialWorkout(db);
         }
-        if(oldVersion<3) seedAdditionalNovemberSets(db);
         if(oldVersion<4) {
             db.execSQL("ALTER TABLE sessions ADD COLUMN cloud_id TEXT");
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_cloud_id ON sessions(cloud_id)");
             db.execSQL("UPDATE sessions SET cloud_id='forma-import-20261118' WHERE notes LIKE 'Import z notatek 18.11.2026%'");
             db.execSQL("UPDATE sessions SET cloud_id=lower(hex(randomblob(16))) WHERE cloud_id IS NULL");
         }
+        if(oldVersion<2) seedInitialWorkout(db);
+        if(oldVersion<3) seedAdditionalNovemberSets(db);
     }
     private void seedAdditionalNovemberSets(SQLiteDatabase sql) {
         try(Cursor c=sql.rawQuery("SELECT id FROM sessions WHERE notes LIKE 'Import z notatek 18.11.2026%' ORDER BY id LIMIT 1",null)) {
