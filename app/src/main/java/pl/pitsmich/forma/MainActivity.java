@@ -240,7 +240,7 @@ public final class MainActivity extends Activity {
         TextView logo=text("FORMA",20,TEAL,true);
         logo.setLetterSpacing(0.10f);
         brand.addView(logo,new LinearLayout.LayoutParams(0,dp(39),1));
-        TextView version=text("0.8.0",12,MUTED,true);
+        TextView version=text("0.8.1",12,MUTED,true);
         version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         brand.addView(version,new LinearLayout.LayoutParams(dp(54),dp(44)));
         TextView gear=text(page.equals("settings")?"‹":"⚙",26,TEAL,true);
@@ -844,7 +844,7 @@ public final class MainActivity extends Activity {
         LinearLayout ota=card(content);
         smallLabel(ota,"AKTUALIZACJE APLIKACJI");
         space(ota,7);
-        add(ota,text("FORMA 0.8.0",20,TEXT,true));
+        add(ota,text("FORMA 0.8.1",20,TEXT,true));
         space(ota,4);
         add(ota,text("Sprawdzanie OTA odbywa się automatycznie przy uruchomieniu.",14,MUTED,false));
         space(ota,12);
