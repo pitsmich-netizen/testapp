@@ -51,15 +51,23 @@ public final class MainActivity extends Activity {
     private int openWorkout=Plan.UPPER_A;
     private String selectedExercise="db_flat";
     private final Handler handler=new Handler(Looper.getMainLooper());
-    private long restUntil=0;
-    private TextView timerLabel, sessionCount;
+    private long restUntil=0, sessionStartedAt=0;
+    private TextView timerLabel, sessionCount, elapsedLabel;
 
     private final Runnable ticker=new Runnable() {
         @Override public void run() {
-            if(timerLabel!=null && restUntil>0) {
+            if(timerLabel!=null) {
                 long remaining=Math.max(0,(restUntil-System.currentTimeMillis()+999)/1000);
-                timerLabel.setText(remaining>0 ? "Przerwa: "+remaining+" s" : "Przerwa zakończona ✓");
-                if(remaining==0) restUntil=0;
+                timerLabel.setText(restUntil==0?"Timer przerwy: gotowy":
+                    (remaining>0?"Przerwa: "+remaining+" s":"Przerwa zakończona ✓"));
+                if(restUntil>0 && remaining==0) {
+                    restUntil=0;
+                    getSharedPreferences("forma_timer",0).edit().remove("restUntil").apply();
+                }
+            }
+            if(elapsedLabel!=null && sessionStartedAt>0) {
+                long secs=Math.max(0,(System.currentTimeMillis()-sessionStartedAt)/1000);
+                elapsedLabel.setText("Czas treningu: "+String.format(Locale.ROOT,"%02d:%02d",secs/60,secs%60));
             }
             handler.postDelayed(this,1000);
         }
@@ -71,6 +79,7 @@ public final class MainActivity extends Activity {
         getWindow().setNavigationBarColor(BG);
         db=new WorkoutDb(this);
         updater=new Updater(this);
+        restUntil=getSharedPreferences("forma_timer",0).getLong("restUntil",0);
         if(state!=null) {
             page=state.getString("page","plan");
             openSession=state.getLong("openSession",-1);
@@ -149,7 +158,7 @@ public final class MainActivity extends Activity {
         return b;
     }
     private void render() {
-        timerLabel=null; sessionCount=null;
+        timerLabel=null; sessionCount=null; elapsedLabel=null;
         root=col(); root.setBackgroundColor(BG);
         root.setPadding(dp(17),dp(15),dp(17),dp(10));
         root.setOnApplyWindowInsetsListener((v,insets)->{
@@ -250,6 +259,7 @@ public final class MainActivity extends Activity {
             return;
         }
         openWorkout=workout;
+        stopRest();
         openSession=db.start(workout);
         page="session";render();
     }
@@ -277,16 +287,52 @@ public final class MainActivity extends Activity {
         b.setOnClickListener(v->{page="plan";render();});space(content,9);
         headline(content,Plan.title(openWorkout));
         add(content,text(Plan.focus(openWorkout),13,MUTED,false));space(content,6);
-        sessionCount=text("Zapisane serie: "+db.countSets(openSession),13,TEAL,true);add(content,sessionCount);
-        timerLabel=text(restUntil>0?"Przerwa trwa":"Przerwa uruchomi się po zapisaniu serii",13,MUTED,false);
-        space(content,5);add(content,timerLabel);space(content,14);
+        sessionCount=text("Zapisane serie: "+db.countSets(openSession),13,TEAL,true);
+        add(content,sessionCount);
+        WorkoutDb.Session currentActive=db.active();
+        sessionStartedAt=(currentActive!=null&&currentActive.id==openSession)?currentActive.startedAt:0;
+        LinearLayout timerCard=card(content);
+        add(timerCard,text("TIMER TRENINGOWY",12,TEAL,true));
+        space(timerCard,7);
+        elapsedLabel=text("Czas treningu: 00:00",16,TEXT,true);
+        add(timerCard,elapsedLabel);
+        space(timerCard,6);
+        timerLabel=text("Timer przerwy: gotowy",17,TEXT,true);
+        add(timerCard,timerLabel);
+        space(timerCard,9);
+        LinearLayout timerRow=row();
+        for(int seconds:new int[]{60,90,120}) {
+            final int secs=seconds;
+            Button timerButton=button(seconds+" s",false);
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(43),1);
+            lp.rightMargin=dp(5);timerRow.addView(timerButton,lp);
+            timerButton.setOnClickListener(v->startRest(secs));
+        }
+        Button plus=button("+15 s",false);
+        timerRow.addView(plus,new LinearLayout.LayoutParams(0,dp(43),1));
+        plus.setOnClickListener(v->{
+            long left=restUntil>System.currentTimeMillis()?restUntil-System.currentTimeMillis():0;
+            startRest((int)(left/1000)+15);
+        });
+        add(timerCard,timerRow);
+        space(timerCard,5);
+        Button skip=button("Zatrzymaj / pomiń przerwę",false);
+        add(timerCard,skip);
+        skip.setOnClickListener(v->stopRest());
+        space(content,3);
 
         for(Plan.Exercise ex:Plan.exercises(openWorkout)) {
             LinearLayout c=card(content);
             add(c,text(ex.name,17,TEXT,true)); space(c,5);
             add(c,text(ex.goal(),12,TEAL,true)); space(c,7);
             add(c,text(ex.description,13,MUTED,false)); space(c,12);
-            for(int i=0;i<ex.sets;i++) addSetRow(c,ex,i);
+            LinearLayout rows=col();
+            add(c,rows);
+            final int[] setNumber={db.setRows(openSession,ex.id,ex.sets)};
+            for(int i=0;i<setNumber[0];i++) addSetRow(rows,ex,i);
+            Button addExtra=button("+ Dodaj serię",false);
+            add(c,addExtra);
+            addExtra.setOnClickListener(v->addSetRow(rows,ex,setNumber[0]++));
         }
         Button finish=button("Zakończ i zapisz trening",true);
         add(content,finish);
@@ -296,7 +342,7 @@ public final class MainActivity extends Activity {
                 .setMessage("Zapisane serie zostaną zachowane w historii. Możesz pominąć niewykonane serie.")
                 .setNegativeButton("Jeszcze nie",null)
                 .setPositiveButton("Zakończ",(d,w)->{
-                    db.finish(openSession);openSession=-1;restUntil=0;page="history";render();
+                    db.finish(openSession);openSession=-1;stopRest();page="history";render();
                 }).show();
         });
     }
@@ -333,8 +379,7 @@ public final class MainActivity extends Activity {
                 save.setText("Zmień");save.setTextColor(TEXT);
                 save.setBackgroundTintList(ColorStateList.valueOf(CARD2));
                 if(sessionCount!=null)sessionCount.setText("Zapisane serie: "+db.countSets(openSession));
-                restUntil=System.currentTimeMillis()+ex.restSeconds*1000L;
-                if(timerLabel!=null)timerLabel.setText("Przerwa: "+ex.restSeconds+" s");
+                startRest(ex.restSeconds);
                 Toast.makeText(this,"Seria "+(index+1)+" zapisana ✓",Toast.LENGTH_SHORT).show();
             } catch(Exception ignored) {
                 Toast.makeText(this,"Wpisz poprawny ciężar i liczbę powtórzeń",Toast.LENGTH_LONG).show();
@@ -353,6 +398,16 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void startRest(int seconds) {
+        restUntil=System.currentTimeMillis()+seconds*1000L;
+        getSharedPreferences("forma_timer",0).edit().putLong("restUntil",restUntil).apply();
+        if(timerLabel!=null) timerLabel.setText("Przerwa: "+seconds+" s");
+    }
+    private void stopRest() {
+        restUntil=0;
+        getSharedPreferences("forma_timer",0).edit().remove("restUntil").apply();
+        if(timerLabel!=null) timerLabel.setText("Timer przerwy: gotowy");
+    }
     private String date(long millis) {
         return DateFormat.getDateTimeInstance(DateFormat.MEDIUM,DateFormat.SHORT,Locale.forLanguageTag("pl-PL"))
                 .format(new Date(millis));
@@ -373,9 +428,11 @@ public final class MainActivity extends Activity {
         for(WorkoutDb.Session s:list) {
             LinearLayout c=card(content);
             add(c,text(Plan.title(s.workout),18,TEXT,true));space(c,4);
-            add(c,text(date(s.startedAt),13,MUTED,false));space(c,5);
-            long mins=Math.max(1,(s.finishedAt-s.startedAt)/60000);
-            add(c,text(s.sets+" serii • "+mins+" min • "+weight(s.volume)+" kg objętości",13,TEAL,false));
+            boolean imported=s.notes!=null&&!s.notes.isEmpty();
+            String when=imported?new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL")).format(new Date(s.startedAt))+" • Z notatek":date(s.startedAt);
+            add(c,text(when,13,MUTED,false));space(c,5);
+            long mins=Math.max(0,(s.finishedAt-s.startedAt)/60000);
+            add(c,text(s.sets+" serii • "+(imported?"czas nieznany":mins+" min")+" • "+weight(s.volume)+" kg objętości",13,TEAL,false));
             space(c,9);
             Button details=button("Zobacz zapisane serie",false);add(c,details);
             details.setOnClickListener(v->{detailSession=s.id;page="detail";render();});
@@ -385,6 +442,8 @@ public final class MainActivity extends Activity {
         TextView back=text("‹  Wróć do historii",14,TEAL,true);add(content,back);
         back.setOnClickListener(v->{page="history";render();});space(content,12);
         headline(content,"Zapisane serie");
+        String notes=db.sessionNotes(detailSession);
+        if(notes!=null&&!notes.isEmpty()) {add(content,text(notes,13,TEAL,false));space(content,10);}
         List<WorkoutDb.Entry> entries=db.sets(detailSession);
         if(entries.isEmpty()) {add(content,text("Nie zapisano serii.",14,MUTED,false));return;}
         String last="";
