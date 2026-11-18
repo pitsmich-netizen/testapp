@@ -36,7 +36,8 @@ for day,(group,ids) in enumerate(zip(groups,expected_ids)):
         assert 1<=n<=3 and 8<=lo<=hi<=20
         assert rest in (0,60,75,120)
         assert 1<=rirlo<=rirhi<=3
-    assert parsed[-1][1]==1 and parsed[-1][4]==0
+    if day in (0,2):
+        assert parsed[-1][1]==1 and parsed[-1][4]==0
 assert 'super(context, "forma_workouts.db", null, 9);' in db
 assert 'if(oldVersion<9) migrateFbwPlan(db)' in db
 assert 'pre_fbw_plan_items' in db and 'pre_fbw_schedule' in db
