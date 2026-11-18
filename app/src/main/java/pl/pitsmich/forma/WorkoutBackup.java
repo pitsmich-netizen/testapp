@@ -98,7 +98,7 @@ public final class WorkoutBackup {
         return "Sesje: "+sessions.length()+"\nSerie: "+entries+
             "\nPlany treningowe: "+backup.optJSONArray("plans").length()+
             "\n\nImport połączy brakujące treningi z historią na telefonie. "+
-            "Istniejące sesje o tych samych identyfikatorach zostaną pominięte. "+
+            "Istniejące sesje zostaną pominięte, poza początkowym importem 18.11, który zostanie zastąpiony Twoją kopią. "+
             "Plany i preferencje aplikacji zostaną przywrócone z kopii. "+
             "Nie usuwa to istniejących treningów.";
     }
