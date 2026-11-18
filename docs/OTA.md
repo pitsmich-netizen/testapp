@@ -10,14 +10,23 @@ Kod źródłowy pozostaje na GitHubie, a nową wersję udostępniamy jako GitHub
 
 **Uwaga: sam klient OTA jest gotowy, ale automatyczne aktualizacje nie zadziałają, dopóki nie zostanie opublikowana pierwsza poprawnie podpisana wersja release.** Aktualne `app-debug.apk` jest do testów; nie jest podstawą bezproblemowych aktualizacji.
 
+## Stan klucza podpisywania (18.11.2026)
+
+Klucz podpisywania FORMA został już wygenerowany i bezpiecznie zapisany w **Supabase Vault** projektu `Retail QR Backend`. Nazwy dwóch sekretów:
+
+- `forma_android_signing_keystore_b64` — zaszyfrowana kopia keystore w Base64,
+- `forma_android_signing_password` — hasło keystore i klucza.
+
+Obie wartości są dostępne tylko dla administracyjnych operacji projektu. **Nie kopiuj ich do repozytorium, issue ani rozmowy.** Po stronie GitHub skonfiguruj sekrety Actions wskazane niżej. Nie ma obecnie automatycznego transferu danych z Vault do GitHub Actions. Po konfiguracji zachowaj również własną bezpieczną kopię klucza.
+
 ## Jednorazowe przygotowanie podpisywania
 
-1. Utwórz **prywatny** klucz do aplikacji na swoim komputerze (JDK):
+1. Klucz **już istnieje w Supabase Vault**. Jeśli potrzebujesz odrębnego klucza w przyszłości, użyj jednego trwałego keystore; przykładowa komenda (NIE wykonuj jej ponownie dla obecnej aplikacji):
    ```bash
    keytool -genkeypair -v -keystore forma-release.jks -alias forma -keyalg RSA -keysize 3072 -validity 10000
    ```
-   Zapisz hasła poza repozytorium i zrób bezpieczną kopię `forma-release.jks`. Bez tego klucza nie da się podpisać kompatybilnych aktualizacji.
-2. W GitHub `testapp → Settings → Secrets and variables → Actions` dodaj cztery sekrety:
+   Do kolejnych aktualizacji korzystaj z **obecnego klucza**, a nie z nowego. Zrób jego bezpieczną kopię poza repozytorium.
+2. W GitHub `testapp → Settings → Secrets and variables → Actions` dodaj cztery sekrety. Dane dwóch pierwszych sekretów odczytaj wyłącznie z Supabase Vault:
    - `FORMA_KEYSTORE_BASE64` — zawartość pliku `forma-release.jks` zakodowana Base64 w **jednym wierszu**
    - `FORMA_KEYSTORE_PASSWORD` — hasło magazynu kluczy
    - `FORMA_KEY_ALIAS` — `forma`
