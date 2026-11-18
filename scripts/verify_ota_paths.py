@@ -10,7 +10,7 @@ paths = ET.parse(ROOT / "app/src/main/res/xml/update_paths.xml").getroot()
 manifest = ET.parse(ROOT / "app/src/main/AndroidManifest.xml").getroot()
 ns = "{http://schemas.android.com/apk/res/android}"
 
-cache_entries = [(x.attrib.get(ns + "name"), x.attrib.get(ns + "path"))
+cache_entries = [(x.attrib.get("name"), x.attrib.get("path"))
                  for x in paths.findall("cache-path")]
 assert cache_entries == [("ota_updates", "updates/")], (
     f"FileProvider must expose ONLY cache/updates/: {cache_entries}")
