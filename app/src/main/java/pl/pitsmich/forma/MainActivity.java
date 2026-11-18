@@ -44,6 +44,7 @@ public final class MainActivity extends Activity {
     private static final int EXPORT_REQUEST=1901;
 
     private WorkoutDb db;
+    private Updater updater;
     private LinearLayout root, content;
     private String page="plan";
     private long openSession=-1, detailSession=-1;
@@ -69,6 +70,7 @@ public final class MainActivity extends Activity {
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
         db=new WorkoutDb(this);
+        updater=new Updater(this);
         if(state!=null) {
             page=state.getString("page","plan");
             openSession=state.getLong("openSession",-1);
@@ -78,6 +80,7 @@ public final class MainActivity extends Activity {
         }
         render();
         handler.post(ticker);
+        updater.check(false);
     }
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putString("page",page);
@@ -86,6 +89,10 @@ public final class MainActivity extends Activity {
         state.putLong("detailSession",detailSession);
         state.putString("selectedExercise",selectedExercise);
         super.onSaveInstanceState(state);
+    }
+    @Override protected void onResume() {
+        super.onResume();
+        if(updater!=null) updater.afterPermissionReturn();
     }
     @Override protected void onDestroy() {
         handler.removeCallbacks(ticker);
@@ -202,6 +209,20 @@ public final class MainActivity extends Activity {
             add(resume,b);
             b.setOnClickListener(v->{openSession=active.id;openWorkout=active.workout;page="session";render();});
         }
+        LinearLayout ota=card(content);
+        add(ota,text("AKTUALIZACJE OTA",12,TEAL,true));
+        space(ota,7);
+        add(ota,text(updater.feed().isEmpty()
+            ? "Kanał aktualizacji nie jest jeszcze skonfigurowany"
+            : "Sprawdzanie automatyczne raz dziennie",12,MUTED,false));
+        space(ota,9);
+        Button check=button("Sprawdź aktualizacje",true);
+        add(ota,check);
+        check.setOnClickListener(v->updater.check(true));
+        space(ota,5);
+        Button config=button("Ustawienia kanału OTA",false);
+        add(ota,config);
+        config.setOnClickListener(v->updater.configure());
         String[] days={"PONIEDZIAŁEK","ŚRODA","PIĄTEK"};
         for(int w=0;w<3;w++) {
             final int workout=w;
