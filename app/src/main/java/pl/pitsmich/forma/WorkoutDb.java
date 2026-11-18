@@ -417,14 +417,13 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     }
     /** Only suggest progression after ALL planned working sets hit the rep ceiling at one weight. */
     public String progressionTip(Plan.Exercise exercise) {
-        String q="SELECT COUNT(*),MIN(e.reps),MIN(e.weight),MAX(e.weight) " +
-            "FROM exercise_sets e JOIN sessions s ON s.id=e.session_id " +
-            "WHERE e.exercise_id=? AND e.warmup=0 AND e.set_index<? AND s.id=(" +
-            "SELECT x.id FROM sessions x JOIN exercise_sets y ON y.session_id=x.id " +
-            "WHERE y.exercise_id=? AND x.finished_at IS NOT NULL " +
-            "ORDER BY x.started_at DESC,x.id DESC LIMIT 1)";
+        String q="SELECT COUNT(*),MIN(reps),MIN(weight),MAX(weight) FROM (" +
+            "SELECT e.reps,e.weight FROM exercise_sets e WHERE e.exercise_id=? AND e.warmup=0 " +
+            "AND e.session_id=(SELECT x.id FROM sessions x JOIN exercise_sets y ON y.session_id=x.id " +
+            "WHERE y.exercise_id=? AND y.warmup=0 AND x.finished_at IS NOT NULL " +
+            "ORDER BY x.started_at DESC,x.id DESC LIMIT 1) ORDER BY e.set_index ASC LIMIT ?)";
         try(Cursor c=getReadableDatabase().rawQuery(q,new String[]{
-                exercise.id,Integer.toString(exercise.sets),exercise.id})) {
+                exercise.id,exercise.id,Integer.toString(exercise.sets)})) {
             if(!c.moveToFirst() || c.getInt(0)<exercise.sets ||
                 c.isNull(2) || c.getInt(1)<exercise.maxReps ||
                 Math.abs(c.getDouble(2)-c.getDouble(3))>0.001) return null;
@@ -462,7 +461,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         ArrayList<Session> result=new ArrayList<>();
         String q="SELECT s.id,s.workout,s.started_at,s.finished_at,COUNT(e.set_index),COALESCE(SUM(e.weight*e.reps),0),s.notes,s.cloud_id,s.paused_at,s.paused_total_ms " +
                 "FROM sessions s LEFT JOIN exercise_sets e ON e.session_id=s.id WHERE s.finished_at IS NOT NULL " +
-                "GROUP BY s.id ORDER BY s.started_at DESC LIMIT 100";
+                "GROUP BY s.id ORDER BY s.started_at DESC";
         try(Cursor c=getReadableDatabase().rawQuery(q,null)) {
             while(c.moveToNext())
                 result.add(new Session(c.getLong(0),c.getInt(1),c.getLong(2),c.getLong(3),c.getInt(4),c.getDouble(5),c.getString(6),c.getString(7),c.isNull(8)?0:c.getLong(8),c.getLong(9)));
