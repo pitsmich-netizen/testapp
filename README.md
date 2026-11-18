@@ -25,21 +25,21 @@ Natywna aplikacja Android dla planu **Góra A / Nogi / Góra B** (3 treningi po 
 - Kompletny plan 3 dni z opisami ćwiczeń, liczbą serii, zakresem powtórzeń i przerwami.
 - Zapis ciężaru i powtórzeń **w każdej serii**; sugestie na podstawie ostatniej wykonanej sesji.
 - Dodatkowe serie ponad plan, korekta zapisanej serii, usuwanie przez dłuższe przytrzymanie „Zmień”.
-- Zapisywanie lokalnie w SQLite, bez konta i bez zdalnego przechowywania danych treningowych.
+- Zapisywanie lokalnie w SQLite, bez konieczności logowania. Synchronizacja z chmurą jest opcjonalna.
 - Historia treningów, podgląd serii i progres poszczególnych ćwiczeń.
 - Timer przerw (autostart po zapisaniu serii; 60 / 90 / 120 s, +15 s, pomiń) oraz licznik czasu sesji.
 - Eksport historii do CSV.
 - **Import notatek:** sesja Góra A z 18.11.2026, 18 serii, z oryginalnymi ciężarami i uwagą „2 linki”.
-- **OTA:** gotowe: wcześniejsze podpisane wydanie [FORMA 0.6.0](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.6.0), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
+- **OTA:** gotowe: najnowsze podpisane wydanie [FORMA 0.7.0](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.7.0), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
 
 ## Kopia treningów w Supabase (opcjonalna)
 - Bez konta FORMA działa w pełni offline.
-- Gdy potrzebujesz kopii w chmurze, na ekranie głównym wybierz **Zaloguj się / utwórz konto**.
+- Gdy potrzebujesz kopii w chmurze, w **Ustawieniach** wybierz **Zaloguj się / utwórz konto**.
 - Rejestracja konta może wymagać potwierdzenia wiadomości e-mail.
 - Po zalogowaniu możesz ręcznie zsynchronizować sesje; synchronizacja uruchamia się także po zakończeniu kolejnego treningu.
 - Twoje dane przechowujemy w tabelach `public.forma_sessions` i `public.forma_sets`, z **RLS i powiązaniem z auth.uid()**.
 - Token logowania jest zaszyfrowany lokalnie kluczem z Android Keystore; aplikacja nie posiada klucza `service_role`.
-- Synchronizacja jest wersją wstępną (głównie kopia/odtwarzanie). Usunięcia serii nie są jeszcze synchronizowane między urządzeniami. Zalecamy obsługę jednego telefonu na raz.
+- Synchronizacja obejmuje ukończone sesje i serie (również zmiany/usunięcia, RIR, notatki, rozgrzewki i status audytu). Nie testowano jeszcze pełnego scenariusza logowania i przywracania na drugim fizycznym telefonie, dlatego zachowuj też plik JSON.\n- Własne plany i ustawienia telefonu nie są jeszcze synchronizowane automatycznie z Supabase — do pełnego przeniesienia użyj [kopii JSON](docs/BACKUP.md).
 - Supabase ma w projekcie Retail QR osobne tabele — nie zmieniamy ich.
 
 ## Prywatność
