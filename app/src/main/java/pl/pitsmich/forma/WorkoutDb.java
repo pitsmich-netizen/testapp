@@ -165,6 +165,14 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             return new Entry(exercise,index,c.getDouble(0),c.getInt(1));
         }
     }
+    public int countExerciseSets(long session,String exercise) {
+        try(Cursor c=getReadableDatabase().rawQuery(
+                "SELECT COUNT(*) FROM exercise_sets WHERE session_id=? AND exercise_id=?",
+                new String[]{Long.toString(session),exercise})) {
+            return c.moveToFirst()?c.getInt(0):0;
+        }
+    }
+
     public int countSets(long session) {
         try(Cursor c=getReadableDatabase().rawQuery("SELECT COUNT(*) FROM exercise_sets WHERE session_id=?",
                 new String[]{Long.toString(session)})) {
