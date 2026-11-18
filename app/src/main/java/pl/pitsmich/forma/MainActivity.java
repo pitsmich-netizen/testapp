@@ -732,103 +732,136 @@ public final class MainActivity extends Activity {
         return DateFormat.getDateTimeInstance(DateFormat.MEDIUM,DateFormat.SHORT,Locale.forLanguageTag("pl-PL"))
                 .format(new Date(millis));
     }
+
     private void showHistory() {
+        space(content,8);
         headline(content,"Historia treningów");
-        Button export=button("Eksportuj zapisane serie do CSV",false);
-        add(content,export);space(content,13);
-        export.setOnClickListener(v->exportCsv());
+        add(content,text("Twoje zapisane sesje",15,MUTED,false));
+        space(content,16);
         List<WorkoutDb.Session> list=db.completed();
         if(list.isEmpty()) {
-            LinearLayout c=card(content);
-            add(c,text("Nie ma jeszcze zakończonych treningów.",16,TEXT,true));
-            space(c,5);
-            add(c,text("Otwórz Plan, wykonaj sesję i zapisz serie.",13,MUTED,false));
+            LinearLayout empty=card(content);
+            add(empty,text("Jeszcze nie masz zakończonych sesji.",18,TEXT,true));
+            space(empty,9);
+            add(empty,text("Wybierz dzień z zakładki Plan i zapisz pierwsze serie.",15,MUTED,false));
             return;
         }
-        for(WorkoutDb.Session s:list) {
+        for(WorkoutDb.Session session:list) {
             LinearLayout c=card(content);
-            add(c,text(Plan.title(s.workout),18,TEXT,true));space(c,4);
-            boolean imported=s.notes!=null&&!s.notes.isEmpty();
-            String when=imported?new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL")).format(new Date(s.startedAt))+" • Z notatek":date(s.startedAt);
-            add(c,text(when,13,MUTED,false));space(c,5);
-            long mins=Math.max(0,(s.finishedAt-s.startedAt)/60000);
-            add(c,text(s.sets+" serii • "+(imported?"czas nieznany":mins+" min")+" • "+weight(s.volume)+" kg objętości",13,TEAL,false));
-            space(c,9);
-            Button details=button("Zobacz zapisane serie",false);add(c,details);
-            details.setOnClickListener(v->{detailSession=s.id;page="detail";render();});
-        }
-    }
-    private void showDetail() {
-        TextView back=text("‹  Wróć do historii",14,TEAL,true);add(content,back);
-        back.setOnClickListener(v->{page="history";render();});space(content,12);
-        headline(content,"Zapisane serie");
-        String notes=db.sessionNotes(detailSession);
-        if(notes!=null&&!notes.isEmpty()) {add(content,text(notes,13,TEAL,false));space(content,10);}
-        List<WorkoutDb.Entry> entries=db.sets(detailSession);
-        if(entries.isEmpty()) {add(content,text("Nie zapisano serii.",14,MUTED,false));return;}
-        String last="";
-        for(WorkoutDb.Entry e:entries) {
-            if(!last.equals(e.exerciseId)) {
-                Plan.Exercise ex=Plan.byId(e.exerciseId);
-                space(content,10);
-                add(content,text(ex==null?e.exerciseId:ex.name,16,TEXT,true));
-                last=e.exerciseId;
-            }
-            add(content,text("Seria "+(e.setIndex+1)+": "+weight(e.weight)+" kg × "+e.reps,14,MUTED,false));
-            space(content,4);
+            smallLabel(c,Plan.title(session.workout));
+            space(c,6);
+            boolean imported=session.notes!=null&&!session.notes.isEmpty();
+            String when=imported?
+                new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL")).format(new Date(session.startedAt))+" • import":
+                date(session.startedAt);
+            add(c,text(when,18,TEXT,true));
+            space(c,12);
+            summaryLine(c,"Zapisane serie",Integer.toString(session.sets));
+            long mins=Math.max(0,(session.finishedAt-session.startedAt)/60000);
+            summaryLine(c,"Czas",imported?"Nieznany":mins+" min");
+            space(c,10);
+            Button details=button("Zobacz wszystkie serie →",false);
+            add(c,details);
+            details.setOnClickListener(v->{detailSession=session.id;page="detail";render();});
         }
     }
 
-    private void showProgress() {
-        headline(content,"Twój progres");
-        add(content,text("Sprawdź ciężar i powtórzenia w kolejnych sesjach danego ćwiczenia.",13,MUTED,false));
-        space(content,15);
-        List<Plan.Exercise> exercises=Plan.uniqueExercises();
-        String[] names=new String[exercises.size()];
-        int position=0;
-        for(int i=0;i<exercises.size();i++) {
-            names[i]=exercises.get(i).name;
-            if(exercises.get(i).id.equals(selectedExercise))position=i;
+    private void showDetail() {
+        TextView back=text("‹  Wróć do historii",15,TEAL,true);
+        add(content,back);
+        back.setOnClickListener(v->{page="history";render();});
+        space(content,13);
+        headline(content,"Zapisane serie");
+        String notes=db.sessionNotes(detailSession);
+        if(notes!=null&&!notes.isEmpty()) {
+            LinearLayout c=card(content);
+            add(c,text(notes,14,MUTED,false));
         }
-        Spinner spinner=new Spinner(this);
-        ArrayAdapter<String> adapter=new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,names);
-        spinner.setAdapter(adapter);spinner.setSelection(position);
-        add(content,spinner);space(content,14);
-        LinearLayout results=col();add(content,results);
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent,View view,int selected,long id) {
-                selectedExercise=exercises.get(selected).id;
-                drawProgress(results,selectedExercise);
+        List<WorkoutDb.Entry> entries=db.sets(detailSession);
+        if(entries.isEmpty()) {
+            add(content,text("Nie zapisano żadnych serii.",15,MUTED,false));
+            return;
+        }
+        String previous="";
+        LinearLayout current=null;
+        for(WorkoutDb.Entry entry:entries) {
+            if(!previous.equals(entry.exerciseId)) {
+                Plan.Exercise ex=Plan.byId(entry.exerciseId);
+                current=card(content);
+                add(current,text(ex==null?entry.exerciseId:ex.name,18,TEXT,true));
+                space(current,10);
+                previous=entry.exerciseId;
             }
-            @Override public void onNothingSelected(AdapterView<?> parent) { }
-        });
+            if(current!=null) {
+                LinearLayout row=row();
+                TextView left=text("Seria "+(entry.setIndex+1),14,MUTED,false);
+                row.addView(left,new LinearLayout.LayoutParams(0,dp(35),1));
+                TextView right=text(weight(entry.weight)+" kg  ×  "+entry.reps,16,TEAL,true);
+                row.addView(right);
+                add(current,row);
+            }
+        }
+    }
+
+
+    private void showProgress() {
+        space(content,8);
+        headline(content,"Progres");
+        add(content,text("Porównaj wyniki z poprzednich treningów",15,MUTED,false));
+        space(content,17);
+        List<Plan.Exercise> exercises=Plan.uniqueExercises();
+        String[] options=new String[exercises.size()];
+        String display="";
+        for(int i=0;i<exercises.size();i++) {
+            options[i]=exercises.get(i).name;
+            if(exercises.get(i).id.equals(selectedExercise)) display=options[i];
+        }
+        LinearLayout selector=card(content);
+        smallLabel(selector,"ĆWICZENIE");
+        space(selector,7);
+        Button choose=button((display.isEmpty()?"Wybierz ćwiczenie":display)+"  ⌄",false);
+        add(selector,choose);
+        choose.setOnClickListener(v->new AlertDialog.Builder(this)
+            .setTitle("Wybierz ćwiczenie")
+            .setItems(options,(dialog,index)->{
+                selectedExercise=exercises.get(index).id;
+                render();
+            }).show());
+        LinearLayout results=col();
+        add(content,results);
         drawProgress(results,selectedExercise);
     }
+
     private void drawProgress(LinearLayout target,String ex) {
         target.removeAllViews();
         List<WorkoutDb.Progress> list=db.progress(ex);
         if(list.isEmpty()) {
-            LinearLayout c=card(target);
-            add(c,text("Brak zapisanych wyników",16,TEXT,true));
-            space(c,6);
-            add(c,text("Wykonaj ćwiczenie w treningu, żeby zobaczyć progres.",13,MUTED,false));
+            LinearLayout empty=card(target);
+            add(empty,text("Brak zapisanych wyników",18,TEXT,true));
+            space(empty,9);
+            add(empty,text("Wykonaj to ćwiczenie w treningu, a pojawią się tutaj ciężary i powtórzenia.",15,MUTED,false));
             return;
         }
         WorkoutDb.Progress latest=list.get(0);
-        LinearLayout top=card(target);
-        add(top,text("OSTATNI TRENING",12,TEAL,true));
-        space(top,7);
-        add(top,text(weight(latest.maxWeight)+" kg × "+latest.repsAtMax,26,TEXT,true));
-        add(top,text("Najcięższa zapisana seria • "+date(latest.date),12,MUTED,false));
-        space(target,5);
-        add(target,text("Historia ćwiczenia",18,TEXT,true));space(target,9);
-        for(int i=0;i<Math.min(list.size(),15);i++) {
-            WorkoutDb.Progress p=list.get(i);
+        LinearLayout hero=card(target);
+        smallLabel(hero,"OSTATNIO");
+        space(hero,8);
+        add(hero,text(weight(latest.maxWeight)+" kg",29,TEXT,true));
+        space(hero,3);
+        add(hero,text("× "+latest.repsAtMax+" powtórzeń  •  najlepsza seria",15,TEAL,true));
+        space(hero,5);
+        add(hero,text(date(latest.date),13,MUTED,false));
+        space(target,6);
+        add(target,text("Poprzednie sesje",20,TEXT,true));
+        space(target,10);
+        for(int i=0;i<Math.min(list.size(),20);i++) {
+            WorkoutDb.Progress entry=list.get(i);
             LinearLayout c=card(target);
-            add(c,text(date(p.date),13,MUTED,false));space(c,6);
-            add(c,text(weight(p.maxWeight)+" kg × "+p.repsAtMax+" powt.",18,TEXT,true));
-            space(c,3);
-            add(c,text(p.numberOfSets+" serii • "+p.totalReps+" powtórzeń łącznie",12,TEAL,false));
+            add(c,text(date(entry.date),14,MUTED,false));
+            space(c,7);
+            add(c,text(weight(entry.maxWeight)+" kg  ×  "+entry.repsAtMax,19,TEXT,true));
+            space(c,4);
+            add(c,text(entry.numberOfSets+" serii  •  "+entry.totalReps+" powt. łącznie",13,TEAL,false));
         }
     }
 
