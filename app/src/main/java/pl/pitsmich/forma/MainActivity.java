@@ -681,9 +681,20 @@ public final class MainActivity extends Activity {
             LinearLayout body=col();
             boolean expanded=expandedExerciseId.equals(ex.id);
             body.setVisibility(expanded?View.VISIBLE:View.GONE);
-            if(expanded) {expandedBody=body;expandedChevron=chevron;}
+            if(expanded) {
+                expandedBody=body;
+                expandedChevron=chevron;
+                expandedCard=c;
+            }
             space(body,13);
             add(body,text(ex.goal(),14,TEAL,true));
+            String tip=db.progressionTip(ex);
+            if(tip!=null) {
+                space(body,8);
+                TextView suggestion=text("↗  "+tip,13,GREEN,false);
+                suggestion.setLineSpacing(dp(3),1f);
+                add(body,suggestion);
+            }
             space(body,9);
             TextView desc=text(ex.description,15,MUTED,false);
             desc.setLineSpacing(dp(3),1f);
@@ -713,6 +724,7 @@ public final class MainActivity extends Activity {
                     body.setVisibility(View.VISIBLE);
                     chevron.setText("⌃");
                     expandedBody=body;expandedChevron=chevron;
+                    expandedCard=c;
                 }
             });
         }
@@ -726,6 +738,24 @@ public final class MainActivity extends Activity {
         pause.setTextColor(AMBER);
         add(content,pause);
         pause.setOnClickListener(v->pauseWorkout());
+    }
+
+    private void advanceAfterLastSet(Plan.Exercise current) {
+        if(openSession<0 || !getSharedPreferences("forma_settings",0).getBoolean("auto_next",true))
+            return;
+        if(db.countExerciseSets(openSession,current.id)!=current.sets)return;
+        List<Plan.Exercise> exercises=Plan.exercises(openWorkout);
+        for(int i=0;i<exercises.size()-1;i++) {
+            if(!exercises.get(i).id.equals(current.id))continue;
+            expandedExerciseId=exercises.get(i+1).id;
+            render();
+            if(contentScroll!=null && expandedCard!=null) {
+                ScrollView scroll=contentScroll;
+                LinearLayout card=expandedCard;
+                scroll.post(()->scroll.smoothScrollTo(0,Math.max(0,card.getTop()-dp(10))));
+            }
+            return;
+        }
     }
 
     private void addSetRow(LinearLayout target,Plan.Exercise ex,int index,TextView exerciseStatus) {
@@ -806,6 +836,7 @@ public final class MainActivity extends Activity {
                 updateSessionProgress();
                 if(first)startRest(ex.restSeconds);
                 Toast.makeText(this,"Seria zapisana ✓",Toast.LENGTH_SHORT).show();
+                if(first) advanceAfterLastSet(ex);
             } catch(Exception invalid) {
                 Toast.makeText(this,"Sprawdź ciężar i liczbę powtórzeń",Toast.LENGTH_LONG).show();
             }
