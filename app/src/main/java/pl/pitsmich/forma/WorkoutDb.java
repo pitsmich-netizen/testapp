@@ -428,9 +428,12 @@ public final class WorkoutDb extends SQLiteOpenHelper {
                 c.isNull(2) || c.getInt(1)<exercise.maxReps ||
                 Math.abs(c.getDouble(2)-c.getDouble(3))>0.001) return null;
             double weight=c.getDouble(2);
-            return "Ostatnio komplet serii po "+exercise.maxReps+" powt. przy "+
+            double step=exercise.id.contains("lateral")||exercise.id.equals("facepull")?1.0:2.5;
+            return "Komplet serii po "+exercise.maxReps+" powt. przy "+
                 String.format(Locale.forLanguageTag("pl-PL"),"%.1f",weight)+
-                " kg. Jeśli technika jest stabilna, spróbuj niewielkiego zwiększenia ciężaru.";
+                " kg. Następnym razem spróbuj "+
+                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",weight+step)+
+                " kg, jeśli technika i dostępne obciążenia na to pozwalają.";
         }
     }
 
