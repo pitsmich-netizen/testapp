@@ -11,7 +11,7 @@ Natywna aplikacja Android dla planu **Góra A / Nogi / Góra B** (3 treningi po 
 - Timer przerw (autostart po zapisaniu serii; 60 / 90 / 120 s, +15 s, pomiń) oraz licznik czasu sesji.
 - Eksport historii do CSV.
 - **Import notatek:** sesja Góra A z 18.11.2026, 18 serii, z oryginalnymi ciężarami i uwagą „2 linki”.
-- **OTA:** sprawdzanie nowych wersji z publicznych GitHub Releases. Wymagane jednokrotne bezpieczne skonfigurowanie podpisywania APK i opublikowanie pierwszego podpisanego wydania.
+- **OTA:** gotowe: oficjalne podpisane wydanie [FORMA 0.2.0](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.2.0), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
 
 ## Kopia treningów w Supabase (opcjonalna)
 - Bez konta FORMA działa w pełni offline.
