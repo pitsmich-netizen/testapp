@@ -2,9 +2,13 @@ package pl.pitsmich.forma;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.DatePickerDialog;
+import android.app.Dialog;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -31,17 +35,18 @@ import java.io.OutputStreamWriter;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 
 public final class MainActivity extends Activity {
-    private static final int BG=Color.rgb(10,17,22);
-    private static final int CARD=Color.rgb(25,38,46);
-    private static final int CARD2=Color.rgb(35,52,61);
+    private static final int BG=Color.BLACK;
+    private static final int CARD=Color.rgb(18,18,18);
+    private static final int CARD2=Color.rgb(28,28,28);
     private static final int TEAL=Color.rgb(99,229,198);
     private static final int TEXT=Color.rgb(250,253,255);
-    private static final int MUTED=Color.rgb(194,209,216);
-    private static final int BORDER=Color.rgb(66,86,97);
+    private static final int MUTED=Color.rgb(198,198,198);
+    private static final int BORDER=Color.rgb(58,58,58);
     private static final int EXPORT_REQUEST=1901;
 
     private WorkoutDb db;
@@ -73,8 +78,8 @@ public final class MainActivity extends Activity {
                 }
             }
             if(elapsedLabel!=null && sessionStartedAt>0) {
-                long secs=Math.max(0,(System.currentTimeMillis()-sessionStartedAt)/1000);
-                elapsedLabel.setText(formatTime(secs));
+                WorkoutDb.Session active=db.active();
+                if(active!=null) elapsedLabel.setText(formatTime(db.durationMillis(active)/1000));
             }
             handler.postDelayed(this,1000);
         }
@@ -187,13 +192,22 @@ public final class MainActivity extends Activity {
         TextView logo=text("FORMA",20,TEAL,true);
         logo.setLetterSpacing(0.10f);
         brand.addView(logo,new LinearLayout.LayoutParams(0,dp(39),1));
-        TextView version=text("0.3.0",12,MUTED,true);
+        TextView version=text("0.4.0",12,MUTED,true);
         version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
-        brand.addView(version,new LinearLayout.LayoutParams(dp(76),dp(39)));
+        brand.addView(version,new LinearLayout.LayoutParams(dp(54),dp(44)));
+        TextView gear=text(page.equals("settings")?"‹":"⚙",26,TEAL,true);
+        gear.setGravity(Gravity.CENTER);
+        gear.setContentDescription(page.equals("settings")?"Wróć do planu":"Ustawienia aplikacji");
+        brand.addView(gear,new LinearLayout.LayoutParams(dp(47),dp(44)));
+        gear.setOnClickListener(v->{page=page.equals("settings")?"plan":"settings";render();});
         add(root,brand);
         space(root,5);
 
-        if(page.equals("session")) showFixedSessionHeader();
+        if(page.equals("session")) {
+            WorkoutDb.Session active=db.active();
+            if(active==null || active.id!=openSession || active.pausedAt>0) page="plan";
+            else showFixedSessionHeader();
+        }
         ScrollView scroll=new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setFillViewport(true);
@@ -207,16 +221,17 @@ public final class MainActivity extends Activity {
         else if(page.equals("history")) showHistory();
         else if(page.equals("detail")) showDetail();
         else if(page.equals("progress")) showProgress();
+        else if(page.equals("edit")) showCompletedEditor();
         else showSettings();
 
-        if(!page.equals("session") && !page.equals("detail")) showNavigation();
+        if(!page.equals("session") && !page.equals("detail") && !page.equals("edit")) showNavigation();
     }
 
     private void showNavigation() {
         LinearLayout nav=row();
         nav.setPadding(dp(4),dp(8),dp(4),0);
-        String[] names={"Plan","Historia","Progres","Więcej"};
-        String[] pages={"plan","history","progress","settings"};
+        String[] names={"Plan","Historia","Progres"};
+        String[] pages={"plan","history","progress"};
         for(int i=0;i<names.length;i++) {
             final String selected=pages[i];
             boolean active=page.equals(selected);
@@ -260,15 +275,16 @@ public final class MainActivity extends Activity {
         WorkoutDb.Session active=db.active();
         if(active!=null) {
             LinearLayout resume=card(content);
-            smallLabel(resume,"TRENING W TOKU");
+            smallLabel(resume,active.pausedAt>0?"TRENING WSTRZYMANY":"TRENING W TOKU");
             space(resume,7);
             add(resume,text(Plan.title(active.workout),22,TEXT,true));
             space(resume,4);
             add(resume,text(active.sets+" zapisanych serii",15,MUTED,false));
             space(resume,10);
-            Button b=button("Wróć do treningu →",true);
+            Button b=button(active.pausedAt>0?"Wznów trening →":"Wróć do treningu →",true);
             add(resume,b);
             b.setOnClickListener(v->{
+                if(active.pausedAt>0)db.resume(active.id);
                 openSession=active.id;
                 openWorkout=active.workout;
                 expandedExerciseId="";
@@ -276,7 +292,7 @@ public final class MainActivity extends Activity {
                 render();
             });
         }
-        int[] dayNums={1,3,5};
+
         String[] days={"PONIEDZIAŁEK","ŚRODA","PIĄTEK"};
         String[] tags={"KLATKA + PLECY","NOGI","PLECY + KLATKA"};
         for(int w=0;w<3;w++) {
@@ -335,7 +351,7 @@ public final class MainActivity extends Activity {
         LinearLayout ota=card(content);
         smallLabel(ota,"AKTUALIZACJE APLIKACJI");
         space(ota,7);
-        add(ota,text("FORMA 0.3.0",20,TEXT,true));
+        add(ota,text("FORMA 0.4.0",20,TEXT,true));
         space(ota,4);
         add(ota,text("Sprawdzanie OTA odbywa się automatycznie przy uruchomieniu.",14,MUTED,false));
         space(ota,12);
@@ -406,9 +422,12 @@ public final class MainActivity extends Activity {
         WorkoutDb.Session active=db.active();
         if(active!=null) {
             new AlertDialog.Builder(this)
-                .setTitle("Masz rozpoczęty trening")
+                .setTitle(active.pausedAt>0?"Wstrzymany trening":"Masz rozpoczęty trening")
                 .setMessage("Możesz wrócić do niezakończonej sesji "+Plan.title(active.workout)+".")
-                .setPositiveButton("Wznów",(d,w)->{openSession=active.id;openWorkout=active.workout;page="session";render();})
+                .setPositiveButton("Wznów",(d,w)->{
+                    if(active.pausedAt>0)db.resume(active.id);
+                    openSession=active.id;openWorkout=active.workout;page="session";render();
+                })
                 .setNegativeButton("Anuluj",null).show();
             return;
         }
@@ -459,6 +478,11 @@ public final class MainActivity extends Activity {
         TextView title=text(Plan.title(openWorkout),21,TEXT,true);
         title.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         top.addView(title,new LinearLayout.LayoutParams(0,dp(44),1));
+        TextView controls=text("⋮",29,TEAL,true);
+        controls.setGravity(Gravity.CENTER);
+        controls.setContentDescription("Opcje treningu: wstrzymaj, zakończ lub anuluj");
+        top.addView(controls,new LinearLayout.LayoutParams(dp(43),dp(44)));
+        controls.setOnClickListener(v->showSessionActions());
         add(root,top);
 
         LinearLayout count=row();
@@ -614,19 +638,11 @@ public final class MainActivity extends Activity {
         space(content,6);
         Button finish=button("Zakończ trening ✓",true);
         add(content,finish);
-        finish.setOnClickListener(v->new AlertDialog.Builder(this)
-            .setTitle("Zakończyć trening?")
-            .setMessage("Wszystkie zapisane serie zostaną zachowane w historii. Możesz pominąć niewykonane.")
-            .setNegativeButton("Wróć do ćwiczeń",null)
-            .setPositiveButton("Zapisz trening",(d,w)->{
-                db.finish(openSession);
-                openSession=-1;
-                stopRest();
-                expandedExerciseId="";
-                page="history";
-                render();
-                if(cloud.signedIn())runCloudSync();
-            }).show());
+        finish.setOnClickListener(v->finishWorkout());
+        space(content,8);
+        Button pause=button("Wstrzymaj i wróć do planu",false);
+        add(content,pause);
+        pause.setOnClickListener(v->pauseWorkout());
     }
 
     private void addSetRow(LinearLayout target,Plan.Exercise ex,int index,TextView exerciseStatus) {
