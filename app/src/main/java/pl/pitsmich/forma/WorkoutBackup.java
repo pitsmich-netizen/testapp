@@ -27,7 +27,7 @@ public final class WorkoutBackup {
         SQLiteDatabase sql=db.getReadableDatabase();
         JSONArray sessions=new JSONArray();
         try(Cursor c=sql.rawQuery("SELECT id,cloud_id,workout,started_at,finished_at,notes,"+
-                "paused_at,paused_total_ms,audit_resolution FROM sessions ORDER BY started_at",null)) {
+                "paused_at,paused_total_ms,audit_resolution,workout_label FROM sessions ORDER BY started_at",null)) {
             while(c.moveToNext()) {
                 JSONObject session=new JSONObject();
                 long id=c.getLong(0);
@@ -38,6 +38,7 @@ public final class WorkoutBackup {
                 session.put("notes",c.getString(5));
                 session.put("paused_total_ms",c.getLong(7));
                 session.put("audit_resolution",c.getString(8));
+                session.put("workout_label",c.isNull(9)?"":c.getString(9));
                 JSONArray sets=new JSONArray();
                 try(Cursor entries=sql.rawQuery(
                     "SELECT exercise_id,set_index,weight,reps,rir,note,warmup FROM exercise_sets "+
@@ -73,6 +74,7 @@ public final class WorkoutBackup {
                 item.put("min_reps",e.minReps);
                 item.put("max_reps",e.maxReps);
                 item.put("rest_seconds",e.restSeconds);
+                item.put("rir_min",e.rirMin);item.put("rir_max",e.rirMax);
                 list.put(item);
             }
             day.put("items",list);
@@ -170,7 +172,7 @@ public final class WorkoutBackup {
                     if(!id.startsWith("custom_")||id.length()>90||name.isEmpty()||
                         name.length()>70||description.length()>500||region.length()>70||
                         equipment.length()>70||count<1||count>12||min<1||max<min||max>40||
-                        rest<15||rest>600)throw new Exception("Nieprawidłowe własne ćwiczenie");
+                        rest<0||rest>600)throw new Exception("Nieprawidłowe własne ćwiczenie");
                     ContentValues row=new ContentValues();
                     row.put("id",id);row.put("name",name);row.put("description",description);
                     row.put("region",region);row.put("equipment",equipment);
@@ -252,6 +254,8 @@ public final class WorkoutBackup {
                 String notes=src.optString("notes","");
                 if(notes.length()>1000)throw new Exception("Zbyt długa notatka sesji");
                 row.put("notes",notes);
+                String historical=src.optString("workout_label","");
+                if(!historical.isEmpty() && historical.length()<=32)row.put("workout_label",historical);
                 long pause=src.optLong("paused_total_ms",0);
                 if(pause<0)throw new Exception("Błędny czas przerwy");
                 row.put("paused_total_ms",pause);
@@ -316,6 +320,8 @@ public final class WorkoutBackup {
                     row.put("workout",workout);row.put("position",pos);
                     row.put("exercise_id",id);row.put("sets",sets);
                     row.put("min_reps",min);row.put("max_reps",max);row.put("rest_seconds",rest);
+                    row.put("rir_min",item.optInt("rir_min",-1));
+                    row.put("rir_max",item.optInt("rir_max",-1));
                     toSave.add(row);
                 }
                 sql.delete("plan_items","workout=?",new String[]{Integer.toString(workout)});

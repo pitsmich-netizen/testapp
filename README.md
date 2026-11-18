@@ -1,7 +1,21 @@
 # FORMA — dziennik treningowy na Androida
 
-Natywna aplikacja Android dla planu **Góra A / Nogi / Góra B** (3 treningi po około 60 minut), z naciskiem na klatkę i szerokość pleców.
+## FORMA 0.8.1 / FBW 1.0
 
+Najnowszy plan: **FBW A / FBW B / FBW C**, poniedziałek / środa / piątek, po **9 ćwiczeń i 19 serii roboczych dziennie**, łącznie **57 serii tygodniowo**. Sesje orientacyjnie 60–75 minut, zależnie od czasu przerw i liczby ćwiczeń jednostronnych.
+
+- Nowa, spokojniejsza paleta kolorów (ciemne karty, stonowany akcent), uchwyt przeciągania po prawej, uproszczone karty planu.
+- Trening: rozwinięta tylko aktualna seria, pozostałe oczekujące serie w krótkich wierszach, zwinięte wskazówki techniczne, delikatniejsze przyciski zmiany obciążenia.
+- FBW 1.0 zawiera podane przez użytkownika ćwiczenia, liczby serii, zakresy, przerwy, wskazówki techniczne i docelowy RIR. Jedna seria jednostronna obejmuje obie strony.
+- SQLite v9 przełącza bieżące szablony na FBW 1.0 i zachowuje historię serii/ciężarów oraz stare nazwy typów sesji. Starszy plan jest archiwizowany w tabelach `pre_fbw_plan_items` i `pre_fbw_schedule`; własny katalog ćwiczeń zostaje zachowany.
+- Wersja 0.8.1 zachowuje identyfikator aplikacji, certyfikat podpisywania i kanał OTA.
+- Przed aktualizacją warto zapisać **Ustawienia → Zapisz pełną kopię JSON**. Plik ze starej wersji zachowuje poprzedni plan i dane.
+- [Najnowszy podpisany release 0.8.1](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.8.1) (po publikacji).
+
+### Zasady progresji
+Stały ciężar w seriach roboczych, technika i docelowy RIR ważniejsze niż automatyczny wzrost obciążenia. Zwiększ ciężar dopiero po osiągnięciu górnego zakresu we wszystkich seriach, z zachowaniem docelowego RIR. Rozgrzewki są poza seriami roboczymi. Dodatkowe przerwy 30–60 s w cięższych ćwiczeniach są dopuszczalne.
+
+### Wcześniejsza funkcjonalność 0.8.0
 ## Funkcje (0.8.0)
 - Kompaktowe serie: zapisane w jednym wierszu, szybka edycja, cofnij, PR, duże różnokolorowe przyciski zmiany ciężaru.\n- Przytrzymanie i przeciągnięcie planów treningowych, wybór dni tygodnia i własne nazwy.\n- Własne ćwiczenia, skok obciążenia (np. 1,25 / 2,5 / 5 kg), mnożnik objętości dla dwóch hantli.\n- Podsumowanie po zakończeniu z porównaniem objętości, serii i rekordów.\n- Backup JSON v2 obejmuje własne ćwiczenia, plan, kolejność dni i obciążenia, zachowując import starszych kopii.\n- Edytowalny plan: zamiana i kolejność ćwiczeń, serie, zakres powtórzeń i czas przerw, bez zmian w starej historii.
 - Ustawienia serii: opcjonalny RIR 0–4, notatki, serie rozgrzewkowe nie liczone do rekordów ani objętości.

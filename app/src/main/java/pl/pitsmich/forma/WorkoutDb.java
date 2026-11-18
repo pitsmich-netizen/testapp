@@ -58,10 +58,10 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         Progress(long date) { this.date=date; }
     }
 
-    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 8); }
+    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 9); }
     @Override public void onConfigure(SQLiteDatabase db) { super.onConfigure(db); db.setForeignKeyConstraintsEnabled(true); }
     @Override public void onCreate(SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, workout INTEGER NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER, notes TEXT NOT NULL DEFAULT '', cloud_id TEXT, paused_at INTEGER, paused_total_ms INTEGER NOT NULL DEFAULT 0, audit_resolution TEXT NOT NULL DEFAULT 'pending')");
+        db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, workout INTEGER NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER, notes TEXT NOT NULL DEFAULT '', cloud_id TEXT, paused_at INTEGER, paused_total_ms INTEGER NOT NULL DEFAULT 0, audit_resolution TEXT NOT NULL DEFAULT 'pending', workout_label TEXT)");
         db.execSQL("CREATE TABLE exercise_sets (session_id INTEGER NOT NULL, exercise_id TEXT NOT NULL, set_index INTEGER NOT NULL, weight REAL NOT NULL, reps INTEGER NOT NULL, rir INTEGER NOT NULL DEFAULT -1, note TEXT NOT NULL DEFAULT '', warmup INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(session_id,exercise_id,set_index), FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE)");
         db.execSQL("CREATE INDEX idx_sets_exercise ON exercise_sets(exercise_id)");
         db.execSQL("CREATE INDEX idx_sessions_time ON sessions(started_at)");
@@ -69,6 +69,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE pending_remote_deletes (cloud_id TEXT PRIMARY KEY)");
         createPlanTable(db);
         createPersonalTables(db);
+        installFbwPlan(db);
         seedInitialWorkout(db);
     }
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -96,6 +97,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE exercise_sets ADD COLUMN warmup INTEGER NOT NULL DEFAULT 0");
         }
         if(oldVersion<8) createPersonalTables(db);
+        if(oldVersion<9) migrateFbwPlan(db);
         if(oldVersion<2) seedInitialWorkout(db);
         if(oldVersion<3) seedAdditionalNovemberSets(db);
     }
@@ -107,6 +109,62 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             "UNIQUE(workout,exercise_id))");
     }
 
+    private static void ensureFbwColumns(SQLiteDatabase sql) {
+        // Existing v8 plans have no RIR targets.
+        boolean hasRir=false;
+        try(Cursor c=sql.rawQuery("PRAGMA table_info(plan_items)",null)){
+            while(c.moveToNext())if("rir_min".equals(c.getString(1)))hasRir=true;
+        }
+        if(!hasRir){
+            sql.execSQL("ALTER TABLE plan_items ADD COLUMN rir_min INTEGER NOT NULL DEFAULT -1");
+            sql.execSQL("ALTER TABLE plan_items ADD COLUMN rir_max INTEGER NOT NULL DEFAULT -1");
+        }
+    }
+    private static void migrateFbwPlan(SQLiteDatabase sql) {
+        ensureFbwColumns(sql);
+        // Archive existing customised days and exercises; never modify exercise_sets.
+        sql.execSQL("CREATE TABLE IF NOT EXISTS pre_fbw_plan_items AS SELECT * FROM plan_items WHERE 0");
+        sql.execSQL("INSERT INTO pre_fbw_plan_items SELECT * FROM plan_items");
+        sql.execSQL("CREATE TABLE IF NOT EXISTS pre_fbw_schedule AS SELECT * FROM workout_schedule");
+        // Preserve titles for existing sessions; they retain their historical workout type.
+        sql.execSQL("ALTER TABLE sessions ADD COLUMN workout_label TEXT");
+        sql.execSQL("UPDATE sessions SET workout_label=CASE workout "+
+            "WHEN 0 THEN 'GÓRA A' WHEN 1 THEN 'NOGI' ELSE 'GÓRA B' END");
+        installFbwPlan(sql);
+    }
+    private static void installFbwPlan(SQLiteDatabase sql) {
+        ensureFbwColumns(sql);
+        sql.delete("plan_items",null,null);
+        for(int w=0;w<3;w++){
+            int position=0;
+            for(Plan.Exercise ex:Plan.exercises(w)){
+                ContentValues v=new ContentValues();
+                v.put("workout",w);v.put("position",position++);
+                v.put("exercise_id",ex.id);v.put("sets",ex.sets);
+                v.put("min_reps",ex.minReps);v.put("max_reps",ex.maxReps);
+                v.put("rest_seconds",ex.restSeconds);
+                v.put("rir_min",ex.rirMin);v.put("rir_max",ex.rirMax);
+                sql.insertOrThrow("plan_items",null,v);
+            }
+        }
+        sql.delete("workout_schedule",null,null);
+        for(int i=0;i<3;i++){
+            ContentValues v=new ContentValues();
+            v.put("workout",i);v.put("position",i);
+            v.put("weekday",i==0?1:i==1?3:5);
+            v.put("title",Plan.title(i));
+            sql.insertOrThrow("workout_schedule",null,v);
+        }
+    }
+    public String sessionWorkoutLabel(Session session){
+        if(session==null)return "";
+        try(Cursor c=getReadableDatabase().rawQuery(
+            "SELECT workout_label FROM sessions WHERE id=?",
+            new String[]{Long.toString(session.id)})){
+            if(c.moveToFirst()&&!c.isNull(0))return c.getString(0);
+        }
+        return workoutLabel(session.workout);
+    }
     public static final class ScheduleDay {
         public final int workout,position,weekday;
         public final String title;
@@ -313,13 +371,14 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         if(workout<0||workout>2)throw new IllegalArgumentException("Nieznany trening");
         ArrayList<Plan.Exercise> list=new ArrayList<>();
         try(Cursor c=getReadableDatabase().rawQuery(
-            "SELECT exercise_id,sets,min_reps,max_reps,rest_seconds FROM plan_items "+
+            "SELECT exercise_id,sets,min_reps,max_reps,rest_seconds,rir_min,rir_max FROM plan_items "+
             "WHERE workout=? ORDER BY position",new String[]{Integer.toString(workout)})) {
             while(c.moveToNext()) {
                 Plan.Exercise source=exerciseById(c.getString(0));
                 if(source!=null)list.add(new Plan.Exercise(
                     source.id,source.name,source.description,
-                    c.getInt(1),c.getInt(2),c.getInt(3),c.getInt(4),source.eachSide));
+                    c.getInt(1),c.getInt(2),c.getInt(3),c.getInt(4),source.eachSide,
+                    c.getInt(5),c.getInt(6)));
             }
         }
         return list.isEmpty()?new ArrayList<>(Plan.exercises(workout)):list;
@@ -332,7 +391,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         for(Plan.Exercise e:list) {
             if(exerciseById(e.id)==null || !ids.add(e.id)||e.sets<1||e.sets>12||
                 e.minReps<1||e.maxReps<e.minReps||e.maxReps>40||
-                e.restSeconds<15||e.restSeconds>600)
+                e.restSeconds<0||e.restSeconds>600)
                 throw new IllegalArgumentException("Nieprawidłowe parametry ćwiczenia");
         }
         SQLiteDatabase sql=getWritableDatabase();
@@ -349,6 +408,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
                 row.put("min_reps",e.minReps);
                 row.put("max_reps",e.maxReps);
                 row.put("rest_seconds",e.restSeconds);
+                row.put("rir_min",e.rirMin);row.put("rir_max",e.rirMax);
                 sql.insertOrThrow("plan_items",null,row);
             }
             sql.setTransactionSuccessful();
@@ -474,6 +534,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     public long start(int workout) {
         ContentValues v=new ContentValues();
         v.put("workout", workout);
+        v.put("workout_label",workoutLabel(workout));
         v.put("started_at", System.currentTimeMillis());
         v.put("cloud_id", UUID.randomUUID().toString());
         return getWritableDatabase().insertOrThrow("sessions", null, v);
