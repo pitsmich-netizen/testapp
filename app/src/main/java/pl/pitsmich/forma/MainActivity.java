@@ -491,7 +491,7 @@ public final class MainActivity extends Activity {
         TextView back=actionLabel("‹  Wróć do planu",SKY);
         back.setMinHeight(dp(38));add(content,back);
         back.setOnClickListener(v->{page="plan";render();});
-        headline(content,"Edytuj "+Plan.title(editingWorkout));
+        headline(content,"Edytuj "+db.workoutLabel(editingWorkout));
         add(content,text("Przesuwaj ćwiczenia strzałkami. Dotknij nazwy, aby zmienić serie, zakres lub przerwę.",13,MUTED,false));
         space(content,12);
         List<Plan.Exercise> items=db.workoutPlan(editingWorkout);
@@ -506,7 +506,7 @@ public final class MainActivity extends Activity {
             TextView more=actionLabel("⋮",SKY);
             more.setGravity(Gravity.CENTER);
             more.setTextSize(23);
-            more.setContentDescription("Zamień albo usuń "+exercise.name);
+            more.setContentDescription("Zamień, ustaw ciężary lub usuń "+exercise.name);
             first.addView(more,new LinearLayout.LayoutParams(dp(42),dp(42)));
             more.setOnClickListener(v->showPlanItemOptions(position));
             add(card,first);
@@ -554,10 +554,11 @@ public final class MainActivity extends Activity {
     private void showPlanItemOptions(int position) {
         new AlertDialog.Builder(this)
             .setTitle("Ćwiczenie")
-            .setItems(new String[]{"Edytuj serie i powtórzenia","Zamień ćwiczenie","Usuń z planu"},
+            .setItems(new String[]{"Edytuj serie i powtórzenia","Zamień ćwiczenie","Skok ciężaru i objętość","Usuń z planu"},
                 (d,choice)->{
                     if(choice==0)editPlanParameters(position);
                     else if(choice==1)showPlanExerciseChooser(position);
+                    else if(choice==2)editExerciseLoadSettings(db.workoutPlan(editingWorkout).get(position));
                     else {
                         java.util.ArrayList<Plan.Exercise> items=new java.util.ArrayList<>(db.workoutPlan(editingWorkout));
                         if(items.size()<=1) {
@@ -581,15 +582,18 @@ public final class MainActivity extends Activity {
         java.util.HashSet<String> used=new java.util.HashSet<>();
         for(int i=0;i<items.size();i++)
             if(i!=replaceAt)used.add(items.get(i).id);
-        for(Plan.Exercise ex:Plan.uniqueExercises())if(!used.contains(ex.id))options.add(ex);
+        for(Plan.Exercise ex:db.exerciseCatalog())if(!used.contains(ex.id))options.add(ex);
         if(options.isEmpty()) {
             Toast.makeText(this,"Brak innych ćwiczeń do wyboru",Toast.LENGTH_LONG).show();return;
         }
-        String[] titles=new String[options.size()];
-        for(int i=0;i<options.size();i++)titles[i]=options.get(i).name;
+        String[] titles=new String[options.size()+1];
+        titles[0]="+ Utwórz własne ćwiczenie";
+        for(int i=0;i<options.size();i++)titles[i+1]=options.get(i).name;
         new AlertDialog.Builder(this)
             .setTitle(replaceAt<0?"Dodaj ćwiczenie":"Zamień ćwiczenie")
             .setItems(titles,(d,choice)->{
+                if(choice==0){createCustomExercise(replaceAt);return;}
+                choice--;
                 if(replaceAt<0&&items.size()>=18){
                     Toast.makeText(this,"Maksymalnie 18 ćwiczeń",Toast.LENGTH_LONG).show();return;
                 }
@@ -599,6 +603,91 @@ public final class MainActivity extends Activity {
                 render();
             })
             .setNegativeButton("Anuluj",null).show();
+    }
+
+    private void createCustomExercise(int replaceAt) {
+        LinearLayout form=col();
+        form.setPadding(dp(19),dp(9),dp(19),dp(5));
+        add(form,text("NAZWA ĆWICZENIA",12,MUTED,true));
+        EditText name=new EditText(this);
+        name.setSingleLine(true);name.setTextColor(TEXT);name.setHint("Np. wyciskanie neutralne");
+        name.setHintTextColor(MUTED);add(form,name);
+        add(form,text("SPRZĘT / GRUPA MIĘŚNIOWA",12,MUTED,true));
+        EditText equipment=new EditText(this);
+        equipment.setSingleLine(true);equipment.setTextColor(TEXT);
+        equipment.setHint("Np. hantle • klatka");equipment.setHintTextColor(MUTED);
+        add(form,equipment);
+        add(form,text("KRÓTKI OPIS",12,MUTED,true));
+        EditText description=new EditText(this);
+        description.setSingleLine(true);description.setTextColor(TEXT);
+        description.setHint("Opcjonalnie");description.setHintTextColor(MUTED);
+        add(form,description);
+        add(form,text("SERIE / MIN POWT. / MAX POWT.",12,MUTED,true));
+        LinearLayout inputs=row();
+        EditText sets=field("3","Serie",false);
+        EditText min=field("8","Od",false);
+        EditText max=field("12","Do",false);
+        inputs.addView(sets,new LinearLayout.LayoutParams(0,dp(51),1));
+        inputs.addView(min,new LinearLayout.LayoutParams(0,dp(51),1));
+        inputs.addView(max,new LinearLayout.LayoutParams(0,dp(51),1));
+        add(form,inputs);
+        AlertDialog dialog=new AlertDialog.Builder(this)
+            .setTitle("Nowe ćwiczenie").setView(form)
+            .setNegativeButton("Anuluj",null).setPositiveButton("Utwórz",null).create();
+        dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            .setOnClickListener(v->{
+                try{
+                    String label=name.getText().toString().trim();
+                    String tool=equipment.getText().toString().trim();
+                    String details=description.getText().toString().trim();
+                    int count=Integer.parseInt(sets.getText().toString());
+                    int low=Integer.parseInt(min.getText().toString());
+                    int high=Integer.parseInt(max.getText().toString());
+                    if(replaceAt<0&&db.workoutPlan(editingWorkout).size()>=18)
+                        throw new IllegalArgumentException("Maksymalnie 18 ćwiczeń w planie");
+                    Plan.Exercise exercise=db.createExercise(label,details,tool,tool,
+                        count,low,high,90,false);
+                    java.util.ArrayList<Plan.Exercise> items=
+                        new java.util.ArrayList<>(db.workoutPlan(editingWorkout));
+                    if(replaceAt<0)items.add(exercise);else items.set(replaceAt,exercise);
+                    db.savePlan(editingWorkout,items);
+                    dialog.dismiss();render();
+                }catch(Exception e){
+                    Toast.makeText(this,e.getMessage()==null?"Sprawdź dane ćwiczenia":e.getMessage(),Toast.LENGTH_LONG).show();
+                }
+            }));
+        dialog.show();
+    }
+    private void editExerciseLoadSettings(Plan.Exercise exercise) {
+        LinearLayout form=col();
+        form.setPadding(dp(18),dp(8),dp(18),dp(5));
+        add(form,text("SKOK CIĘŻARU (KG)",13,MUTED,true));
+        EditText step=field(weight(db.weightStep(exercise.id)),"np. 2,5",true);
+        add(form,step);
+        space(form,11);
+        add(form,text("JAK PODAJESZ CIĘŻAR?",13,MUTED,true));
+        String[] modes={"Łączny ciężar / stos maszyny (×1)","Jedna hantla — obie ręce (×2)"};
+        Spinner multiplier=new Spinner(this);
+        multiplier.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,modes));
+        multiplier.setSelection(db.loadMultiplier(exercise.id)-1);
+        add(form,multiplier);
+        add(form,text("Mnożnik dotyczy wyłącznie statystyk objętości, "+
+            "nie zmienia zapisanych kilogramów ani rekordów PR.",12,MUTED,false));
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(exercise.name)
+            .setView(form).setNegativeButton("Anuluj",null)
+            .setPositiveButton("Zapisz",null).create();
+        dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            .setOnClickListener(v->{
+                try{
+                    double kg=Double.parseDouble(step.getText().toString().replace(',','.'));
+                    db.saveLoadSettings(exercise.id,kg,multiplier.getSelectedItemPosition()+1);
+                    dialog.dismiss();render();
+                }catch(Exception error){
+                    Toast.makeText(this,"Skok 0,25–50 kg. Wybierz sposób podawania obciążenia.",
+                        Toast.LENGTH_LONG).show();
+                }
+            }));
+        dialog.show();
     }
 
     private void editPlanParameters(int position) {
@@ -1448,7 +1537,7 @@ public final class MainActivity extends Activity {
         LinearLayout current=null;
         for(WorkoutDb.Entry entry:entries) {
             if(!previous.equals(entry.exerciseId)) {
-                Plan.Exercise ex=Plan.byId(entry.exerciseId);
+                Plan.Exercise ex=db.exerciseById(entry.exerciseId);
                 current=card(content);
                 add(current,text(ex==null?entry.exerciseId:ex.name,18,TEXT,true));
                 space(current,10);
@@ -1632,7 +1721,7 @@ public final class MainActivity extends Activity {
         for(Plan.Exercise e:historyExercises)visible.add(e.id);
         for(WorkoutDb.Entry entry:db.sets(session.id)) {
             if(!visible.contains(entry.exerciseId)) {
-                Plan.Exercise original=Plan.byId(entry.exerciseId);
+                Plan.Exercise original=db.exerciseById(entry.exerciseId);
                 if(original!=null) {
                     historyExercises.add(original);
                     visible.add(original.id);
@@ -1952,7 +2041,7 @@ public final class MainActivity extends Activity {
         back.setMinHeight(dp(39));
         add(content,back);
         back.setOnClickListener(v->{page="progress";render();});
-        Plan.Exercise ex=Plan.byId(selectedExercise);
+        Plan.Exercise ex=db.exerciseById(selectedExercise);
         if(ex==null){page="progress";render();return;}
         space(content,8);
         headline(content,ex.name);
