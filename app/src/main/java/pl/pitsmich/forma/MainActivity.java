@@ -583,9 +583,7 @@ public final class MainActivity extends Activity {
         for(int i=0;i<items.size();i++)
             if(i!=replaceAt)used.add(items.get(i).id);
         for(Plan.Exercise ex:db.exerciseCatalog())if(!used.contains(ex.id))options.add(ex);
-        if(options.isEmpty()) {
-            Toast.makeText(this,"Brak innych ćwiczeń do wyboru",Toast.LENGTH_LONG).show();return;
-        }
+        // "Utwórz własne" must remain available even after using every catalog item.
         String[] titles=new String[options.size()+1];
         titles[0]="+ Utwórz własne ćwiczenie";
         for(int i=0;i<options.size();i++)titles[i+1]=options.get(i).name;
