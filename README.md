@@ -2,7 +2,7 @@
 
 Natywna aplikacja Android dla planu **Góra A / Nogi / Góra B** (3 treningi po około 60 minut), z naciskiem na klatkę i szerokość pleców.
 
-## Funkcje (0.5.0)
+## Funkcje (0.5.1)
 - Kompaktowe klikalne karty planu i historii, mniejsze odstępy oraz osobne kolory dla pauzy, edycji, usuwania i zapisanych serii.
 - Progres per dzień (Góra A / Nogi / Góra B) z kafelkami ćwiczeń, ostatnim treningiem, rekordami PR i trendem 6 sesji.
 - Kompaktowy formularz serii i przycisk kopiowania poprzedniej zapisanej serii.
@@ -20,7 +20,7 @@ Natywna aplikacja Android dla planu **Góra A / Nogi / Góra B** (3 treningi po 
 - Timer przerw (autostart po zapisaniu serii; 60 / 90 / 120 s, +15 s, pomiń) oraz licznik czasu sesji.
 - Eksport historii do CSV.
 - **Import notatek:** sesja Góra A z 18.11.2026, 18 serii, z oryginalnymi ciężarami i uwagą „2 linki”.
-- **OTA:** gotowe: najnowsze podpisane wydanie [FORMA 0.5.0](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.5.0), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
+- **OTA:** gotowe: poprzednie podpisane wydanie [FORMA 0.5.0](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.5.0), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
 
 ## Kopia treningów w Supabase (opcjonalna)
 - Bez konta FORMA działa w pełni offline.
@@ -48,3 +48,7 @@ Instrukcja aktywacji OTA: [docs/OTA.md](docs/OTA.md).
 
 ## Zdrowie
 Plan nie stanowi diagnozy ani terapii. Przy nawracającym bólu lędźwi dobieraj bezbolesne warianty i rozważ konsultację z fizjoterapeutą.
+
+### Naprawa OTA w 0.5.1
+
+W 0.4.0 i 0.5.0 downloader nadal zapisywał APK jako `cache/forma-update.apk`, mimo że `FileProvider` udostępniał wyłącznie `cache/updates/`. Wersja 0.5.1 korzysta z jednej funkcji `updateFile()` dla pobrania i instalacji. Automatyczny test `scripts/verify_ota_paths.py` w CI i workflow publikacji chroni przed ponowną rozbieżnością. **Jednorazowo aktualizuj 0.4.0/0.5.0 do 0.5.1 ręcznie przez podpisany APK, bez odinstalowywania.**

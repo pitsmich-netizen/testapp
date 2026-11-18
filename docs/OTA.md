@@ -60,3 +60,9 @@ Obie wartości są dostępne tylko dla administracyjnych operacji projektu. **Ni
 Wersje 0.2.0 i 0.3.0 miały błędną konfigurację `FileProvider`: korzeń `cache-path` wskazywał plik `forma-update.apk`, a nie katalog. Na niektórych telefonach prowadziło to do `StringIndexOutOfBoundsException` (`length=51; index=52`) przed uruchomieniem instalatora. Od wersji 0.4.0 APK jest pobierany do katalogu `cache/updates/`, który jest prawidłowo udostępniany przez `FileProvider` oraz `ACTION_INSTALL_PACKAGE`.
 
 **Przejście 0.3.0 → 0.4.0:** jeśli OTA zgłasza poprzedni błąd, pobierz APK 0.4.0 z GitHub Releases i otwórz go ręcznie. Nie odinstalowuj 0.3.0; instalacja podpisanego APK na istniejącą aplikację zachowa jej lokalną bazę. Aktualizacje z 0.4.0 na nowsze powinny używać już poprawionego mechanizmu.
+
+## Aktualizacja 0.5.1 — korekta poprzedniej poprawki
+
+Wersja 0.4.0 miała poprawne `update_paths.xml` z `cache-path updates/`, ale downloader nadal zapisywał APK jako `cache/forma-update.apk`. Stąd komunikat `Failed to find configured root that contains .../cache/forma-update.apk` podczas OTA do 0.5.0. Poprawka 0.5.1: jedna funkcja `updateFile()` używana przy pobieraniu i po przyznaniu uprawnienia instalacji, wspólny katalog `cache/updates/`, oraz test spójności `scripts/verify_ota_paths.py` uruchamiany przed kompilacją debug i publikacją.
+
+**Ważne:** z 0.4.0/0.5.0 należy jednorazowo pobrać 0.5.1 APK przez przeglądarkę i zainstalować jako aktualizację bez odinstalowania. Test OTA przez aplikację możliwy dopiero do kolejnego wydania (>0.5.1); samo skompilowanie aplikacji nie potwierdza działania instalatora na urządzeniu.
