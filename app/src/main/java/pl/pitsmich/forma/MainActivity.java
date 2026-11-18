@@ -306,14 +306,14 @@ public final class MainActivity extends Activity {
             TextView no=text("0"+(w+1),20,MUTED,true);
             tag.addView(no);
             add(c,tag);
-            space(c,8);
-            add(c,text(Plan.title(w),26,TEXT,true));
-            space(c,5);
+            space(c,3);
+            add(c,text(Plan.title(w),24,TEXT,true));
+            space(c,4);
             add(c,text(tags[w],14,MUTED,false));
-            space(c,12);
+            space(c,8);
             int sets=0;for(Plan.Exercise e:Plan.exercises(w))sets+=e.sets;
             add(c,text(Plan.exercises(w).size()+" ćwiczeń     •     "+sets+" serii",14,MUTED,false));
-            space(c,14);
+            space(c,10);
             Button open=button(active!=null?"Otwórz plan →":"Rozpocznij trening →",true);
             add(c,open);
             open.setOnClickListener(v->startWorkout(workout));
@@ -1240,7 +1240,13 @@ public final class MainActivity extends Activity {
         }
     }
     @Override public void onBackPressed() {
-        if(page.equals("session")||page.equals("detail")||page.equals("progress")||page.equals("history")||page.equals("settings")) {
+        if(page.equals("edit")) {completeEditing();return;}
+        if(page.equals("session")) {
+            page="plan";
+            render();
+            return;
+        }
+        if(page.equals("detail")||page.equals("progress")||page.equals("history")||page.equals("settings")) {
             page=page.equals("detail")?"history":"plan";
             render();
         } else super.onBackPressed();
