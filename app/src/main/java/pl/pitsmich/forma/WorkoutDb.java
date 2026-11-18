@@ -483,12 +483,19 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         return sql.insertWithOnConflict("sessions",null,values,SQLiteDatabase.CONFLICT_IGNORE);
     }
     public void insertCloudSet(long sessionId,String exercise,int setIndex,double weight,int reps) {
+        insertCloudSet(sessionId,exercise,setIndex,weight,reps,-1,"",false);
+    }
+    public void insertCloudSet(long sessionId,String exercise,int setIndex,double weight,int reps,
+                               int rir,String note,boolean warmup) {
         ContentValues row=new ContentValues();
         row.put("session_id",sessionId);
         row.put("exercise_id",exercise);
         row.put("set_index",setIndex);
         row.put("weight",weight);
         row.put("reps",reps);
+        row.put("rir",rir);
+        row.put("note",note==null?"":note);
+        row.put("warmup",warmup?1:0);
         getWritableDatabase().insertWithOnConflict("exercise_sets",null,row,SQLiteDatabase.CONFLICT_IGNORE);
     }
     /**
