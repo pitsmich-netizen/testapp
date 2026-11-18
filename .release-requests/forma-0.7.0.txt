@@ -1,0 +1,3 @@
+Official signed FORMA v0.7.0, versionCode 8, production signing key and existing package ID. Publish APK forma-v0.7.0.apk and latest.json via GitHub Releases OTA.
+Features: optional sound on rest finished, import audit approve/dismiss/edit, recalled previous-day sets and weights, ±2.5kg and automatic exercise advance, concrete weight progression, monthly calendar/stats, editable workout template, RIR 0–4/notes/warmup, complete JSON export/restore and Supabase metadata sync.
+Preserve app SQLite from 0.6.0 and no removal/reinstall required.
