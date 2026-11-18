@@ -12,6 +12,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.TimeZone;
+import java.util.UUID;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -27,13 +28,13 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     }
     public static final class Session {
         public final long id, startedAt, finishedAt;
-        public final String notes;
+        public final String notes, cloudId;
         public final int workout, sets;
         public final double volume;
-        Session(long id, int workout, long startedAt, long finishedAt, int sets, double volume, String notes) {
+        Session(long id, int workout, long startedAt, long finishedAt, int sets, double volume, String notes, String cloudId) {
             this.id=id; this.workout=workout; this.startedAt=startedAt;
             this.finishedAt=finishedAt; this.sets=sets; this.volume=volume;
-            this.notes=notes;
+            this.notes=notes; this.cloudId=cloudId;
         }
     }
     public static final class Progress {
@@ -43,13 +44,14 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         Progress(long date) { this.date=date; }
     }
 
-    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 3); }
+    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 4); }
     @Override public void onConfigure(SQLiteDatabase db) { super.onConfigure(db); db.setForeignKeyConstraintsEnabled(true); }
     @Override public void onCreate(SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, workout INTEGER NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER, notes TEXT NOT NULL DEFAULT '')");
+        db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, workout INTEGER NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER, notes TEXT NOT NULL DEFAULT '', cloud_id TEXT)");
         db.execSQL("CREATE TABLE exercise_sets (session_id INTEGER NOT NULL, exercise_id TEXT NOT NULL, set_index INTEGER NOT NULL, weight REAL NOT NULL, reps INTEGER NOT NULL, PRIMARY KEY(session_id,exercise_id,set_index), FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE)");
         db.execSQL("CREATE INDEX idx_sets_exercise ON exercise_sets(exercise_id)");
         db.execSQL("CREATE INDEX idx_sessions_time ON sessions(started_at)");
+        db.execSQL("CREATE UNIQUE INDEX idx_sessions_cloud_id ON sessions(cloud_id)");
         seedInitialWorkout(db);
     }
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -58,6 +60,12 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             seedInitialWorkout(db);
         }
         if(oldVersion<3) seedAdditionalNovemberSets(db);
+        if(oldVersion<4) {
+            db.execSQL("ALTER TABLE sessions ADD COLUMN cloud_id TEXT");
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_cloud_id ON sessions(cloud_id)");
+            db.execSQL("UPDATE sessions SET cloud_id='forma-import-20261118' WHERE notes LIKE 'Import z notatek 18.11.2026%'");
+            db.execSQL("UPDATE sessions SET cloud_id=lower(hex(randomblob(16))) WHERE cloud_id IS NULL");
+        }
     }
     private void seedAdditionalNovemberSets(SQLiteDatabase sql) {
         try(Cursor c=sql.rawQuery("SELECT id FROM sessions WHERE notes LIKE 'Import z notatek 18.11.2026%' ORDER BY id LIMIT 1",null)) {
@@ -91,6 +99,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         session.put("workout",Plan.UPPER_A);
         session.put("started_at",time);
         session.put("finished_at",time);
+        session.put("cloud_id","forma-import-20261118");
         session.put("notes","Import z notatek 18.11.2026. Godzina niepodana. Ćw. 2: 30 kg na maszynie z dwoma linkami (bez przeliczania ciężaru).");
         long id=sql.insertOrThrow("sessions",null,session);
         seedSets(sql,id,"db_flat",22.5,new int[]{12,12,10});
@@ -116,6 +125,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         ContentValues v=new ContentValues();
         v.put("workout", workout);
         v.put("started_at", System.currentTimeMillis());
+        v.put("cloud_id", UUID.randomUUID().toString());
         return getWritableDatabase().insertOrThrow("sessions", null, v);
     }
     public void finish(long id) {
@@ -123,9 +133,9 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         getWritableDatabase().update("sessions", v, "id=?", new String[]{Long.toString(id)});
     }
     public Session active() {
-        try(Cursor c=getReadableDatabase().rawQuery("SELECT id,workout,started_at,notes FROM sessions WHERE finished_at IS NULL ORDER BY id DESC LIMIT 1",null)) {
+        try(Cursor c=getReadableDatabase().rawQuery("SELECT id,workout,started_at,notes,cloud_id FROM sessions WHERE finished_at IS NULL ORDER BY id DESC LIMIT 1",null)) {
             if(!c.moveToFirst()) return null;
-            return new Session(c.getLong(0),c.getInt(1),c.getLong(2),0,countSets(c.getLong(0)),0,c.getString(3));
+            return new Session(c.getLong(0),c.getInt(1),c.getLong(2),0,countSets(c.getLong(0)),0,c.getString(3),c.getString(4));
         }
     }
     public void save(long session, String exercise, int index, double weight, int reps) {
@@ -172,14 +182,36 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     }
     public List<Session> completed() {
         ArrayList<Session> result=new ArrayList<>();
-        String q="SELECT s.id,s.workout,s.started_at,s.finished_at,COUNT(e.set_index),COALESCE(SUM(e.weight*e.reps),0),s.notes " +
+        String q="SELECT s.id,s.workout,s.started_at,s.finished_at,COUNT(e.set_index),COALESCE(SUM(e.weight*e.reps),0),s.notes,s.cloud_id " +
                 "FROM sessions s LEFT JOIN exercise_sets e ON e.session_id=s.id WHERE s.finished_at IS NOT NULL " +
                 "GROUP BY s.id ORDER BY s.started_at DESC LIMIT 100";
         try(Cursor c=getReadableDatabase().rawQuery(q,null)) {
             while(c.moveToNext())
-                result.add(new Session(c.getLong(0),c.getInt(1),c.getLong(2),c.getLong(3),c.getInt(4),c.getDouble(5),c.getString(6)));
+                result.add(new Session(c.getLong(0),c.getInt(1),c.getLong(2),c.getLong(3),c.getInt(4),c.getDouble(5),c.getString(6),c.getString(7)));
         }
         return result;
+    }
+    public long insertCloudSession(String cloudId, int workout, long startedAt, long finishedAt, String notes) {
+        SQLiteDatabase sql=getWritableDatabase();
+        try(Cursor c=sql.rawQuery("SELECT id FROM sessions WHERE cloud_id=?",new String[]{cloudId})) {
+            if(c.moveToFirst())return c.getLong(0);
+        }
+        ContentValues values=new ContentValues();
+        values.put("cloud_id",cloudId);
+        values.put("workout",workout);
+        values.put("started_at",startedAt);
+        values.put("finished_at",finishedAt);
+        values.put("notes",notes==null?"":notes);
+        return sql.insertWithOnConflict("sessions",null,values,SQLiteDatabase.CONFLICT_IGNORE);
+    }
+    public void insertCloudSet(long sessionId,String exercise,int setIndex,double weight,int reps) {
+        ContentValues row=new ContentValues();
+        row.put("session_id",sessionId);
+        row.put("exercise_id",exercise);
+        row.put("set_index",setIndex);
+        row.put("weight",weight);
+        row.put("reps",reps);
+        getWritableDatabase().insertWithOnConflict("exercise_sets",null,row,SQLiteDatabase.CONFLICT_IGNORE);
     }
     public String sessionNotes(long id) {
         try(Cursor c=getReadableDatabase().rawQuery("SELECT notes FROM sessions WHERE id=?",
