@@ -2,8 +2,8 @@
 
 Natywna aplikacja Android dla planu **Góra A / Nogi / Góra B** (3 treningi po około 60 minut), z naciskiem na klatkę i szerokość pleców.
 
-## Funkcje (0.7.0)
-- Edytowalny plan: zamiana i kolejność ćwiczeń, serie, zakres powtórzeń i czas przerw, bez zmian w starej historii.
+## Funkcje (0.8.0)
+- Kompaktowe serie: zapisane w jednym wierszu, szybka edycja, cofnij, PR, duże różnokolorowe przyciski zmiany ciężaru.\n- Przytrzymanie i przeciągnięcie planów treningowych, wybór dni tygodnia i własne nazwy.\n- Własne ćwiczenia, skok obciążenia (np. 1,25 / 2,5 / 5 kg), mnożnik objętości dla dwóch hantli.\n- Podsumowanie po zakończeniu z porównaniem objętości, serii i rekordów.\n- Backup JSON v2 obejmuje własne ćwiczenia, plan, kolejność dni i obciążenia, zachowując import starszych kopii.\n- Edytowalny plan: zamiana i kolejność ćwiczeń, serie, zakres powtórzeń i czas przerw, bez zmian w starej historii.
 - Ustawienia serii: opcjonalny RIR 0–4, notatki, serie rozgrzewkowe nie liczone do rekordów ani objętości.
 - Kalendarz treningów, regularność, objętość oraz porównanie z poprzednim miesiącem.
 - Pełna kopia JSON (bez haseł/tokenów), import łączący sesje, przywracanie edycji i ustawień.
@@ -30,7 +30,7 @@ Natywna aplikacja Android dla planu **Góra A / Nogi / Góra B** (3 treningi po 
 - Timer przerw (autostart po zapisaniu serii; 60 / 90 / 120 s, +15 s, pomiń) oraz licznik czasu sesji.
 - Eksport historii do CSV.
 - **Import notatek:** sesja Góra A z 18.11.2026, 18 serii, z oryginalnymi ciężarami i uwagą „2 linki”.
-- **OTA:** gotowe: najnowsze podpisane wydanie [FORMA 0.7.0](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.7.0), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
+- **OTA:** gotowe: poprzednie podpisane wydanie [FORMA 0.7.0](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.7.0), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
 
 ## Kopia treningów w Supabase (opcjonalna)
 - Bez konta FORMA działa w pełni offline.
