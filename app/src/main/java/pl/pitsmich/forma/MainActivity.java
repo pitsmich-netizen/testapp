@@ -30,6 +30,14 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ProgressBar;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
+import android.widget.CheckBox;
+import android.widget.GridLayout;
+import android.widget.NumberPicker;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
@@ -59,6 +67,11 @@ public final class MainActivity extends Activity {
     private static final int SKY=Color.rgb(125,181,250);
     private static final int VIOLET=Color.rgb(184,163,245);
     private static final int EXPORT_REQUEST=1901;
+    private static final int BACKUP_REQUEST=1902;
+    private static final int RESTORE_REQUEST=1903;
+    private int editingWorkout=Plan.UPPER_A;
+    private int calendarMonth=Calendar.getInstance().get(Calendar.MONTH);
+    private int calendarYear=Calendar.getInstance().get(Calendar.YEAR);
 
     private WorkoutDb db;
     private Updater updater;
@@ -111,6 +124,9 @@ public final class MainActivity extends Activity {
             selectedExercise=state.getString("selectedExercise","db_flat");
             selectedProgressWorkout=state.getInt("selectedProgressWorkout",Plan.UPPER_A);
             expandedExerciseId=state.getString("expandedExerciseId","");
+            editingWorkout=state.getInt("editingWorkout",Plan.UPPER_A);
+            calendarMonth=state.getInt("calendarMonth",calendarMonth);
+            calendarYear=state.getInt("calendarYear",calendarYear);
         }
         render();
         handler.post(ticker);
@@ -124,6 +140,9 @@ public final class MainActivity extends Activity {
         state.putString("selectedExercise",selectedExercise);
         state.putInt("selectedProgressWorkout",selectedProgressWorkout);
         state.putString("expandedExerciseId",expandedExerciseId);
+        state.putInt("editingWorkout",editingWorkout);
+        state.putInt("calendarMonth",calendarMonth);
+        state.putInt("calendarYear",calendarYear);
         super.onSaveInstanceState(state);
     }
     @Override protected void onResume() {
@@ -206,7 +225,7 @@ public final class MainActivity extends Activity {
         TextView logo=text("FORMA",20,TEAL,true);
         logo.setLetterSpacing(0.10f);
         brand.addView(logo,new LinearLayout.LayoutParams(0,dp(39),1));
-        TextView version=text("0.6.0",12,MUTED,true);
+        TextView version=text("0.7.0",12,MUTED,true);
         version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         brand.addView(version,new LinearLayout.LayoutParams(dp(54),dp(44)));
         TextView gear=text(page.equals("settings")?"‹":"⚙",26,TEAL,true);
@@ -238,17 +257,19 @@ public final class MainActivity extends Activity {
         else if(page.equals("progress")) showProgress();
         else if(page.equals("exerciseProgress")) showExerciseProgress();
         else if(page.equals("edit")) showCompletedEditor();
+        else if(page.equals("planEditor")) showPlanEditor();
+        else if(page.equals("calendar")) showCalendar();
         else showSettings();
 
-        if(!page.equals("session") && !page.equals("detail") && !page.equals("edit") && !page.equals("exerciseProgress")) showNavigation();
+        if(!page.equals("session") && !page.equals("detail") && !page.equals("edit") && !page.equals("exerciseProgress") && !page.equals("planEditor")) showNavigation();
     }
 
     private void showNavigation() {
         LinearLayout nav=row();
         nav.setPadding(dp(4),dp(8),dp(4),0);
-        String[] names={"Plan","Historia","Progres"};
-        String[] icons={"▦","◷","↗"};
-        String[] pages={"plan","history","progress"};
+        String[] names={"Plan","Historia","Progres","Kalendarz"};
+        String[] icons={"▦","◷","↗","▦"};
+        String[] pages={"plan","history","progress","calendar"};
         for(int i=0;i<names.length;i++) {
             final String selected=pages[i];
             boolean active=page.equals(selected);
@@ -340,8 +361,8 @@ public final class MainActivity extends Activity {
             add(card,first);
             add(card,text(Plan.title(i),21,TEXT,true));
             space(card,4);
-            int sets=0;for(Plan.Exercise ex:Plan.exercises(i))sets+=ex.sets;
-            TextView details=text(Plan.exercises(i).size()+" ćwiczeń  •  "+sets+" serii  •  "+Plan.focus(i),12,MUTED,false);
+            int sets=0;for(Plan.Exercise ex:db.workoutPlan(i))sets+=ex.sets;
+            TextView details=text(db.workoutPlan(i).size()+" ćwiczeń  •  "+sets+" serii  •  "+Plan.focus(i),12,MUTED,false);
             details.setMaxLines(2);
             add(card,details);
             clickCard(card,()->startWorkout(workout));
@@ -443,7 +464,7 @@ public final class MainActivity extends Activity {
         LinearLayout ota=card(content);
         smallLabel(ota,"AKTUALIZACJE APLIKACJI");
         space(ota,7);
-        add(ota,text("FORMA 0.6.0",20,TEXT,true));
+        add(ota,text("FORMA 0.7.0",20,TEXT,true));
         space(ota,4);
         add(ota,text("Sprawdzanie OTA odbywa się automatycznie przy uruchomieniu.",14,MUTED,false));
         space(ota,12);
@@ -550,7 +571,7 @@ public final class MainActivity extends Activity {
     private void showFixedSessionHeader() {
         if(openSession<0) return;
         plannedSets=0;
-        for(Plan.Exercise e:Plan.exercises(openWorkout)) plannedSets+=e.sets;
+        for(Plan.Exercise e:db.workoutPlan(openWorkout)) plannedSets+=e.sets;
 
         LinearLayout top=row();
         TextView back=text("‹  PLAN",15,TEAL,true);
@@ -637,7 +658,7 @@ public final class MainActivity extends Activity {
 
     private void showSession() {
         if(openSession<0) {page="plan";render();return;}
-        List<Plan.Exercise> exercises=Plan.exercises(openWorkout);
+        List<Plan.Exercise> exercises=db.workoutPlan(openWorkout);
         if(expandedExerciseId.isEmpty() && !exercises.isEmpty()) {
             for(Plan.Exercise e:exercises) {
                 if(db.countExerciseSets(openSession,e.id)<e.sets) {
@@ -744,7 +765,7 @@ public final class MainActivity extends Activity {
         if(openSession<0 || !getSharedPreferences("forma_settings",0).getBoolean("auto_next",true))
             return;
         if(db.countExerciseSets(openSession,current.id)!=current.sets)return;
-        List<Plan.Exercise> exercises=Plan.exercises(openWorkout);
+        List<Plan.Exercise> exercises=db.workoutPlan(openWorkout);
         for(int i=0;i<exercises.size()-1;i++) {
             if(!exercises.get(i).id.equals(current.id))continue;
             expandedExerciseId=exercises.get(i+1).id;
@@ -1191,7 +1212,7 @@ public final class MainActivity extends Activity {
         add(dateCard,note);
         note.setOnClickListener(v->changeWorkoutNote(session));
 
-        for(Plan.Exercise ex:Plan.exercises(session.workout)) {
+        for(Plan.Exercise ex:db.workoutPlan(session.workout)) {
             LinearLayout c=card(content);
             add(c,text(ex.name,18,TEXT,true));
             space(c,9);
@@ -1312,7 +1333,7 @@ public final class MainActivity extends Activity {
         add(content,header);
         space(content,3);
         List<WorkoutDb.Entry> results=latest==null?new java.util.ArrayList<>():db.sets(latest.id);
-        List<Plan.Exercise> exercises=Plan.exercises(selectedProgressWorkout);
+        List<Plan.Exercise> exercises=db.workoutPlan(selectedProgressWorkout);
         for(int i=0;i<exercises.size();i+=2) {
             LinearLayout tiles=row();
             tiles.setGravity(Gravity.TOP);
@@ -1452,13 +1473,14 @@ public final class MainActivity extends Activity {
     }
     @Override public void onBackPressed() {
         if(page.equals("edit")) {completeEditing();return;}
+        if(page.equals("planEditor")) {page="plan";render();return;}
         if(page.equals("exerciseProgress")) {page="progress";render();return;}
         if(page.equals("session")) {
             page="plan";
             render();
             return;
         }
-        if(page.equals("detail")||page.equals("progress")||page.equals("history")||page.equals("settings")) {
+        if(page.equals("detail")||page.equals("progress")||page.equals("history")||page.equals("settings")||page.equals("calendar")) {
             page=page.equals("detail")?"history":"plan";
             render();
         } else super.onBackPressed();
