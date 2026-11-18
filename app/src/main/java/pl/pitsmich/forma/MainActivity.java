@@ -734,6 +734,79 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void showSessionActions() {
+        String[] options={"Wstrzymaj trening","Zakończ i zapisz","Anuluj i usuń trening"};
+        new AlertDialog.Builder(this)
+            .setTitle("Opcje treningu")
+            .setItems(options,(dialog,which)->{
+                if(which==0)pauseWorkout();
+                else if(which==1)finishWorkout();
+                else cancelWorkout();
+            })
+            .setNegativeButton("Wróć",null).show();
+    }
+    private void pauseWorkout() {
+        if(openSession<0)return;
+        db.pause(openSession);
+        stopRest();
+        expandedExerciseId="";
+        openSession=-1;
+        page="plan";
+        render();
+        Toast.makeText(this,"Trening wstrzymany — możesz go wznowić później",Toast.LENGTH_LONG).show();
+    }
+    private void cancelWorkout() {
+        if(openSession<0)return;
+        final long id=openSession;
+        new AlertDialog.Builder(this)
+            .setTitle("Anulować trening?")
+            .setMessage("Wszystkie serie zapisane w tej rozpoczętej sesji zostaną usunięte. Ta czynność jest nieodwracalna.")
+            .setNegativeButton("Zostaw trening",null)
+            .setPositiveButton("Usuń trening",(d,w)->{
+                db.deleteSession(id);
+                stopRest();
+                openSession=-1;
+                expandedExerciseId="";
+                page="plan";
+                render();
+                if(cloud.signedIn())runCloudSync();
+            }).show();
+    }
+    private void finishWorkout() {
+        if(openSession<0)return;
+        final long id=openSession;
+        final int count=db.countSets(id);
+        if(count==0) {
+            new AlertDialog.Builder(this)
+                .setTitle("Ten trening jest pusty")
+                .setMessage("Nie zapisano żadnej serii. Zamiast tworzyć pusty wpis w historii, możesz usunąć sesję.")
+                .setNegativeButton("Wróć do treningu",null)
+                .setPositiveButton("Usuń pustą sesję",(d,w)->{
+                    db.deleteSession(id);
+                    stopRest();
+                    openSession=-1;
+                    expandedExerciseId="";
+                    page="plan";
+                    render();
+                    if(cloud.signedIn())runCloudSync();
+                }).show();
+            return;
+        }
+        new AlertDialog.Builder(this)
+            .setTitle("Zakończyć trening?")
+            .setMessage("Zapisane serie: "+count+". Trening trafi do historii i można go będzie później edytować.")
+            .setNegativeButton("Wróć",null)
+            .setPositiveButton("Zakończ",(d,w)->{
+                db.finish(id);
+                stopRest();
+                openSession=-1;
+                expandedExerciseId="";
+                page="history";
+                render();
+                if(cloud.signedIn())runCloudSync();
+            }).show();
+    }
+
     private void startRest(int seconds) {
         restUntil=System.currentTimeMillis()+seconds*1000L;
         getSharedPreferences("forma_timer",0).edit().putLong("restUntil",restUntil).apply();
