@@ -54,3 +54,9 @@ Obie wartości są dostępne tylko dla administracyjnych operacji projektu. **Ni
 - **Zestaw startowy treningu z 18.11.2026 jest umieszczony w kodzie źródłowym pierwszej wersji, dlatego jego ciężary są widoczne w publicznym repozytorium.** Po udostępnieniu aplikacji dalsze wpisy pozostają wyłącznie lokalnie.
 - Android wymaga zezwolenia na instalację aplikacji z danego źródła. Nie instalujemy aktualizacji po cichu.
 - Jeśli planujesz publikację w Google Play, zamiast tego mechanizmu OTA użyj Play In-App Updates.
+
+## Naprawa OTA w 0.4.0
+
+Wersje 0.2.0 i 0.3.0 miały błędną konfigurację `FileProvider`: korzeń `cache-path` wskazywał plik `forma-update.apk`, a nie katalog. Na niektórych telefonach prowadziło to do `StringIndexOutOfBoundsException` (`length=51; index=52`) przed uruchomieniem instalatora. Od wersji 0.4.0 APK jest pobierany do katalogu `cache/updates/`, który jest prawidłowo udostępniany przez `FileProvider` oraz `ACTION_INSTALL_PACKAGE`.
+
+**Przejście 0.3.0 → 0.4.0:** jeśli OTA zgłasza poprzedni błąd, pobierz APK 0.4.0 z GitHub Releases i otwórz go ręcznie. Nie odinstalowuj 0.3.0; instalacja podpisanego APK na istniejącą aplikację zachowa jej lokalną bazę. Aktualizacje z 0.4.0 na nowsze powinny używać już poprawionego mechanizmu.
