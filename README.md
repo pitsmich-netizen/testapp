@@ -2,7 +2,8 @@
 
 Natywna aplikacja Android dla planu **Góra A / Nogi / Góra B** (3 treningi po około 60 minut), z naciskiem na klatkę i szerokość pleców.
 
-## Funkcje (0.2.0)
+## Funkcje (0.3.0)
+- Nowy przejrzysty interfejs z dolną nawigacją, dużymi polami ciężaru i powtórzeń, rozwijanymi ćwiczeniami i timerem zawsze widocznym podczas treningu.
 - Kompletny plan 3 dni z opisami ćwiczeń, liczbą serii, zakresem powtórzeń i przerwami.
 - Zapis ciężaru i powtórzeń **w każdej serii**; sugestie na podstawie ostatniej wykonanej sesji.
 - Dodatkowe serie ponad plan, korekta zapisanej serii, usuwanie przez dłuższe przytrzymanie „Zmień”.

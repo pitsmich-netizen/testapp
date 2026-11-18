@@ -19,6 +19,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ProgressBar;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
@@ -34,13 +35,13 @@ import java.util.List;
 import java.util.Locale;
 
 public final class MainActivity extends Activity {
-    private static final int BG=Color.rgb(10,16,22);
-    private static final int CARD=Color.rgb(23,33,42);
-    private static final int CARD2=Color.rgb(29,42,53);
-    private static final int TEAL=Color.rgb(46,215,188);
-    private static final int TEXT=Color.rgb(240,247,250);
-    private static final int MUTED=Color.rgb(154,174,188);
-    private static final int BORDER=Color.rgb(48,64,75);
+    private static final int BG=Color.rgb(10,17,22);
+    private static final int CARD=Color.rgb(25,38,46);
+    private static final int CARD2=Color.rgb(35,52,61);
+    private static final int TEAL=Color.rgb(99,229,198);
+    private static final int TEXT=Color.rgb(250,253,255);
+    private static final int MUTED=Color.rgb(194,209,216);
+    private static final int BORDER=Color.rgb(66,86,97);
     private static final int EXPORT_REQUEST=1901;
 
     private WorkoutDb db;
@@ -51,16 +52,21 @@ public final class MainActivity extends Activity {
     private long openSession=-1, detailSession=-1;
     private int openWorkout=Plan.UPPER_A;
     private String selectedExercise="db_flat";
+    private String expandedExerciseId="";
+    private LinearLayout expandedBody;
+    private TextView expandedChevron;
     private final Handler handler=new Handler(Looper.getMainLooper());
     private long restUntil=0, sessionStartedAt=0;
     private TextView timerLabel, sessionCount, elapsedLabel;
+    private ProgressBar sessionProgress;
+    private int plannedSets=0;
 
     private final Runnable ticker=new Runnable() {
         @Override public void run() {
             if(timerLabel!=null) {
                 long remaining=Math.max(0,(restUntil-System.currentTimeMillis()+999)/1000);
-                timerLabel.setText(restUntil==0?"Timer przerwy: gotowy":
-                    (remaining>0?"Przerwa: "+remaining+" s":"Przerwa zakończona ✓"));
+                timerLabel.setText(restUntil==0?"00:00":
+                    (remaining>0?formatTime(remaining):"00:00"));
                 if(restUntil>0 && remaining==0) {
                     restUntil=0;
                     getSharedPreferences("forma_timer",0).edit().remove("restUntil").apply();
@@ -68,7 +74,7 @@ public final class MainActivity extends Activity {
             }
             if(elapsedLabel!=null && sessionStartedAt>0) {
                 long secs=Math.max(0,(System.currentTimeMillis()-sessionStartedAt)/1000);
-                elapsedLabel.setText("Czas treningu: "+String.format(Locale.ROOT,"%02d:%02d",secs/60,secs%60));
+                elapsedLabel.setText(formatTime(secs));
             }
             handler.postDelayed(this,1000);
         }
@@ -88,6 +94,7 @@ public final class MainActivity extends Activity {
             openWorkout=state.getInt("openWorkout",Plan.UPPER_A);
             detailSession=state.getLong("detailSession",-1);
             selectedExercise=state.getString("selectedExercise","db_flat");
+            expandedExerciseId=state.getString("expandedExerciseId","");
         }
         render();
         handler.post(ticker);
@@ -99,6 +106,7 @@ public final class MainActivity extends Activity {
         state.putInt("openWorkout",openWorkout);
         state.putLong("detailSession",detailSession);
         state.putString("selectedExercise",selectedExercise);
+        state.putString("expandedExerciseId",expandedExerciseId);
         super.onSaveInstanceState(state);
     }
     @Override protected void onResume() {
@@ -133,10 +141,10 @@ public final class MainActivity extends Activity {
         View v=new View(this); target.addView(v,new LinearLayout.LayoutParams(1,dp(height)));
     }
     private LinearLayout card(LinearLayout target) {
-        LinearLayout c=col(); c.setPadding(dp(15),dp(15),dp(15),dp(15));
+        LinearLayout c=col(); c.setPadding(dp(18),dp(18),dp(18),dp(18));
         c.setBackground(rounded(CARD,18,BORDER));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
-        lp.bottomMargin=dp(12);
+        lp.bottomMargin=dp(14);
         target.addView(c,lp);
         return c;
     }
@@ -153,128 +161,202 @@ public final class MainActivity extends Activity {
     }
     private Button button(String s,boolean primary) {
         Button b=new Button(this);
-        b.setAllCaps(false); b.setText(s); b.setTextSize(13);
+        b.setAllCaps(false); b.setText(s); b.setTextSize(15);
+        b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
         b.setTextColor(primary?BG:TEXT);
         b.setBackgroundTintList(ColorStateList.valueOf(primary?TEAL:CARD2));
         b.setMinimumHeight(0); b.setMinHeight(0);
-        b.setPadding(dp(10),dp(10),dp(10),dp(10));
+        b.setPadding(dp(12),dp(12),dp(12),dp(12));
+        b.setMinHeight(dp(48));
         return b;
     }
+
     private void render() {
-        timerLabel=null; sessionCount=null; elapsedLabel=null;
-        root=col(); root.setBackgroundColor(BG);
-        root.setPadding(dp(17),dp(15),dp(17),dp(10));
+        timerLabel=null; sessionCount=null; elapsedLabel=null; sessionProgress=null; expandedBody=null; expandedChevron=null;
+        root=col();
+        root.setBackgroundColor(BG);
+        root.setPadding(dp(18),dp(12),dp(18),dp(10));
         root.setOnApplyWindowInsetsListener((v,insets)->{
-            root.setPadding(dp(17),insets.getSystemWindowInsetTop()+dp(12),
-                    dp(17),insets.getSystemWindowInsetBottom()+dp(8));
+            root.setPadding(dp(18),insets.getSystemWindowInsetTop()+dp(12),
+                dp(18),insets.getSystemWindowInsetBottom()+dp(10));
             return insets;
         });
         setContentView(root);
-        add(root,text("FORMA  /  TRAINING",14,TEAL,true));
-        space(root,4);
-        add(root,text("Dziennik treningowy",21,TEXT,true));
-        space(root,16);
-        if(!page.equals("session") && !page.equals("detail")) {
-            LinearLayout tabs=row();
-            String[] tabNames={"Plan","Historia","Progres"};
-            String[] pages={"plan","history","progress"};
-            for(int i=0;i<3;i++) {
-                final String destination=pages[i];
-                TextView t=pill(tabNames[i],page.equals(destination));
-                LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(42),1);
-                if(i>0) lp.leftMargin=dp(7);
-                tabs.addView(t,lp);
-                t.setOnClickListener(v->{page=destination;render();});
-            }
-            add(root,tabs); space(root,15);
-        }
+
+        LinearLayout brand=row();
+        TextView logo=text("FORMA",20,TEAL,true);
+        logo.setLetterSpacing(0.10f);
+        brand.addView(logo,new LinearLayout.LayoutParams(0,dp(39),1));
+        TextView version=text("0.3.0",12,MUTED,true);
+        version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        brand.addView(version,new LinearLayout.LayoutParams(dp(76),dp(39)));
+        add(root,brand);
+        space(root,5);
+
+        if(page.equals("session")) showFixedSessionHeader();
         ScrollView scroll=new ScrollView(this);
-        scroll.setFillViewport(false);
         scroll.setVerticalScrollBarEnabled(false);
+        scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
         root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         content=col();
-        content.setPadding(0,0,0,dp(16));
+        content.setPadding(0,dp(7),0,dp(16));
         scroll.addView(content);
         if(page.equals("plan")) showPlan();
         else if(page.equals("session")) showSession();
         else if(page.equals("history")) showHistory();
         else if(page.equals("detail")) showDetail();
-        else showProgress();
+        else if(page.equals("progress")) showProgress();
+        else showSettings();
+
+        if(!page.equals("session") && !page.equals("detail")) showNavigation();
     }
 
+    private void showNavigation() {
+        LinearLayout nav=row();
+        nav.setPadding(dp(4),dp(8),dp(4),0);
+        String[] names={"Plan","Historia","Progres","Więcej"};
+        String[] pages={"plan","history","progress","settings"};
+        for(int i=0;i<names.length;i++) {
+            final String selected=pages[i];
+            boolean active=page.equals(selected);
+            LinearLayout item=col();
+            item.setGravity(Gravity.CENTER);
+            TextView name=text(names[i],14,active?TEAL:MUTED,active);
+            name.setGravity(Gravity.CENTER);
+            add(item,name);
+            space(item,5);
+            View indicator=new View(this);
+            indicator.setBackground(rounded(active?TEAL:BG,3,0));
+            item.addView(indicator,new LinearLayout.LayoutParams(dp(active?29:14),dp(3)));
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(55),1);
+            nav.addView(item,lp);
+            item.setContentDescription("Otwórz "+names[i]);
+            item.setOnClickListener(v->{page=selected;render();});
+        }
+        add(root,nav);
+    }
+
+    private void smallLabel(LinearLayout target,String value) {
+        TextView t=text(value,12,TEAL,true);
+        t.setLetterSpacing(0.08f);
+        add(target,t);
+    }
+    private void summaryLine(LinearLayout target,String title,String value) {
+        LinearLayout r=row();
+        TextView l=text(title,14,MUTED,false);
+        r.addView(l,new LinearLayout.LayoutParams(0,dp(33),1));
+        TextView v=text(value,14,TEXT,true);
+        v.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        r.addView(v,new LinearLayout.LayoutParams(-2,dp(33)));
+        add(target,r);
+    }
     private void showPlan() {
-        headline(content,"Twój tydzień");
-        add(content,text("2 × góra • 1 × nogi • sesje do 60 minut",14,MUTED,false));
-        space(content,13);
-        LinearLayout intro=card(content);
-        add(intro,text("CEL: KLATKA + SZEROKOŚĆ PLECÓW",12,TEAL,true));
-        space(intro,8);
-        add(intro,text("Ćwicz na hantlach, wyciągach i maszynach. Każdą serię zapisujesz jednym kliknięciem.",14,TEXT,false));
+        space(content,8);
+        headline(content,"Twój plan treningowy");
+        add(content,text("Góra A  •  Nogi  •  Góra B",16,MUTED,false));
+        space(content,17);
+
         WorkoutDb.Session active=db.active();
         if(active!=null) {
-            space(content,6);
             LinearLayout resume=card(content);
-            add(resume,text("ROZPOCZĘTY TRENING",12,TEAL,true)); space(resume,6);
-            add(resume,text(Plan.title(active.workout)+" • "+active.sets+" zapisanych serii",16,TEXT,true));
-            space(resume,9);
-            Button b=button("Wznów trening",true);
+            smallLabel(resume,"TRENING W TOKU");
+            space(resume,7);
+            add(resume,text(Plan.title(active.workout),22,TEXT,true));
+            space(resume,4);
+            add(resume,text(active.sets+" zapisanych serii",15,MUTED,false));
+            space(resume,10);
+            Button b=button("Wróć do treningu →",true);
             add(resume,b);
-            b.setOnClickListener(v->{openSession=active.id;openWorkout=active.workout;page="session";render();});
-        }
-        LinearLayout ota=card(content);
-        add(ota,text("AKTUALIZACJE OTA",12,TEAL,true));
-        space(ota,7);
-        add(ota,text(updater.feed().isEmpty()
-            ? "Kanał aktualizacji nie jest jeszcze skonfigurowany"
-            : "Sprawdzanie automatyczne raz dziennie",12,MUTED,false));
-        space(ota,9);
-        Button check=button("Sprawdź aktualizacje",true);
-        add(ota,check);
-        check.setOnClickListener(v->updater.check(true));
-        space(ota,5);
-        Button config=button("Ustawienia kanału OTA",false);
-        add(ota,config);
-        config.setOnClickListener(v->updater.configure());
-        LinearLayout cloudCard=card(content);
-        add(cloudCard,text("KOPIA TRENINGÓW W CHMURZE",12,TEAL,true));
-        space(cloudCard,6);
-        add(cloudCard,text(cloud.signedIn()
-            ? "Zalogowano do Supabase • dane na telefonie pozostają dostępne offline"
-            : "Opcjonalna kopia danych w Supabase. Bez logowania trening działa offline.",
-            13,MUTED,false));
-        space(cloudCard,9);
-        Button syncButton=button(cloud.signedIn()?"Synchronizuj treningi":"Zaloguj się / utwórz konto",true);
-        add(cloudCard,syncButton);
-        syncButton.setOnClickListener(v->{
-            if(cloud.signedIn()) runCloudSync();
-            else showCloudLogin();
-        });
-        if(cloud.signedIn()) {
-            space(cloudCard,5);
-            Button logout=button("Wyloguj z chmury",false);
-            add(cloudCard,logout);
-            logout.setOnClickListener(v->{
-                new AlertDialog.Builder(this)
-                    .setTitle("Wylogować?")
-                    .setMessage("Treningi lokalne pozostaną zapisane. Powtórne logowanie włączy synchronizację.")
-                    .setNegativeButton("Anuluj",null)
-                    .setPositiveButton("Wyloguj",(d,w)->{cloud.signOut();render();}).show();
+            b.setOnClickListener(v->{
+                openSession=active.id;
+                openWorkout=active.workout;
+                expandedExerciseId="";
+                page="session";
+                render();
             });
         }
+        int[] dayNums={1,3,5};
         String[] days={"PONIEDZIAŁEK","ŚRODA","PIĄTEK"};
+        String[] tags={"KLATKA + PLECY","NOGI","PLECY + KLATKA"};
         for(int w=0;w<3;w++) {
             final int workout=w;
             LinearLayout c=card(content);
-            add(c,text(days[w],12,TEAL,true)); space(c,6);
-            add(c,text(Plan.title(w),23,TEXT,true)); space(c,5);
-            add(c,text(Plan.focus(w),13,MUTED,false)); space(c,9);
-            int count=0; for(Plan.Exercise ex:Plan.exercises(w))count+=ex.sets;
-            add(c,text(Plan.exercises(w).size()+" ćwiczeń • "+count+" serii roboczych",12,MUTED,false));
-            space(c,11);
-            Button start=button("Otwórz / rozpocznij",true); add(c,start);
-            start.setOnClickListener(v->startWorkout(workout));
+            LinearLayout tag=row();
+            TextView day=text(days[w],12,TEAL,true);
+            tag.addView(day,new LinearLayout.LayoutParams(0,dp(27),1));
+            TextView no=text("0"+(w+1),20,MUTED,true);
+            tag.addView(no);
+            add(c,tag);
+            space(c,8);
+            add(c,text(Plan.title(w),26,TEXT,true));
+            space(c,5);
+            add(c,text(tags[w],14,MUTED,false));
+            space(c,12);
+            int sets=0;for(Plan.Exercise e:Plan.exercises(w))sets+=e.sets;
+            add(c,text(Plan.exercises(w).size()+" ćwiczeń     •     "+sets+" serii",14,MUTED,false));
+            space(c,14);
+            Button open=button(active!=null?"Otwórz plan →":"Rozpocznij trening →",true);
+            add(c,open);
+            open.setOnClickListener(v->startWorkout(workout));
         }
-        add(content,text("Przy bólu lędźwi nie wykonuj ćwiczeń przez narastający ból. Dostosuj zakres ruchu i ciężar.",12,MUTED,false));
+        TextView info=text("Seria po serii zapisujesz ciężar i powtórzenia. Poprzednie wyniki podpowiadamy automatycznie.",14,MUTED,false);
+        info.setLineSpacing(dp(3),1f);
+        add(content,info);
+    }
+
+    private void showSettings() {
+        space(content,8);
+        headline(content,"Ustawienia");
+        add(content,text("Aktualizacje, kopia zapasowa i dane",15,MUTED,false));
+        space(content,17);
+
+        LinearLayout cloudCard=card(content);
+        smallLabel(cloudCard,"KOPIA W CHMURZE");
+        space(cloudCard,8);
+        add(cloudCard,text(cloud.signedIn()?"Konto Supabase połączone":"Twoje treningi są zapisane na telefonie",18,TEXT,true));
+        space(cloudCard,6);
+        add(cloudCard,text(cloud.signedIn()?"Możesz synchronizować historię z chmurą.":"Logowanie jest opcjonalne. Aplikacja działa też offline.",15,MUTED,false));
+        space(cloudCard,12);
+        Button syncButton=button(cloud.signedIn()?"Synchronizuj teraz":"Zaloguj się / utwórz konto",true);
+        add(cloudCard,syncButton);
+        syncButton.setOnClickListener(v->{if(cloud.signedIn())runCloudSync();else showCloudLogin();});
+        if(cloud.signedIn()) {
+            space(cloudCard,6);
+            Button logout=button("Wyloguj",false);
+            add(cloudCard,logout);
+            logout.setOnClickListener(v->new AlertDialog.Builder(this)
+                .setTitle("Wylogować?")
+                .setMessage("Treningi zapisane lokalnie pozostaną na telefonie.")
+                .setNegativeButton("Anuluj",null)
+                .setPositiveButton("Wyloguj",(d,w)->{cloud.signOut();render();}).show());
+        }
+
+        LinearLayout ota=card(content);
+        smallLabel(ota,"AKTUALIZACJE APLIKACJI");
+        space(ota,7);
+        add(ota,text("FORMA 0.3.0",20,TEXT,true));
+        space(ota,4);
+        add(ota,text("Sprawdzanie OTA odbywa się automatycznie przy uruchomieniu.",14,MUTED,false));
+        space(ota,12);
+        Button check=button("Sprawdź aktualizacje",true);
+        add(ota,check);
+        check.setOnClickListener(v->updater.check(true));
+        space(ota,6);
+        Button config=button("Zaawansowane ustawienia OTA",false);
+        add(ota,config);
+        config.setOnClickListener(v->updater.configure());
+
+        LinearLayout backup=card(content);
+        smallLabel(backup,"EKSPORT DANYCH");
+        space(backup,7);
+        add(backup,text("Kopia historii treningów",18,TEXT,true));
+        space(backup,5);
+        add(backup,text("Zapisz serie jako plik CSV, który możesz przechować poza telefonem.",14,MUTED,false));
+        space(backup,12);
+        Button export=button("Eksportuj CSV",false);
+        add(backup,export);
+        export.setOnClickListener(v->exportCsv());
     }
 
     private void showCloudLogin() {
@@ -333,139 +415,304 @@ public final class MainActivity extends Activity {
         openWorkout=workout;
         stopRest();
         openSession=db.start(workout);
+        expandedExerciseId="";
         page="session";render();
     }
 
     private EditText field(String value,String hint,boolean decimal) {
         EditText e=new EditText(this);
         e.setSingleLine(true);
-        e.setTextSize(15);e.setTextColor(TEXT);
+        e.setTextSize(21);e.setTextColor(TEXT);
+        e.setSelectAllOnFocus(true);
         e.setHintTextColor(MUTED); e.setHint(hint);
         e.setText(value);
         e.setGravity(Gravity.CENTER);
         e.setInputType(InputType.TYPE_CLASS_NUMBER | (decimal?InputType.TYPE_NUMBER_FLAG_DECIMAL:0));
         e.setBackground(rounded(CARD2,10,BORDER));
-        e.setPadding(dp(5),dp(9),dp(5),dp(9));
+        e.setPadding(dp(10),dp(13),dp(10),dp(13));
+        e.setMinHeight(dp(57));
         return e;
     }
     private String weight(double x) {
         return x==(long)x?Long.toString((long)x):String.format(Locale.getDefault(),"%.2f",x).replaceAll("0+$","").replaceAll("[.,]$","");
     }
-    private void showSession() {
-        if(openSession<0) {page="plan";render();return;}
-        LinearLayout back=row();
-        TextView b=text("‹  Wróć do planu",14,TEAL,true);
-        add(back,b);add(content,back);
-        b.setOnClickListener(v->{page="plan";render();});space(content,9);
-        headline(content,Plan.title(openWorkout));
-        add(content,text(Plan.focus(openWorkout),13,MUTED,false));space(content,6);
-        sessionCount=text("Zapisane serie: "+db.countSets(openSession),13,TEAL,true);
-        add(content,sessionCount);
+
+    private String formatTime(long seconds) {
+        return String.format(Locale.ROOT,"%02d:%02d",seconds/60,seconds%60);
+    }
+    private void updateSessionProgress() {
+        if(openSession<0) return;
+        int done=db.countSets(openSession);
+        if(sessionCount!=null) sessionCount.setText(done+" / "+plannedSets+" serii");
+        if(sessionProgress!=null) sessionProgress.setProgress(Math.min(done,plannedSets));
+    }
+    private void showFixedSessionHeader() {
+        if(openSession<0) return;
+        plannedSets=0;
+        for(Plan.Exercise e:Plan.exercises(openWorkout)) plannedSets+=e.sets;
+
+        LinearLayout top=row();
+        TextView back=text("‹  PLAN",15,TEAL,true);
+        back.setPadding(dp(1),0,dp(12),0);
+        back.setOnClickListener(v->{page="plan";render();});
+        top.addView(back,new LinearLayout.LayoutParams(dp(88),dp(44)));
+        TextView title=text(Plan.title(openWorkout),21,TEXT,true);
+        title.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        top.addView(title,new LinearLayout.LayoutParams(0,dp(44),1));
+        add(root,top);
+
+        LinearLayout count=row();
+        TextView small=text("POSTĘP TRENINGU",12,MUTED,true);
+        count.addView(small,new LinearLayout.LayoutParams(0,dp(29),1));
+        sessionCount=text("0 / "+plannedSets+" serii",14,TEAL,true);
+        sessionCount.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        count.addView(sessionCount);
+        add(root,count);
+
+        sessionProgress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);
+        sessionProgress.setMax(Math.max(1,plannedSets));
+        sessionProgress.setProgressTintList(ColorStateList.valueOf(TEAL));
+        sessionProgress.setProgressBackgroundTintList(ColorStateList.valueOf(BORDER));
+        add(root,sessionProgress);
+        updateSessionProgress();
+
         WorkoutDb.Session currentActive=db.active();
         sessionStartedAt=(currentActive!=null&&currentActive.id==openSession)?currentActive.startedAt:0;
-        LinearLayout timerCard=card(content);
-        add(timerCard,text("TIMER TRENINGOWY",12,TEAL,true));
-        space(timerCard,7);
-        elapsedLabel=text("Czas treningu: 00:00",16,TEXT,true);
-        add(timerCard,elapsedLabel);
-        space(timerCard,6);
-        timerLabel=text("Timer przerwy: gotowy",17,TEXT,true);
-        add(timerCard,timerLabel);
-        space(timerCard,9);
-        LinearLayout timerRow=row();
-        for(int seconds:new int[]{60,90,120}) {
-            final int secs=seconds;
-            Button timerButton=button(seconds+" s",false);
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(43),1);
-            lp.rightMargin=dp(5);timerRow.addView(timerButton,lp);
-            timerButton.setOnClickListener(v->startRest(secs));
-        }
-        Button plus=button("+15 s",false);
-        timerRow.addView(plus,new LinearLayout.LayoutParams(0,dp(43),1));
-        plus.setOnClickListener(v->{
-            long left=restUntil>System.currentTimeMillis()?restUntil-System.currentTimeMillis():0;
-            startRest((int)(left/1000)+15);
-        });
-        add(timerCard,timerRow);
-        space(timerCard,5);
-        Button skip=button("Zatrzymaj / pomiń przerwę",false);
-        add(timerCard,skip);
-        skip.setOnClickListener(v->stopRest());
-        space(content,3);
 
-        for(Plan.Exercise ex:Plan.exercises(openWorkout)) {
-            LinearLayout c=card(content);
-            add(c,text(ex.name,17,TEXT,true)); space(c,5);
-            add(c,text(ex.goal(),12,TEAL,true)); space(c,7);
-            add(c,text(ex.description,13,MUTED,false)); space(c,12);
-            LinearLayout rows=col();
-            add(c,rows);
-            final int[] setNumber={db.setRows(openSession,ex.id,ex.sets)};
-            for(int i=0;i<setNumber[0];i++) addSetRow(rows,ex,i);
-            Button addExtra=button("+ Dodaj serię",false);
-            add(c,addExtra);
-            addExtra.setOnClickListener(v->addSetRow(rows,ex,setNumber[0]++));
+        LinearLayout timerShell=col();
+        timerShell.setBackground(rounded(CARD,17,BORDER));
+        timerShell.setPadding(dp(13),dp(10),dp(13),dp(11));
+        LinearLayout.LayoutParams shellLp=new LinearLayout.LayoutParams(-1,-2);
+        shellLp.topMargin=dp(10);shellLp.bottomMargin=dp(8);
+        root.addView(timerShell,shellLp);
+
+        LinearLayout times=row();
+        LinearLayout elapsed=col();
+        add(elapsed,text("CZAS TRENINGU",11,MUTED,true));
+        elapsedLabel=text("00:00",22,TEXT,true);
+        add(elapsed,elapsedLabel);
+        times.addView(elapsed,new LinearLayout.LayoutParams(0,dp(51),1));
+
+        LinearLayout rest=col();
+        add(rest,text("PRZERWA",11,MUTED,true));
+        timerLabel=text("00:00",24,TEAL,true);
+        add(rest,timerLabel);
+        times.addView(rest,new LinearLayout.LayoutParams(0,dp(51),1));
+
+        TextView skip=text("Pomiń  ×",13,TEAL,true);
+        skip.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        skip.setPadding(dp(7),0,0,0);
+        times.addView(skip,new LinearLayout.LayoutParams(dp(73),dp(51)));
+        skip.setOnClickListener(v->stopRest());
+        add(timerShell,times);
+
+        LinearLayout buttons=row();
+        int[] seconds={60,90,120};
+        for(int i=0;i<seconds.length;i++) {
+            final int sec=seconds[i];
+            TextView t=pill(sec+" s",false);
+            t.setTextSize(14);
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(36),1);
+            if(i>0)p.leftMargin=dp(6);
+            buttons.addView(t,p);
+            t.setOnClickListener(v->startRest(sec));
         }
-        Button finish=button("Zakończ i zapisz trening",true);
-        add(content,finish);
-        finish.setOnClickListener(v->{
-            new AlertDialog.Builder(this)
-                .setTitle("Zakończyć trening?")
-                .setMessage("Zapisane serie zostaną zachowane w historii. Możesz pominąć niewykonane serie.")
-                .setNegativeButton("Jeszcze nie",null)
-                .setPositiveButton("Zakończ",(d,w)->{
-                    db.finish(openSession);openSession=-1;stopRest();page="history";render();
-                    if(cloud.signedIn()) runCloudSync();
-                }).show();
+        TextView plus=pill("+15 s",false);
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(36),1);
+        p.leftMargin=dp(6);
+        buttons.addView(plus,p);
+        plus.setOnClickListener(v->{
+            long left=restUntil>System.currentTimeMillis()?
+                Math.max(0,(restUntil-System.currentTimeMillis()+999)/1000):0;
+            startRest((int)left+15);
         });
+        add(timerShell,buttons);
     }
-    private void addSetRow(LinearLayout c,Plan.Exercise ex,int index) {
+
+    private void showSession() {
+        if(openSession<0) {page="plan";render();return;}
+        List<Plan.Exercise> exercises=Plan.exercises(openWorkout);
+        if(expandedExerciseId.isEmpty() && !exercises.isEmpty()) {
+            for(Plan.Exercise e:exercises) {
+                if(db.countExerciseSets(openSession,e.id)<e.sets) {
+                    expandedExerciseId=e.id;break;
+                }
+            }
+            if(expandedExerciseId.isEmpty())expandedExerciseId=exercises.get(0).id;
+        }
+
+        space(content,5);
+        add(content,text("Ćwiczenia",23,TEXT,true));
+        space(content,6);
+        add(content,text("Dotknij ćwiczenia, aby wprowadzić serie. Zapisywane są od razu.",14,MUTED,false));
+        space(content,16);
+
+        for(int i=0;i<exercises.size();i++) {
+            final Plan.Exercise ex=exercises.get(i);
+            final int order=i+1;
+            LinearLayout c=card(content);
+            LinearLayout header=row();
+            TextView number=text(String.format(Locale.ROOT,"%02d",order),15,TEAL,true);
+            number.setGravity(Gravity.CENTER);
+            number.setBackground(rounded(CARD2,11,0));
+            header.addView(number,new LinearLayout.LayoutParams(dp(40),dp(44)));
+
+            LinearLayout titleBox=col();
+            LinearLayout.LayoutParams tb=new LinearLayout.LayoutParams(0,-2,1);
+            tb.leftMargin=dp(12);
+            header.addView(titleBox,tb);
+            TextView title=text(ex.name,18,TEXT,true);
+            title.setMaxLines(3);
+            add(titleBox,title);
+            space(titleBox,4);
+            TextView done=text(db.countExerciseSets(openSession,ex.id)+"/"+ex.sets+" serii",13,TEAL,true);
+            add(titleBox,done);
+
+            TextView chevron=text(expandedExerciseId.equals(ex.id)?"⌃":"⌄",23,MUTED,false);
+            chevron.setGravity(Gravity.CENTER);
+            header.addView(chevron,new LinearLayout.LayoutParams(dp(31),dp(44)));
+            add(c,header);
+            LinearLayout body=col();
+            boolean expanded=expandedExerciseId.equals(ex.id);
+            body.setVisibility(expanded?View.VISIBLE:View.GONE);
+            if(expanded) {expandedBody=body;expandedChevron=chevron;}
+            space(body,13);
+            add(body,text(ex.goal(),14,TEAL,true));
+            space(body,9);
+            TextView desc=text(ex.description,15,MUTED,false);
+            desc.setLineSpacing(dp(3),1f);
+            add(body,desc);
+            space(body,13);
+
+            LinearLayout rows=col();
+            add(body,rows);
+            final int[] setNumber={db.setRows(openSession,ex.id,ex.sets)};
+            for(int j=0;j<setNumber[0];j++) addSetRow(rows,ex,j,done);
+            Button addExtra=button("+  Dodaj serię",false);
+            add(body,addExtra);
+            addExtra.setOnClickListener(v->addSetRow(rows,ex,setNumber[0]++,done));
+            add(c,body);
+
+            header.setPadding(0,dp(3),0,dp(3));
+            header.setOnClickListener(v->{
+                if(expandedBody!=null) {
+                    expandedBody.setVisibility(View.GONE);
+                    if(expandedChevron!=null) expandedChevron.setText("⌄");
+                }
+                if(expandedBody==body) {
+                    expandedExerciseId="";
+                    expandedBody=null;expandedChevron=null;
+                } else {
+                    expandedExerciseId=ex.id;
+                    body.setVisibility(View.VISIBLE);
+                    chevron.setText("⌃");
+                    expandedBody=body;expandedChevron=chevron;
+                }
+            });
+        }
+
+        space(content,6);
+        Button finish=button("Zakończ trening ✓",true);
+        add(content,finish);
+        finish.setOnClickListener(v->new AlertDialog.Builder(this)
+            .setTitle("Zakończyć trening?")
+            .setMessage("Wszystkie zapisane serie zostaną zachowane w historii. Możesz pominąć niewykonane.")
+            .setNegativeButton("Wróć do ćwiczeń",null)
+            .setPositiveButton("Zapisz trening",(d,w)->{
+                db.finish(openSession);
+                openSession=-1;
+                stopRest();
+                expandedExerciseId="";
+                page="history";
+                render();
+                if(cloud.signedIn())runCloudSync();
+            }).show());
+    }
+
+    private void addSetRow(LinearLayout target,Plan.Exercise ex,int index,TextView exerciseStatus) {
         WorkoutDb.Entry current=db.get(openSession,ex.id,index);
         WorkoutDb.Entry previous=db.previous(ex.id,index);
-        LinearLayout line=row();
-        TextView number=text(Integer.toString(index+1)+".",14,MUTED,true);
-        LinearLayout.LayoutParams nlp=new LinearLayout.LayoutParams(dp(27),-2);
-        line.addView(number,nlp);
-        EditText kg=field(current!=null?weight(current.weight):(previous!=null?weight(previous.weight):""),"kg",true);
-        EditText reps=field(current!=null?Integer.toString(current.reps):(previous!=null?Integer.toString(previous.reps):""),"powt.",false);
-        LinearLayout.LayoutParams k=new LinearLayout.LayoutParams(0,dp(46),1);
-        line.addView(kg,k);
-        LinearLayout.LayoutParams r=new LinearLayout.LayoutParams(0,dp(46),1);
-        r.leftMargin=dp(7);line.addView(reps,r);
-        Button save=button(current!=null?"Zmień":"Zapisz",current==null);
-        LinearLayout.LayoutParams s=new LinearLayout.LayoutParams(dp(82),dp(46));
-        s.leftMargin=dp(7);line.addView(save,s);
-        add(c,line);
-        if(previous!=null && current==null) {
-            TextView prev=text("Poprzednio: "+weight(previous.weight)+" kg × "+previous.reps,11,MUTED,false);
-            LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(-1,-2);
-            pp.leftMargin=dp(27);pp.topMargin=dp(3);c.addView(prev,pp);
-        }
-        space(c,9);
+        LinearLayout block=col();
+        block.setPadding(dp(13),dp(12),dp(13),dp(13));
+        block.setBackground(rounded(CARD2,13,0));
+        LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,-2);
+        bp.bottomMargin=dp(10);
+        target.addView(block,bp);
+
+        LinearLayout header=row();
+        TextView series=text("SERIA "+(index+1),14,TEXT,true);
+        header.addView(series,new LinearLayout.LayoutParams(0,dp(30),1));
+        TextView status=text(current!=null?"✓ Zapisana":"Do wykonania",13,current!=null?TEAL:MUTED,true);
+        status.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        header.addView(status);
+        add(block,header);
+        if(previous!=null) {
+            TextView prev=text("Poprzednio: "+weight(previous.weight)+" kg  ×  "+previous.reps,13,MUTED,false);
+            add(block,prev);
+            space(block,7);
+        } else space(block,6);
+
+        LinearLayout inputs=row();
+        LinearLayout left=col();
+        add(left,text("CIĘŻAR  •  KG",12,MUTED,true));
+        space(left,5);
+        EditText kg=field(current!=null?weight(current.weight):(previous!=null?weight(previous.weight):""),"0",true);
+        kg.setContentDescription("Ciężar w kilogramach, seria "+(index+1)+" "+ex.name);
+        add(left,kg);
+        inputs.addView(left,new LinearLayout.LayoutParams(0,-2,1));
+
+        LinearLayout right=col();
+        add(right,text("POWTÓRZENIA",12,MUTED,true));
+        space(right,5);
+        EditText reps=field(current!=null?Integer.toString(current.reps):
+            (previous!=null?Integer.toString(previous.reps):""),"0",false);
+        reps.setContentDescription("Powtórzenia, seria "+(index+1)+" "+ex.name);
+        add(right,reps);
+        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-2,1);
+        rp.leftMargin=dp(10);
+        inputs.addView(right,rp);
+        add(block,inputs);
+        space(block,10);
+
+        Button save=button(current!=null?"Zmień zapisaną serię":"✓  Zapisz serię",current==null);
+        add(block,save);
+        save.setContentDescription("Zapisz lub edytuj serię "+(index+1)+" ćwiczenia "+ex.name);
         save.setOnClickListener(v->{
             try {
                 String input=kg.getText().toString().trim().replace(',','.');
-                double w=input.isEmpty()?0:Double.parseDouble(input);
-                int repeat=Integer.parseInt(reps.getText().toString().trim());
-                if(!Double.isFinite(w)||w<0||w>2000||repeat<1||repeat>1000)throw new NumberFormatException();
-                db.save(openSession,ex.id,index,w,repeat);
-                save.setText("Zmień");save.setTextColor(TEXT);
-                save.setBackgroundTintList(ColorStateList.valueOf(CARD2));
-                if(sessionCount!=null)sessionCount.setText("Zapisane serie: "+db.countSets(openSession));
-                startRest(ex.restSeconds);
-                Toast.makeText(this,"Seria "+(index+1)+" zapisana ✓",Toast.LENGTH_SHORT).show();
-            } catch(Exception ignored) {
-                Toast.makeText(this,"Wpisz poprawny ciężar i liczbę powtórzeń",Toast.LENGTH_LONG).show();
+                if(input.isEmpty()) throw new NumberFormatException();
+                double w=Double.parseDouble(input);
+                int rep=Integer.parseInt(reps.getText().toString().trim());
+                if(!Double.isFinite(w)||w<0||w>2000||rep<1||rep>1000)
+                    throw new NumberFormatException();
+                boolean first=db.get(openSession,ex.id,index)==null;
+                db.save(openSession,ex.id,index,w,rep);
+                status.setText("✓ Zapisana");
+                status.setTextColor(TEAL);
+                save.setText("Zmień zapisaną serię");
+                save.setTextColor(TEXT);
+                save.setBackgroundTintList(ColorStateList.valueOf(CARD));
+                exerciseStatus.setText(db.countExerciseSets(openSession,ex.id)+"/"+ex.sets+" serii");
+                updateSessionProgress();
+                if(first)startRest(ex.restSeconds);
+                Toast.makeText(this,"Seria zapisana ✓",Toast.LENGTH_SHORT).show();
+            }catch(Exception error) {
+                Toast.makeText(this,"Sprawdź ciężar i liczbę powtórzeń",Toast.LENGTH_LONG).show();
             }
         });
         save.setOnLongClickListener(v->{
             new AlertDialog.Builder(this).setTitle("Usunąć tę serię?")
-                .setNegativeButton("Nie",null)
+                .setMessage("Dłuższe przytrzymanie pozwala usunąć zapis.")
+                .setNegativeButton("Anuluj",null)
                 .setPositiveButton("Usuń",(d,w)->{
                     db.delete(openSession,ex.id,index);
-                    save.setText("Zapisz");save.setTextColor(BG);
+                    status.setText("Do wykonania");
+                    status.setTextColor(MUTED);
+                    save.setText("✓  Zapisz serię");
+                    save.setTextColor(BG);
                     save.setBackgroundTintList(ColorStateList.valueOf(TEAL));
-                    if(sessionCount!=null)sessionCount.setText("Zapisane serie: "+db.countSets(openSession));
+                    exerciseStatus.setText(db.countExerciseSets(openSession,ex.id)+"/"+ex.sets+" serii");
+                    updateSessionProgress();
                 }).show();
             return true;
         });
@@ -474,114 +721,147 @@ public final class MainActivity extends Activity {
     private void startRest(int seconds) {
         restUntil=System.currentTimeMillis()+seconds*1000L;
         getSharedPreferences("forma_timer",0).edit().putLong("restUntil",restUntil).apply();
-        if(timerLabel!=null) timerLabel.setText("Przerwa: "+seconds+" s");
+        if(timerLabel!=null) timerLabel.setText(formatTime(seconds));
     }
     private void stopRest() {
         restUntil=0;
         getSharedPreferences("forma_timer",0).edit().remove("restUntil").apply();
-        if(timerLabel!=null) timerLabel.setText("Timer przerwy: gotowy");
+        if(timerLabel!=null) timerLabel.setText("00:00");
     }
     private String date(long millis) {
         return DateFormat.getDateTimeInstance(DateFormat.MEDIUM,DateFormat.SHORT,Locale.forLanguageTag("pl-PL"))
                 .format(new Date(millis));
     }
+
     private void showHistory() {
+        space(content,8);
         headline(content,"Historia treningów");
-        Button export=button("Eksportuj zapisane serie do CSV",false);
-        add(content,export);space(content,13);
-        export.setOnClickListener(v->exportCsv());
+        add(content,text("Twoje zapisane sesje",15,MUTED,false));
+        space(content,16);
         List<WorkoutDb.Session> list=db.completed();
         if(list.isEmpty()) {
-            LinearLayout c=card(content);
-            add(c,text("Nie ma jeszcze zakończonych treningów.",16,TEXT,true));
-            space(c,5);
-            add(c,text("Otwórz Plan, wykonaj sesję i zapisz serie.",13,MUTED,false));
+            LinearLayout empty=card(content);
+            add(empty,text("Jeszcze nie masz zakończonych sesji.",18,TEXT,true));
+            space(empty,9);
+            add(empty,text("Wybierz dzień z zakładki Plan i zapisz pierwsze serie.",15,MUTED,false));
             return;
         }
-        for(WorkoutDb.Session s:list) {
+        for(WorkoutDb.Session session:list) {
             LinearLayout c=card(content);
-            add(c,text(Plan.title(s.workout),18,TEXT,true));space(c,4);
-            boolean imported=s.notes!=null&&!s.notes.isEmpty();
-            String when=imported?new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL")).format(new Date(s.startedAt))+" • Z notatek":date(s.startedAt);
-            add(c,text(when,13,MUTED,false));space(c,5);
-            long mins=Math.max(0,(s.finishedAt-s.startedAt)/60000);
-            add(c,text(s.sets+" serii • "+(imported?"czas nieznany":mins+" min")+" • "+weight(s.volume)+" kg objętości",13,TEAL,false));
-            space(c,9);
-            Button details=button("Zobacz zapisane serie",false);add(c,details);
-            details.setOnClickListener(v->{detailSession=s.id;page="detail";render();});
-        }
-    }
-    private void showDetail() {
-        TextView back=text("‹  Wróć do historii",14,TEAL,true);add(content,back);
-        back.setOnClickListener(v->{page="history";render();});space(content,12);
-        headline(content,"Zapisane serie");
-        String notes=db.sessionNotes(detailSession);
-        if(notes!=null&&!notes.isEmpty()) {add(content,text(notes,13,TEAL,false));space(content,10);}
-        List<WorkoutDb.Entry> entries=db.sets(detailSession);
-        if(entries.isEmpty()) {add(content,text("Nie zapisano serii.",14,MUTED,false));return;}
-        String last="";
-        for(WorkoutDb.Entry e:entries) {
-            if(!last.equals(e.exerciseId)) {
-                Plan.Exercise ex=Plan.byId(e.exerciseId);
-                space(content,10);
-                add(content,text(ex==null?e.exerciseId:ex.name,16,TEXT,true));
-                last=e.exerciseId;
-            }
-            add(content,text("Seria "+(e.setIndex+1)+": "+weight(e.weight)+" kg × "+e.reps,14,MUTED,false));
-            space(content,4);
+            smallLabel(c,Plan.title(session.workout));
+            space(c,6);
+            boolean imported=session.notes!=null&&!session.notes.isEmpty();
+            String when=imported?
+                new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL")).format(new Date(session.startedAt))+" • import":
+                date(session.startedAt);
+            add(c,text(when,18,TEXT,true));
+            space(c,12);
+            summaryLine(c,"Zapisane serie",Integer.toString(session.sets));
+            long mins=Math.max(0,(session.finishedAt-session.startedAt)/60000);
+            summaryLine(c,"Czas",imported?"Nieznany":mins+" min");
+            space(c,10);
+            Button details=button("Zobacz wszystkie serie →",false);
+            add(c,details);
+            details.setOnClickListener(v->{detailSession=session.id;page="detail";render();});
         }
     }
 
-    private void showProgress() {
-        headline(content,"Twój progres");
-        add(content,text("Sprawdź ciężar i powtórzenia w kolejnych sesjach danego ćwiczenia.",13,MUTED,false));
-        space(content,15);
-        List<Plan.Exercise> exercises=Plan.uniqueExercises();
-        String[] names=new String[exercises.size()];
-        int position=0;
-        for(int i=0;i<exercises.size();i++) {
-            names[i]=exercises.get(i).name;
-            if(exercises.get(i).id.equals(selectedExercise))position=i;
+    private void showDetail() {
+        TextView back=text("‹  Wróć do historii",15,TEAL,true);
+        add(content,back);
+        back.setOnClickListener(v->{page="history";render();});
+        space(content,13);
+        headline(content,"Zapisane serie");
+        String notes=db.sessionNotes(detailSession);
+        if(notes!=null&&!notes.isEmpty()) {
+            LinearLayout c=card(content);
+            add(c,text(notes,14,MUTED,false));
         }
-        Spinner spinner=new Spinner(this);
-        ArrayAdapter<String> adapter=new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,names);
-        spinner.setAdapter(adapter);spinner.setSelection(position);
-        add(content,spinner);space(content,14);
-        LinearLayout results=col();add(content,results);
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent,View view,int selected,long id) {
-                selectedExercise=exercises.get(selected).id;
-                drawProgress(results,selectedExercise);
+        List<WorkoutDb.Entry> entries=db.sets(detailSession);
+        if(entries.isEmpty()) {
+            add(content,text("Nie zapisano żadnych serii.",15,MUTED,false));
+            return;
+        }
+        String previous="";
+        LinearLayout current=null;
+        for(WorkoutDb.Entry entry:entries) {
+            if(!previous.equals(entry.exerciseId)) {
+                Plan.Exercise ex=Plan.byId(entry.exerciseId);
+                current=card(content);
+                add(current,text(ex==null?entry.exerciseId:ex.name,18,TEXT,true));
+                space(current,10);
+                previous=entry.exerciseId;
             }
-            @Override public void onNothingSelected(AdapterView<?> parent) { }
-        });
+            if(current!=null) {
+                LinearLayout row=row();
+                TextView left=text("Seria "+(entry.setIndex+1),14,MUTED,false);
+                row.addView(left,new LinearLayout.LayoutParams(0,dp(35),1));
+                TextView right=text(weight(entry.weight)+" kg  ×  "+entry.reps,16,TEAL,true);
+                row.addView(right);
+                add(current,row);
+            }
+        }
+    }
+
+
+    private void showProgress() {
+        space(content,8);
+        headline(content,"Progres");
+        add(content,text("Porównaj wyniki z poprzednich treningów",15,MUTED,false));
+        space(content,17);
+        List<Plan.Exercise> exercises=Plan.uniqueExercises();
+        String[] options=new String[exercises.size()];
+        String display="";
+        for(int i=0;i<exercises.size();i++) {
+            options[i]=exercises.get(i).name;
+            if(exercises.get(i).id.equals(selectedExercise)) display=options[i];
+        }
+        LinearLayout selector=card(content);
+        smallLabel(selector,"ĆWICZENIE");
+        space(selector,7);
+        Button choose=button((display.isEmpty()?"Wybierz ćwiczenie":display)+"  ⌄",false);
+        add(selector,choose);
+        choose.setOnClickListener(v->new AlertDialog.Builder(this)
+            .setTitle("Wybierz ćwiczenie")
+            .setItems(options,(dialog,index)->{
+                selectedExercise=exercises.get(index).id;
+                render();
+            }).show());
+        LinearLayout results=col();
+        add(content,results);
         drawProgress(results,selectedExercise);
     }
+
     private void drawProgress(LinearLayout target,String ex) {
         target.removeAllViews();
         List<WorkoutDb.Progress> list=db.progress(ex);
         if(list.isEmpty()) {
-            LinearLayout c=card(target);
-            add(c,text("Brak zapisanych wyników",16,TEXT,true));
-            space(c,6);
-            add(c,text("Wykonaj ćwiczenie w treningu, żeby zobaczyć progres.",13,MUTED,false));
+            LinearLayout empty=card(target);
+            add(empty,text("Brak zapisanych wyników",18,TEXT,true));
+            space(empty,9);
+            add(empty,text("Wykonaj to ćwiczenie w treningu, a pojawią się tutaj ciężary i powtórzenia.",15,MUTED,false));
             return;
         }
         WorkoutDb.Progress latest=list.get(0);
-        LinearLayout top=card(target);
-        add(top,text("OSTATNI TRENING",12,TEAL,true));
-        space(top,7);
-        add(top,text(weight(latest.maxWeight)+" kg × "+latest.repsAtMax,26,TEXT,true));
-        add(top,text("Najcięższa zapisana seria • "+date(latest.date),12,MUTED,false));
-        space(target,5);
-        add(target,text("Historia ćwiczenia",18,TEXT,true));space(target,9);
-        for(int i=0;i<Math.min(list.size(),15);i++) {
-            WorkoutDb.Progress p=list.get(i);
+        LinearLayout hero=card(target);
+        smallLabel(hero,"OSTATNIO");
+        space(hero,8);
+        add(hero,text(weight(latest.maxWeight)+" kg",29,TEXT,true));
+        space(hero,3);
+        add(hero,text("× "+latest.repsAtMax+" powtórzeń  •  najlepsza seria",15,TEAL,true));
+        space(hero,5);
+        add(hero,text(date(latest.date),13,MUTED,false));
+        space(target,6);
+        add(target,text("Poprzednie sesje",20,TEXT,true));
+        space(target,10);
+        for(int i=0;i<Math.min(list.size(),20);i++) {
+            WorkoutDb.Progress entry=list.get(i);
             LinearLayout c=card(target);
-            add(c,text(date(p.date),13,MUTED,false));space(c,6);
-            add(c,text(weight(p.maxWeight)+" kg × "+p.repsAtMax+" powt.",18,TEXT,true));
-            space(c,3);
-            add(c,text(p.numberOfSets+" serii • "+p.totalReps+" powtórzeń łącznie",12,TEAL,false));
+            add(c,text(date(entry.date),14,MUTED,false));
+            space(c,7);
+            add(c,text(weight(entry.maxWeight)+" kg  ×  "+entry.repsAtMax,19,TEXT,true));
+            space(c,4);
+            add(c,text(entry.numberOfSets+" serii  •  "+entry.totalReps+" powt. łącznie",13,TEAL,false));
         }
     }
 
@@ -609,7 +889,7 @@ public final class MainActivity extends Activity {
         }
     }
     @Override public void onBackPressed() {
-        if(page.equals("session")||page.equals("detail")||page.equals("progress")||page.equals("history")) {
+        if(page.equals("session")||page.equals("detail")||page.equals("progress")||page.equals("history")||page.equals("settings")) {
             page=page.equals("detail")?"history":"plan";
             render();
         } else super.onBackPressed();
