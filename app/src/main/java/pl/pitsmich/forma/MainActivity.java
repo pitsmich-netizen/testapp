@@ -1280,9 +1280,13 @@ public final class MainActivity extends Activity {
             String duration=imported?"bez czasu":formatTime(db.durationMillis(session)/1000);
             String info=session.sets+" serii  •  "+duration+"  •  "+weight(session.volume)+" kg obj.";
             add(c,text(info,13,MUTED,false));
-            if(imported && session.sets!=18) {
+            String auditState=db.auditResolution(session.id);
+            if(imported && session.sets!=18 && "pending".equals(auditState)) {
                 space(c,3);
-                add(c,text("⚠  Porównaj import z pierwszymi notatkami (18 serii)",12,AMBER,false));
+                add(c,text("⚠  Potwierdź dodatkowe serie lub edytuj zapis",12,AMBER,false));
+            } else if(imported && "confirmed".equals(auditState)) {
+                space(c,3);
+                add(c,text("✓  Dodatkowe serie potwierdzone",12,GREEN,false));
             }
             clickCard(c,()->{detailSession=session.id;page="detail";render();});
         }
@@ -1310,18 +1314,19 @@ public final class MainActivity extends Activity {
         space(content,13);
         String notes=db.sessionNotes(detailSession);
         if(notes!=null && notes.startsWith("Import z notatek 18.11.2026")) {
+            String auditState=db.auditResolution(selected.id);
             LinearLayout audit=card(content);
-            smallLabel(audit,selected.sets==18?"IMPORT ZGODNY LICZBOWO":"SPRAWDŹ PIERWSZY IMPORT");
+            boolean confirmed="confirmed".equals(auditState);
+            boolean dismissed="dismissed".equals(auditState);
+            smallLabel(audit,confirmed?"✓  IMPORT ZATWIERDZONY":
+                dismissed?"OSTRZEŻENIE ODRZUCONE":"AUDYT IMPORTU");
             space(audit,6);
-            add(audit,text("Z notatek: 18 serii • w aplikacji: "+selected.sets,14,
-                selected.sets==18?GREEN:AMBER,true));
-            space(audit,9);
-            Button check=button("Pokaż porównanie ćwiczeń",false);
+            add(audit,text("Pierwsze notatki: 18 serii  •  W historii: "+selected.sets,14,
+                confirmed?GREEN:selected.sets==18?TEAL:AMBER,true));
+            space(audit,8);
+            Button check=button(confirmed||dismissed?"Otwórz ponownie porównanie":"Porównaj / zatwierdź / edytuj",false);
             add(audit,check);
-            check.setOnClickListener(v->new AlertDialog.Builder(this)
-                .setTitle("Audyt treningu 18.11.2026")
-                .setMessage(db.initialImportAudit(selected.id))
-                .setPositiveButton("OK",null).show());
+            check.setOnClickListener(v->showAuditActions(selected));
         }
         if(notes!=null&&!notes.isEmpty()) {
             LinearLayout c=card(content);
@@ -1353,6 +1358,26 @@ public final class MainActivity extends Activity {
         }
     }
 
+
+    private void showAuditActions(WorkoutDb.Session session) {
+        new AlertDialog.Builder(this)
+            .setTitle("Weryfikacja importu")
+            .setMessage(db.initialImportAudit(session.id)+"\n\n"+
+                "Zatwierdź = wszystkie serie są prawidłowe. "+
+                "Odrzuć ostrzeżenie = ukryj komunikat bez usuwania serii. "+
+                "Edytuj = popraw wpisy ręcznie.")
+            .setPositiveButton("Zatwierdź",(d,w)->{
+                db.setAuditResolution(session.id,"confirmed");
+                render();
+            })
+            .setNeutralButton("Odrzuć ostrzeżenie",(d,w)->{
+                db.setAuditResolution(session.id,"dismissed");
+                render();
+            })
+            .setNegativeButton("Edytuj",(d,w)->{
+                detailSession=session.id;page="edit";render();
+            }).show();
+    }
 
     private void showCompletedActions(WorkoutDb.Session session) {
         new AlertDialog.Builder(this)
