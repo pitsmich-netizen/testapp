@@ -375,7 +375,7 @@ public final class MainActivity extends Activity {
             add(card,first);
             add(card,text(Plan.title(i),21,TEXT,true));
             space(card,4);
-            int sets=0;for(Plan.Exercise ex:db.workoutPlan(i))sets+=ex.sets;
+            int sets=0;for(Plan.Exercise ex:db.workoutPlan(i))sets+=db.expectedSets(i,ex);
             TextView details=text(db.workoutPlan(i).size()+" ćwiczeń  •  "+sets+" serii  •  "+Plan.focus(i),12,MUTED,false);
             details.setMaxLines(2);
             add(card,details);
@@ -759,7 +759,7 @@ public final class MainActivity extends Activity {
     private void showFixedSessionHeader() {
         if(openSession<0) return;
         plannedSets=0;
-        for(Plan.Exercise e:db.workoutPlan(openWorkout)) plannedSets+=e.sets;
+        for(Plan.Exercise e:db.workoutPlan(openWorkout)) plannedSets+=db.expectedSets(openWorkout,e);
 
         LinearLayout top=row();
         TextView back=text("‹  PLAN",15,TEAL,true);
@@ -896,8 +896,13 @@ public final class MainActivity extends Activity {
                 expandedCard=c;
             }
             space(body,13);
-            add(body,text(ex.goal(),14,TEAL,true));
-            String tip=db.progressionTip(ex);
+            int expected=db.expectedSets(openWorkout,ex);
+            String objective=expected+" × "+ex.minReps+"–"+ex.maxReps+
+                (ex.eachSide?" / stronę":"")+"  •  "+ex.restSeconds+" s przerwy";
+            add(body,text(objective,14,TEAL,true));
+            Plan.Exercise proposed=new Plan.Exercise(ex.id,ex.name,ex.description,
+                expected,ex.minReps,ex.maxReps,ex.restSeconds,ex.eachSide);
+            String tip=db.progressionTip(proposed);
             if(tip!=null) {
                 space(body,8);
                 TextView suggestion=text("↗  "+tip,13,GREEN,false);
