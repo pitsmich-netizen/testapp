@@ -262,6 +262,26 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             return new Entry(exercise,index,c.getDouble(0),c.getInt(1));
         }
     }
+    /** Only suggest progression after ALL planned working sets hit the rep ceiling at one weight. */
+    public String progressionTip(Plan.Exercise exercise) {
+        String q="SELECT COUNT(*),MIN(e.reps),MIN(e.weight),MAX(e.weight) " +
+            "FROM exercise_sets e JOIN sessions s ON s.id=e.session_id " +
+            "WHERE e.exercise_id=? AND e.set_index<? AND s.id=(" +
+            "SELECT x.id FROM sessions x JOIN exercise_sets y ON y.session_id=x.id " +
+            "WHERE y.exercise_id=? AND x.finished_at IS NOT NULL " +
+            "ORDER BY x.started_at DESC,x.id DESC LIMIT 1)";
+        try(Cursor c=getReadableDatabase().rawQuery(q,new String[]{
+                exercise.id,Integer.toString(exercise.sets),exercise.id})) {
+            if(!c.moveToFirst() || c.getInt(0)<exercise.sets ||
+                c.isNull(2) || c.getInt(1)<exercise.maxReps ||
+                Math.abs(c.getDouble(2)-c.getDouble(3))>0.001) return null;
+            double weight=c.getDouble(2);
+            return "Ostatnio komplet serii po "+exercise.maxReps+" powt. przy "+
+                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",weight)+
+                " kg. Jeśli technika jest stabilna, spróbuj niewielkiego zwiększenia ciężaru.";
+        }
+    }
+
     public int countExerciseSets(long session,String exercise) {
         try(Cursor c=getReadableDatabase().rawQuery(
                 "SELECT COUNT(*) FROM exercise_sets WHERE session_id=? AND exercise_id=?",
