@@ -10,7 +10,7 @@ Najnowszy plan: **FBW A / FBW B / FBW C**, poniedziałek / środa / piątek, po 
 - SQLite v9 przełącza bieżące szablony na FBW 1.0 i zachowuje historię serii/ciężarów oraz stare nazwy typów sesji. Starszy plan jest archiwizowany w tabelach `pre_fbw_plan_items` i `pre_fbw_schedule`; własny katalog ćwiczeń zostaje zachowany.
 - Wersja 0.8.1 zachowuje identyfikator aplikacji, certyfikat podpisywania i kanał OTA.
 - Przed aktualizacją warto zapisać **Ustawienia → Zapisz pełną kopię JSON**. Plik ze starej wersji zachowuje poprzedni plan i dane.
-- [Najnowszy podpisany release 0.8.1](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.8.1) (po publikacji).
+- [Pobierz podpisany APK 0.8.1](https://github.com/pitsmich-netizen/testapp/releases/download/v0.8.1/forma-v0.8.1.apk).
 
 ### Zasady progresji
 Stały ciężar w seriach roboczych, technika i docelowy RIR ważniejsze niż automatyczny wzrost obciążenia. Zwiększ ciężar dopiero po osiągnięciu górnego zakresu we wszystkich seriach, z zachowaniem docelowego RIR. Rozgrzewki są poza seriami roboczymi. Dodatkowe przerwy 30–60 s w cięższych ćwiczeniach są dopuszczalne.
@@ -44,7 +44,7 @@ Stały ciężar w seriach roboczych, technika i docelowy RIR ważniejsze niż au
 - Timer przerw (autostart po zapisaniu serii; 60 / 90 / 120 s, +15 s, pomiń) oraz licznik czasu sesji.
 - Eksport historii do CSV.
 - **Import notatek:** sesja Góra A z 18.11.2026, 18 serii, z oryginalnymi ciężarami i uwagą „2 linki”.
-- **OTA:** gotowe: najnowsze podpisane wydanie [FORMA 0.8.0](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.8.0), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
+- **OTA:** gotowe: najnowsze podpisane wydanie [FORMA 0.8.1](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.8.1), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
 
 ## Kopia treningów w Supabase (opcjonalna)
 - Bez konta FORMA działa w pełni offline.
