@@ -4,6 +4,7 @@ import android.content.ContentValues;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.database.Cursor;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.HashSet;
@@ -123,7 +124,15 @@ public final class WorkoutBackup {
                 JSONObject src=sessions.getJSONObject(i);
                 String cloudId=src.getString("cloud_id");
                 if(cloudId.length()<8||cloudId.length()>100)throw new Exception("Błędny identyfikator sesji");
-                if(db.hasCloudId(cloudId)) {skipped++;continue;}
+                long existingId=-1;
+                try(Cursor existing=sql.rawQuery(
+                    "SELECT id FROM sessions WHERE cloud_id=?",new String[]{cloudId})) {
+                    if(existing.moveToFirst())existingId=existing.getLong(0);
+                }
+                // Fresh installs include a seeded 18.11 demo session. A user's
+                // edited copy (e.g. 24 sets) must REPLACE that seed on restore.
+                boolean replaceSeed=existingId>0 && "forma-import-20261118".equals(cloudId);
+                if(existingId>0 && !replaceSeed) {skipped++;continue;}
                 int workout=src.getInt("workout");
                 long start=src.getLong("started_at");
                 if(workout<0||workout>2||start<=0)throw new Exception("Błędne dane sesji");
@@ -151,7 +160,14 @@ public final class WorkoutBackup {
                 if(!audit.equals("pending")&&!audit.equals("confirmed")&&!audit.equals("dismissed"))
                     throw new Exception("Błędny status audytu");
                 row.put("audit_resolution",audit);
-                long sessionId=sql.insertOrThrow("sessions",null,row);
+                long sessionId;
+                if(replaceSeed) {
+                    sql.update("sessions",row,"id=?",new String[]{Long.toString(existingId)});
+                    sql.delete("exercise_sets","session_id=?",new String[]{Long.toString(existingId)});
+                    sessionId=existingId;
+                } else {
+                    sessionId=sql.insertOrThrow("sessions",null,row);
+                }
 
                 JSONArray entries=src.getJSONArray("sets");
                 if(entries.length()>500)throw new Exception("Za dużo serii w jednej sesji");
