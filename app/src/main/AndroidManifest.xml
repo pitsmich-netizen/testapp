@@ -5,7 +5,7 @@
     <application
         android:allowBackup="false"
         android:label="FORMA"
-        android:theme="@android:style/Theme.Material.NoActionBar"
+        android:theme="@style/FormaTheme"
         android:usesCleartextTraffic="false">
         <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.updates" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths" />
