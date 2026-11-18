@@ -889,7 +889,7 @@ public final class MainActivity extends Activity {
         }
     }
     @Override public void onBackPressed() {
-        if(page.equals("session")||page.equals("detail")||page.equals("progress")||page.equals("history")) {
+        if(page.equals("session")||page.equals("detail")||page.equals("progress")||page.equals("history")||page.equals("settings")) {
             page=page.equals("detail")?"history":"plan";
             render();
         } else super.onBackPressed();
