@@ -49,6 +49,11 @@ public final class MainActivity extends Activity {
     private static final int TEXT=Color.rgb(250,253,255);
     private static final int MUTED=Color.rgb(198,198,198);
     private static final int BORDER=Color.rgb(58,58,58);
+    private static final int GREEN=Color.rgb(107,214,145);
+    private static final int AMBER=Color.rgb(255,189,100);
+    private static final int RED=Color.rgb(247,113,113);
+    private static final int SKY=Color.rgb(125,181,250);
+    private static final int VIOLET=Color.rgb(184,163,245);
     private static final int EXPORT_REQUEST=1901;
 
     private WorkoutDb db;
@@ -59,6 +64,7 @@ public final class MainActivity extends Activity {
     private long openSession=-1, detailSession=-1;
     private int openWorkout=Plan.UPPER_A;
     private String selectedExercise="db_flat";
+    private int selectedProgressWorkout=Plan.UPPER_A;
     private String expandedExerciseId="";
     private LinearLayout expandedBody;
     private TextView expandedChevron;
@@ -101,6 +107,7 @@ public final class MainActivity extends Activity {
             openWorkout=state.getInt("openWorkout",Plan.UPPER_A);
             detailSession=state.getLong("detailSession",-1);
             selectedExercise=state.getString("selectedExercise","db_flat");
+            selectedProgressWorkout=state.getInt("selectedProgressWorkout",Plan.UPPER_A);
             expandedExerciseId=state.getString("expandedExerciseId","");
         }
         render();
@@ -113,6 +120,7 @@ public final class MainActivity extends Activity {
         state.putInt("openWorkout",openWorkout);
         state.putLong("detailSession",detailSession);
         state.putString("selectedExercise",selectedExercise);
+        state.putInt("selectedProgressWorkout",selectedProgressWorkout);
         state.putString("expandedExerciseId",expandedExerciseId);
         super.onSaveInstanceState(state);
     }
@@ -148,16 +156,16 @@ public final class MainActivity extends Activity {
         View v=new View(this); target.addView(v,new LinearLayout.LayoutParams(1,dp(height)));
     }
     private LinearLayout card(LinearLayout target) {
-        LinearLayout c=col(); c.setPadding(dp(18),dp(18),dp(18),dp(18));
-        c.setBackground(rounded(CARD,18,BORDER));
+        LinearLayout c=col(); c.setPadding(dp(14),dp(13),dp(14),dp(13));
+        c.setBackground(rounded(CARD,15,BORDER));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
-        lp.bottomMargin=dp(14);
+        lp.bottomMargin=dp(9);
         target.addView(c,lp);
         return c;
     }
     private void add(LinearLayout target,View child) { target.addView(child,new LinearLayout.LayoutParams(-1,-2)); }
     private void headline(LinearLayout target,String s) {
-        add(target,text(s,24,TEXT,true)); space(target,7);
+        add(target,text(s,22,TEXT,true)); space(target,4);
     }
     private TextView pill(String s,boolean active) {
         TextView t=text(s,13,active?BG:MUTED,true);
@@ -174,7 +182,7 @@ public final class MainActivity extends Activity {
         b.setBackgroundTintList(ColorStateList.valueOf(primary?TEAL:CARD2));
         b.setMinimumHeight(0); b.setMinHeight(0);
         b.setPadding(dp(12),dp(12),dp(12),dp(12));
-        b.setMinHeight(dp(48));
+        b.setMinHeight(dp(43));
         return b;
     }
 
@@ -182,10 +190,10 @@ public final class MainActivity extends Activity {
         timerLabel=null; sessionCount=null; elapsedLabel=null; sessionProgress=null; expandedBody=null; expandedChevron=null;
         root=col();
         root.setBackgroundColor(BG);
-        root.setPadding(dp(18),dp(12),dp(18),dp(10));
+        root.setPadding(dp(16),dp(9),dp(16),dp(8));
         root.setOnApplyWindowInsetsListener((v,insets)->{
-            root.setPadding(dp(18),insets.getSystemWindowInsetTop()+dp(12),
-                dp(18),insets.getSystemWindowInsetBottom()+dp(10));
+            root.setPadding(dp(16),insets.getSystemWindowInsetTop()+dp(8),
+                dp(16),insets.getSystemWindowInsetBottom()+dp(8));
             return insets;
         });
         setContentView(root);
@@ -194,7 +202,7 @@ public final class MainActivity extends Activity {
         TextView logo=text("FORMA",20,TEAL,true);
         logo.setLetterSpacing(0.10f);
         brand.addView(logo,new LinearLayout.LayoutParams(0,dp(39),1));
-        TextView version=text("0.4.0",12,MUTED,true);
+        TextView version=text("0.5.0",12,MUTED,true);
         version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         brand.addView(version,new LinearLayout.LayoutParams(dp(54),dp(44)));
         TextView gear=text(page.equals("settings")?"‹":"⚙",26,TEAL,true);
@@ -259,6 +267,23 @@ public final class MainActivity extends Activity {
         t.setLetterSpacing(0.08f);
         add(target,t);
     }
+    private int dayColor(int workout) {
+        return workout==Plan.LEGS?SKY:(workout==Plan.UPPER_B?VIOLET:TEAL);
+    }
+    private void tintCard(LinearLayout c, int color) {
+        c.setBackground(rounded(CARD,15,color));
+    }
+    private TextView actionLabel(String text,int color) {
+        TextView v=text(text,13,color,true);
+        v.setGravity(Gravity.CENTER_VERTICAL);
+        return v;
+    }
+    private void clickCard(LinearLayout c, Runnable action) {
+        c.setClickable(true);
+        c.setFocusable(true);
+        c.setForeground(getDrawable(android.R.drawable.list_selector_background));
+        c.setOnClickListener(v->action.run());
+    }
     private void summaryLine(LinearLayout target,String title,String value) {
         LinearLayout r=row();
         TextView l=text(title,14,MUTED,false);
@@ -269,58 +294,49 @@ public final class MainActivity extends Activity {
         add(target,r);
     }
     private void showPlan() {
-        space(content,8);
-        headline(content,"Twój plan treningowy");
-        add(content,text("Góra A  •  Nogi  •  Góra B",16,MUTED,false));
-        space(content,17);
+        space(content,4);
+        headline(content,"Twój plan");
+        add(content,text("3 treningi • Góra / Nogi / Góra",14,MUTED,false));
+        space(content,11);
 
         WorkoutDb.Session active=db.active();
         if(active!=null) {
             LinearLayout resume=card(content);
-            smallLabel(resume,active.pausedAt>0?"TRENING WSTRZYMANY":"TRENING W TOKU");
-            space(resume,7);
-            add(resume,text(Plan.title(active.workout),22,TEXT,true));
-            space(resume,4);
-            add(resume,text(active.sets+" zapisanych serii",15,MUTED,false));
-            space(resume,10);
-            Button b=button(active.pausedAt>0?"Wznów trening →":"Wróć do treningu →",true);
-            add(resume,b);
-            b.setOnClickListener(v->{
-                if(active.pausedAt>0)db.resume(active.id);
-                openSession=active.id;
-                openWorkout=active.workout;
-                expandedExerciseId="";
-                page="session";
-                render();
+            int stateColor=active.pausedAt>0?AMBER:GREEN;
+            tintCard(resume,stateColor);
+            LinearLayout top=row();
+            TextView status=actionLabel(active.pausedAt>0?"Ⅱ  WSTRZYMANY":"●  W TOKU",stateColor);
+            top.addView(status,new LinearLayout.LayoutParams(0,dp(31),1));
+            TextView arrow=actionLabel("WZNÓW  ›",stateColor);
+            top.addView(arrow);
+            add(resume,top);
+            add(resume,text(Plan.title(active.workout)+"  ·  "+active.sets+" serii",19,TEXT,true));
+            clickCard(resume,()->{
+                if(active.pausedAt>0) db.resume(active.id);
+                openSession=active.id;openWorkout=active.workout;
+                expandedExerciseId="";page="session";render();
             });
         }
-
         String[] days={"PONIEDZIAŁEK","ŚRODA","PIĄTEK"};
-        String[] tags={"KLATKA + PLECY","UDA + POŚLADKI + ŁYDKI","PLECY + KLATKA"};
-        for(int w=0;w<3;w++) {
-            final int workout=w;
-            LinearLayout c=card(content);
-            LinearLayout tag=row();
-            TextView day=text(days[w],12,TEAL,true);
-            tag.addView(day,new LinearLayout.LayoutParams(0,dp(27),1));
-            TextView no=text("0"+(w+1),20,MUTED,true);
-            tag.addView(no);
-            add(c,tag);
-            space(c,3);
-            add(c,text(Plan.title(w),24,TEXT,true));
-            space(c,4);
-            add(c,text(tags[w],14,MUTED,false));
-            space(c,8);
-            int sets=0;for(Plan.Exercise e:Plan.exercises(w))sets+=e.sets;
-            add(c,text(Plan.exercises(w).size()+" ćwiczeń     •     "+sets+" serii",14,MUTED,false));
-            space(c,10);
-            Button open=button(active!=null?"Otwórz plan →":"Rozpocznij trening →",true);
-            add(c,open);
-            open.setOnClickListener(v->startWorkout(workout));
+        for(int i=0;i<3;i++) {
+            final int workout=i;
+            int accent=dayColor(i);
+            LinearLayout card=card(content);
+            LinearLayout first=row();
+            TextView day=actionLabel(days[i],accent);
+            first.addView(day,new LinearLayout.LayoutParams(0,dp(27),1));
+            TextView step=actionLabel("0"+(i+1)+"  ›",MUTED);
+            first.addView(step);
+            add(card,first);
+            add(card,text(Plan.title(i),21,TEXT,true));
+            space(card,4);
+            int sets=0;for(Plan.Exercise ex:Plan.exercises(i))sets+=ex.sets;
+            TextView details=text(Plan.exercises(i).size()+" ćwiczeń  •  "+sets+" serii  •  "+Plan.focus(i),12,MUTED,false);
+            details.setMaxLines(2);
+            add(card,details);
+            clickCard(card,()->startWorkout(workout));
         }
-        TextView info=text("Seria po serii zapisujesz ciężar i powtórzenia. Poprzednie wyniki podpowiadamy automatycznie.",14,MUTED,false);
-        info.setLineSpacing(dp(3),1f);
-        add(content,info);
+        add(content,text("Wybierz cały kafelek, aby rozpocząć sesję. Poprzednie ciężary są podpowiadane.",12,MUTED,false));
     }
 
     private void showSettings() {
@@ -369,7 +385,7 @@ public final class MainActivity extends Activity {
         LinearLayout ota=card(content);
         smallLabel(ota,"AKTUALIZACJE APLIKACJI");
         space(ota,7);
-        add(ota,text("FORMA 0.4.0",20,TEXT,true));
+        add(ota,text("FORMA 0.5.0",20,TEXT,true));
         space(ota,4);
         add(ota,text("Sprawdzanie OTA odbywa się automatycznie przy uruchomieniu.",14,MUTED,false));
         space(ota,12);
@@ -831,43 +847,38 @@ public final class MainActivity extends Activity {
     }
 
     private void showHistory() {
-        space(content,8);
-        headline(content,"Historia treningów");
-        add(content,text("Twoje zapisane sesje",15,MUTED,false));
-        space(content,16);
+        space(content,4);
+        headline(content,"Historia");
         List<WorkoutDb.Session> list=db.completed();
         if(list.isEmpty()) {
-            LinearLayout empty=card(content);
-            add(empty,text("Jeszcze nie masz zakończonych sesji.",18,TEXT,true));
-            space(empty,9);
-            add(empty,text("Wybierz dzień z zakładki Plan i zapisz pierwsze serie.",15,MUTED,false));
+            LinearLayout c=card(content);
+            add(c,text("Brak zakończonych treningów",17,TEXT,true));
+            space(c,6);
+            add(c,text("Wykonane sesje pojawią się tutaj.",13,MUTED,false));
             return;
         }
         for(WorkoutDb.Session session:list) {
             LinearLayout c=card(content);
-            LinearLayout cardTop=row();
-            TextView name=text(Plan.title(session.workout),13,TEAL,true);
-            cardTop.addView(name,new LinearLayout.LayoutParams(0,dp(42),1));
-            TextView more=text("⋮",27,TEAL,true);
+            LinearLayout top=row();
+            TextView kind=actionLabel(Plan.title(session.workout),dayColor(session.workout));
+            top.addView(kind,new LinearLayout.LayoutParams(0,dp(35),1));
+            TextView more=actionLabel("⋮",SKY);
             more.setGravity(Gravity.CENTER);
-            more.setContentDescription("Opcje: edytuj lub usuń trening");
-            cardTop.addView(more,new LinearLayout.LayoutParams(dp(44),dp(42)));
+            more.setTextSize(25);
+            more.setContentDescription("Opcje treningu: edytuj lub usuń");
+            top.addView(more,new LinearLayout.LayoutParams(dp(44),dp(41)));
             more.setOnClickListener(v->showCompletedActions(session));
-            add(c,cardTop);
-            space(c,4);
+            add(c,top);
             boolean imported=session.notes!=null&&session.notes.startsWith("Import z notatek 18.11.2026");
             String when=imported?
-                new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL")).format(new Date(session.startedAt))+" • import":
-                date(session.startedAt);
-            add(c,text(when,18,TEXT,true));
-            space(c,12);
-            summaryLine(c,"Zapisane serie",Integer.toString(session.sets));
-            long mins=Math.max(0,(session.finishedAt-session.startedAt)/60000);
-            summaryLine(c,"Czas",imported?"Nieznany":formatTime(db.durationMillis(session)/1000));
-            space(c,10);
-            Button details=button(session.sets==0?"Edytuj pustą sesję →":"Zobacz serie →",false);
-            add(c,details);
-            details.setOnClickListener(v->{detailSession=session.id;page="detail";render();});
+                new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL")).format(new Date(session.startedAt))+"  •  import":
+                new SimpleDateFormat("dd.MM.yyyy  ·  HH:mm",Locale.forLanguageTag("pl-PL")).format(new Date(session.startedAt));
+            add(c,text(when,17,TEXT,true));
+            space(c,5);
+            String duration=imported?"bez czasu":formatTime(db.durationMillis(session)/1000);
+            String info=session.sets+" serii  •  "+duration+"  •  "+weight(session.volume)+" kg obj.";
+            add(c,text(info,13,MUTED,false));
+            clickCard(c,()->{detailSession=session.id;page="detail";render();});
         }
     }
 
