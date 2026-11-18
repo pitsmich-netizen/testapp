@@ -8,7 +8,7 @@ Klient aplikacji sprawdza aktualizacje na starcie (nie częściej niż raz na 24
 
 Kod źródłowy pozostaje na GitHubie, a nową wersję udostępniamy jako GitHub Release z dwoma plikami: `forma-vX.Y.Z.apk` i `latest.json`. Nie ma konieczności ręcznego wpisywania adresu w aplikacji.
 
-**Uwaga: sam klient OTA jest gotowy, ale automatyczne aktualizacje nie zadziałają, dopóki nie zostanie opublikowana pierwsza poprawnie podpisana wersja release.** Aktualne `app-debug.apk` jest do testów; nie jest podstawą bezproblemowych aktualizacji.
+**Pierwsze podpisane wydanie FORMA 0.2.0 zostało opublikowane 18.11.2026:** [GitHub Release v0.2.0](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.2.0). Zainstaluj `forma-v0.2.0.apk` z tego wydania, nie debug APK. Mechanizm OTA będzie zgłaszał dopiero kolejne wersje z wyższym `versionCode`; system Android zawsze wymaga zaakceptowania instalacji.
 
 ## Stan klucza podpisywania (18.11.2026)
 
