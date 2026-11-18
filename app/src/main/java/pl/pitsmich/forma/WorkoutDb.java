@@ -43,7 +43,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         Progress(long date) { this.date=date; }
     }
 
-    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 2); }
+    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 3); }
     @Override public void onConfigure(SQLiteDatabase db) { super.onConfigure(db); db.setForeignKeyConstraintsEnabled(true); }
     @Override public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, workout INTEGER NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER, notes TEXT NOT NULL DEFAULT '')");
@@ -56,6 +56,26 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         if(oldVersion<2) {
             db.execSQL("ALTER TABLE sessions ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
             seedInitialWorkout(db);
+        }
+        if(oldVersion<3) seedAdditionalNovemberSets(db);
+    }
+    private void seedAdditionalNovemberSets(SQLiteDatabase sql) {
+        try(Cursor c=sql.rawQuery("SELECT id FROM sessions WHERE notes LIKE 'Import z notatek 18.11.2026%' ORDER BY id LIMIT 1",null)) {
+            if(!c.moveToFirst()) return;
+            long id=c.getLong(0);
+            seedSetsIfAbsent(sql,id,"cable_lateral",5,new int[]{12,12,12});
+            seedSetsIfAbsent(sql,id,"facepull",15,new int[]{12,12,12});
+        }
+    }
+    private void seedSetsIfAbsent(SQLiteDatabase sql,long session,String ex,double kg,int[] reps) {
+        for(int i=0;i<reps.length;i++) {
+            ContentValues row=new ContentValues();
+            row.put("session_id",session);
+            row.put("exercise_id",ex);
+            row.put("set_index",i);
+            row.put("weight",kg);
+            row.put("reps",reps[i]);
+            sql.insertWithOnConflict("exercise_sets",null,row,SQLiteDatabase.CONFLICT_IGNORE);
         }
     }
     private void seedInitialWorkout(SQLiteDatabase sql) {
@@ -77,6 +97,8 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         seedSets(sql,id,"lat_wide",30,new int[]{12,12,12});
         seedSets(sql,id,"row_cable",17.5,new int[]{12,12,12});
         seedSets(sql,id,"butterfly",30,new int[]{12,12,12});
+        seedSets(sql,id,"cable_lateral",5,new int[]{12,12,12});
+        seedSets(sql,id,"facepull",15,new int[]{12,12,12});
     }
     private void seedSets(SQLiteDatabase sql,long session,String ex,double kg,int[] reps) {
         for(int i=0;i<reps.length;i++) {
