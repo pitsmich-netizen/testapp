@@ -1219,7 +1219,7 @@ public final class MainActivity extends Activity {
                 boolean pr=latest!=null && exerciseIsNewRecord(ex.id,best,latest.startedAt);
                 LinearLayout tile=col();
                 tile.setPadding(dp(11),dp(11),dp(11),dp(11));
-                tile.setMinHeight(dp(126));
+                tile.setMinimumHeight(dp(126));
                 tile.setBackground(rounded(CARD,13,pr?GREEN:BORDER));
                 LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);
                 if(col>0)lp.leftMargin=dp(8);
