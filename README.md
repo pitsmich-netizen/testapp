@@ -2,7 +2,10 @@
 
 Natywna aplikacja Android dla planu **Góra A / Nogi / Góra B** (3 treningi po około 60 minut), z naciskiem na klatkę i szerokość pleców.
 
-## Funkcje (0.5.1)
+## Funkcje (0.6.0)
+- Timer przerw działający przy zablokowanym telefonie: systemowe alarmy, powiadomienie i wibracja (za zgodą użytkownika). Dokładność na Androidzie zależy od uprawnienia do dokładnych alarmów i oszczędzania energii.
+- Opcjonalne automatyczne przejście do kolejnego ćwiczenia po wykonaniu wszystkich serii; propozycja nieznacznego zwiększenia ciężaru po uzyskaniu pełnego zakresu powtórzeń.
+- Audyt pierwszego treningu z 18.11.2026: porównanie 18 pierwotnych serii z zapisanymi wpisami bez usuwania danych (np. 24 w historii).
 - Kompaktowe klikalne karty planu i historii, mniejsze odstępy oraz osobne kolory dla pauzy, edycji, usuwania i zapisanych serii.
 - Progres per dzień (Góra A / Nogi / Góra B) z kafelkami ćwiczeń, ostatnim treningiem, rekordami PR i trendem 6 sesji.
 - Kompaktowy formularz serii i przycisk kopiowania poprzedniej zapisanej serii.
@@ -20,7 +23,7 @@ Natywna aplikacja Android dla planu **Góra A / Nogi / Góra B** (3 treningi po 
 - Timer przerw (autostart po zapisaniu serii; 60 / 90 / 120 s, +15 s, pomiń) oraz licznik czasu sesji.
 - Eksport historii do CSV.
 - **Import notatek:** sesja Góra A z 18.11.2026, 18 serii, z oryginalnymi ciężarami i uwagą „2 linki”.
-- **OTA:** gotowe: najnowsze podpisane wydanie [FORMA 0.5.1](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.5.1), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
+- **OTA:** gotowe: wcześniejsze podpisane wydanie [FORMA 0.5.1](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.5.1), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
 
 ## Kopia treningów w Supabase (opcjonalna)
 - Bez konta FORMA działa w pełni offline.
