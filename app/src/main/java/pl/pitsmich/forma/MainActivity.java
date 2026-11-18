@@ -4,6 +4,10 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.Dialog;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.provider.Settings;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
@@ -60,6 +64,8 @@ public final class MainActivity extends Activity {
     private Updater updater;
     private CloudSync cloud;
     private LinearLayout root, content;
+    private ScrollView contentScroll;
+    private LinearLayout expandedCard;
     private String page="plan";
     private long openSession=-1, detailSession=-1;
     private int openWorkout=Plan.UPPER_A;
@@ -76,15 +82,10 @@ public final class MainActivity extends Activity {
 
     private final Runnable ticker=new Runnable() {
         @Override public void run() {
-            if(timerLabel!=null) {
-                long remaining=Math.max(0,(restUntil-System.currentTimeMillis()+999)/1000);
-                timerLabel.setText(restUntil==0?"00:00":
-                    (remaining>0?formatTime(remaining):"00:00"));
-                if(restUntil>0 && remaining==0) {
-                    restUntil=0;
-                    getSharedPreferences("forma_timer",0).edit().remove("restUntil").apply();
-                }
-            }
+            RestTimer.finishIfExpired(MainActivity.this);
+            restUntil=RestTimer.endTime(MainActivity.this);
+            if(timerLabel!=null)
+                timerLabel.setText(restUntil==0?"00:00":formatTime(RestTimer.secondsRemaining(MainActivity.this)));
             if(elapsedLabel!=null && sessionStartedAt>0) {
                 WorkoutDb.Session active=db.active();
                 if(active!=null) elapsedLabel.setText(formatTime(db.durationMillis(active)/1000));
@@ -100,7 +101,8 @@ public final class MainActivity extends Activity {
         db=new WorkoutDb(this);
         updater=new Updater(this);
         cloud=new CloudSync(this,db);
-        restUntil=getSharedPreferences("forma_timer",0).getLong("restUntil",0);
+        RestTimer.reschedule(this);
+        restUntil=RestTimer.endTime(this);
         if(state!=null) {
             page=state.getString("page","plan");
             openSession=state.getLong("openSession",-1);
@@ -127,6 +129,7 @@ public final class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if(updater!=null) updater.afterPermissionReturn();
+        RestTimer.reschedule(this);
     }
     @Override protected void onDestroy() {
         handler.removeCallbacks(ticker);
@@ -187,7 +190,8 @@ public final class MainActivity extends Activity {
     }
 
     private void render() {
-        timerLabel=null; sessionCount=null; elapsedLabel=null; sessionProgress=null; expandedBody=null; expandedChevron=null;
+        timerLabel=null; sessionCount=null; elapsedLabel=null; sessionProgress=null;
+        expandedBody=null; expandedChevron=null; expandedCard=null; contentScroll=null;
         root=col();
         root.setBackgroundColor(BG);
         root.setPadding(dp(16),dp(9),dp(16),dp(8));
@@ -202,7 +206,7 @@ public final class MainActivity extends Activity {
         TextView logo=text("FORMA",20,TEAL,true);
         logo.setLetterSpacing(0.10f);
         brand.addView(logo,new LinearLayout.LayoutParams(0,dp(39),1));
-        TextView version=text("0.5.1",12,MUTED,true);
+        TextView version=text("0.6.0",12,MUTED,true);
         version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         brand.addView(version,new LinearLayout.LayoutParams(dp(54),dp(44)));
         TextView gear=text(page.equals("settings")?"‹":"⚙",26,TEAL,true);
@@ -219,6 +223,7 @@ public final class MainActivity extends Activity {
             else showFixedSessionHeader();
         }
         ScrollView scroll=new ScrollView(this);
+        contentScroll=scroll;
         scroll.setVerticalScrollBarEnabled(false);
         scroll.setFillViewport(true);
         scroll.setClipToPadding(false);
@@ -385,12 +390,60 @@ public final class MainActivity extends Activity {
         export.setOnClickListener(v->exportCsv());
 
         space(content,8);
+        smallLabel(content,"ODPOCZYNEK MIĘDZY SERIAMI");
+        space(content,9);
+        LinearLayout timerSettings=card(content);
+        smallLabel(timerSettings,"TIMER W TLE");
+        space(timerSettings,6);
+        add(timerSettings,text("Powiadomienie i wibracja po zakończeniu przerwy, także po zablokowaniu ekranu.",14,MUTED,false));
+        space(timerSettings,8);
+        add(timerSettings,text(RestTimer.canNotify(this)?"Powiadomienia: dostępne":"Powiadomienia: wymagają zezwolenia",13,RestTimer.canNotify(this)?GREEN:AMBER,true));
+        space(timerSettings,5);
+        add(timerSettings,text(RestTimer.canScheduleExact(this)?"Dokładne alarmy: włączone":
+            "Dokładne alarmy: wyłączone (system może opóźnić powiadomienie)",13,
+            RestTimer.canScheduleExact(this)?GREEN:AMBER,false));
+        space(timerSettings,9);
+        Button alerts=button("Ustaw powiadomienia",false);
+        add(timerSettings,alerts);
+        alerts.setOnClickListener(v->{
+            try {
+                Intent i=new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                i.putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName());
+                startActivity(i);
+            } catch(Exception ignored) {
+                Toast.makeText(this,"Otwórz ustawienia powiadomień aplikacji w Androidzie",Toast.LENGTH_LONG).show();
+            }
+        });
+        if(Build.VERSION.SDK_INT>=31 && !RestTimer.canScheduleExact(this)) {
+            space(timerSettings,6);
+            Button precise=button("Włącz dokładne alarmy",false);
+            add(timerSettings,precise);
+            precise.setOnClickListener(v->{
+                try {
+                    Intent i=new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                    i.setData(Uri.parse("package:"+getPackageName()));
+                    startActivity(i);
+                } catch(Exception error) {
+                    Toast.makeText(this,"Zezwól na alarmy i przypomnienia w ustawieniach Androida",Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+        space(timerSettings,7);
+        boolean auto=getSharedPreferences("forma_settings",0).getBoolean("auto_next",true);
+        Button next=button("Auto-przejście do następnego ćwiczenia: "+(auto?"WŁ.":"WYŁ."),false);
+        add(timerSettings,next);
+        next.setOnClickListener(v->{
+            getSharedPreferences("forma_settings",0).edit().putBoolean("auto_next",!auto).apply();
+            render();
+        });
+
+        space(content,8);
         smallLabel(content,"APLIKACJA");
         space(content,9);
         LinearLayout ota=card(content);
         smallLabel(ota,"AKTUALIZACJE APLIKACJI");
         space(ota,7);
-        add(ota,text("FORMA 0.5.1",20,TEXT,true));
+        add(ota,text("FORMA 0.6.0",20,TEXT,true));
         space(ota,4);
         add(ota,text("Sprawdzanie OTA odbywa się automatycznie przy uruchomieniu.",14,MUTED,false));
         space(ota,12);
@@ -628,9 +681,20 @@ public final class MainActivity extends Activity {
             LinearLayout body=col();
             boolean expanded=expandedExerciseId.equals(ex.id);
             body.setVisibility(expanded?View.VISIBLE:View.GONE);
-            if(expanded) {expandedBody=body;expandedChevron=chevron;}
+            if(expanded) {
+                expandedBody=body;
+                expandedChevron=chevron;
+                expandedCard=c;
+            }
             space(body,13);
             add(body,text(ex.goal(),14,TEAL,true));
+            String tip=db.progressionTip(ex);
+            if(tip!=null) {
+                space(body,8);
+                TextView suggestion=text("↗  "+tip,13,GREEN,false);
+                suggestion.setLineSpacing(dp(3),1f);
+                add(body,suggestion);
+            }
             space(body,9);
             TextView desc=text(ex.description,15,MUTED,false);
             desc.setLineSpacing(dp(3),1f);
@@ -660,6 +724,7 @@ public final class MainActivity extends Activity {
                     body.setVisibility(View.VISIBLE);
                     chevron.setText("⌃");
                     expandedBody=body;expandedChevron=chevron;
+                    expandedCard=c;
                 }
             });
         }
@@ -673,6 +738,24 @@ public final class MainActivity extends Activity {
         pause.setTextColor(AMBER);
         add(content,pause);
         pause.setOnClickListener(v->pauseWorkout());
+    }
+
+    private void advanceAfterLastSet(Plan.Exercise current) {
+        if(openSession<0 || !getSharedPreferences("forma_settings",0).getBoolean("auto_next",true))
+            return;
+        if(db.countExerciseSets(openSession,current.id)!=current.sets)return;
+        List<Plan.Exercise> exercises=Plan.exercises(openWorkout);
+        for(int i=0;i<exercises.size()-1;i++) {
+            if(!exercises.get(i).id.equals(current.id))continue;
+            expandedExerciseId=exercises.get(i+1).id;
+            render();
+            if(contentScroll!=null && expandedCard!=null) {
+                ScrollView scroll=contentScroll;
+                LinearLayout card=expandedCard;
+                scroll.post(()->scroll.smoothScrollTo(0,Math.max(0,card.getTop()-dp(10))));
+            }
+            return;
+        }
     }
 
     private void addSetRow(LinearLayout target,Plan.Exercise ex,int index,TextView exerciseStatus) {
@@ -753,6 +836,7 @@ public final class MainActivity extends Activity {
                 updateSessionProgress();
                 if(first)startRest(ex.restSeconds);
                 Toast.makeText(this,"Seria zapisana ✓",Toast.LENGTH_SHORT).show();
+                if(first) advanceAfterLastSet(ex);
             } catch(Exception invalid) {
                 Toast.makeText(this,"Sprawdź ciężar i liczbę powtórzeń",Toast.LENGTH_LONG).show();
             }
@@ -848,13 +932,18 @@ public final class MainActivity extends Activity {
     }
 
     private void startRest(int seconds) {
-        restUntil=System.currentTimeMillis()+seconds*1000L;
-        getSharedPreferences("forma_timer",0).edit().putLong("restUntil",restUntil).apply();
+        if(Build.VERSION.SDK_INT>=33 && !RestTimer.canNotify(this) &&
+            !getSharedPreferences("forma_timer",0).getBoolean("notifications_asked",false)) {
+            getSharedPreferences("forma_timer",0).edit().putBoolean("notifications_asked",true).apply();
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},6071);
+        }
+        RestTimer.start(this,seconds);
+        restUntil=RestTimer.endTime(this);
         if(timerLabel!=null) timerLabel.setText(formatTime(seconds));
     }
     private void stopRest() {
+        RestTimer.stop(this);
         restUntil=0;
-        getSharedPreferences("forma_timer",0).edit().remove("restUntil").apply();
         if(timerLabel!=null) timerLabel.setText("00:00");
     }
     private String date(long millis) {
@@ -894,6 +983,10 @@ public final class MainActivity extends Activity {
             String duration=imported?"bez czasu":formatTime(db.durationMillis(session)/1000);
             String info=session.sets+" serii  •  "+duration+"  •  "+weight(session.volume)+" kg obj.";
             add(c,text(info,13,MUTED,false));
+            if(imported && session.sets!=18) {
+                space(c,3);
+                add(c,text("⚠  Porównaj import z pierwszymi notatkami (18 serii)",12,AMBER,false));
+            }
             clickCard(c,()->{detailSession=session.id;page="detail";render();});
         }
     }
@@ -919,6 +1012,20 @@ public final class MainActivity extends Activity {
         add(content,actions);
         space(content,13);
         String notes=db.sessionNotes(detailSession);
+        if(notes!=null && notes.startsWith("Import z notatek 18.11.2026")) {
+            LinearLayout audit=card(content);
+            smallLabel(audit,selected.sets==18?"IMPORT ZGODNY LICZBOWO":"SPRAWDŹ PIERWSZY IMPORT");
+            space(audit,6);
+            add(audit,text("Z notatek: 18 serii • w aplikacji: "+selected.sets,14,
+                selected.sets==18?GREEN:AMBER,true));
+            space(audit,9);
+            Button check=button("Pokaż porównanie ćwiczeń",false);
+            add(audit,check);
+            check.setOnClickListener(v->new AlertDialog.Builder(this)
+                .setTitle("Audyt treningu 18.11.2026")
+                .setMessage(db.initialImportAudit(selected.id))
+                .setPositiveButton("OK",null).show());
+        }
         if(notes!=null&&!notes.isEmpty()) {
             LinearLayout c=card(content);
             add(c,text(notes,14,MUTED,false));
