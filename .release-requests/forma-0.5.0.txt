@@ -1,0 +1,3 @@
+Release request: FORMA v0.5.0, versionCode 5. Publish signed APK and latest.json via GitHub Releases.
+Changes: compact clickable plan/history cards, functional semantic palette, day-based progress with exercise mini tiles and PR/trend insights, compact set entry and copy previous set.
+Keep package name and persistent release signing certificate unchanged, preserving user data during update from 0.4.0.
