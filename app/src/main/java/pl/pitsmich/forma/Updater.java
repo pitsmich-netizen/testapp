@@ -2,6 +2,8 @@ package pl.pitsmich.forma;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -52,7 +54,7 @@ public final class Updater {
     public void afterPermissionReturn() {
         if(awaitingPermission && (Build.VERSION.SDK_INT<26 || activity.getPackageManager().canRequestPackageInstalls())) {
             awaitingPermission=false;
-            File apk=new File(activity.getCacheDir(),"forma-update.apk");
+            File apk=new File(new File(activity.getCacheDir(),"updates"),"forma-update.apk");
             if(apk.isFile()) install(apk);
         }
     }
@@ -124,6 +126,7 @@ public final class Updater {
                     }
                 });
             } catch(Exception e) {
+                activity.getSharedPreferences("forma_preferences",0).edit().remove(KEY_LAST_CHECK).apply();
                 main.post(()->{
                     if(manual) new AlertDialog.Builder(activity).setTitle("Nie udało się sprawdzić aktualizacji")
                         .setMessage(e.getMessage()).setPositiveButton("OK",null).show();
@@ -147,6 +150,9 @@ public final class Updater {
         new Thread(()->{
             File target=new File(activity.getCacheDir(),"forma-update.apk");
             try {
+                File parent=target.getParentFile();
+                if(parent==null || (!parent.isDirectory() && !parent.mkdirs()))
+                    throw new IllegalStateException("Nie można utworzyć folderu aktualizacji");
                 if(target.exists() && !target.delete()) throw new IllegalStateException("Nie można wyczyścić cache");
                 MessageDigest sha=MessageDigest.getInstance("SHA-256");
                 HttpURLConnection conn=openHttps(release.apkUrl);
@@ -210,12 +216,22 @@ public final class Updater {
                     }).show();
                 return;
             }
+            if(!file.isFile() || file.length()==0)
+                throw new IllegalStateException("Brakuje pobranego APK. Sprawdź aktualizacje ponownie.");
             Uri uri=FileProvider.getUriForFile(activity,activity.getPackageName()+".updates",file);
-            Intent intent=new Intent(Intent.ACTION_VIEW);
-            intent.setDataAndType(uri,"application/vnd.android.package-archive");
+            Intent intent=new Intent(Intent.ACTION_INSTALL_PACKAGE);
+            intent.setData(uri);
+            intent.setClipData(ClipData.newUri(activity.getContentResolver(),"FORMA APK",uri));
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            activity.startActivity(intent);
+            try {
+                activity.startActivity(intent);
+            } catch(ActivityNotFoundException notFound) {
+                Intent fallback=new Intent(Intent.ACTION_VIEW);
+                fallback.setDataAndType(uri,"application/vnd.android.package-archive");
+                fallback.setClipData(ClipData.newUri(activity.getContentResolver(),"FORMA APK",uri));
+                fallback.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                activity.startActivity(fallback);
+            }
         } catch(Exception e) {
             new AlertDialog.Builder(activity).setTitle("Nie można otworzyć instalatora")
                 .setMessage(e.getMessage()).setPositiveButton("OK",null).show();
