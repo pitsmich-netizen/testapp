@@ -34,6 +34,7 @@ import java.util.Locale;
  */
 public final class Updater {
     private static final String KEY_FEED="update_feed";
+    private static final String DEFAULT_FEED="https://github.com/pitsmich-netizen/testapp/releases/latest/download/latest.json";
     private static final String KEY_LAST_CHECK="update_last_check";
     private static final long CHECK_INTERVAL_MS=24L*60L*60L*1000L;
     private static final long MAX_APK_BYTES=150L*1024L*1024L;
@@ -57,7 +58,7 @@ public final class Updater {
     }
 
     public String feed() {
-        return activity.getSharedPreferences("forma_preferences",0).getString(KEY_FEED,"");
+        return activity.getSharedPreferences("forma_preferences",0).getString(KEY_FEED,DEFAULT_FEED);
     }
     public void configure() {
         EditText input=new EditText(activity);
@@ -70,12 +71,12 @@ public final class Updater {
         wrap.addView(input);
         new AlertDialog.Builder(activity)
             .setTitle("Kanał aktualizacji OTA")
-            .setMessage("Wklej publiczny adres HTTPS pliku latest.json. Prywatne repozytorium GitHub nie udostępnia anonimowo APK. Adres musi wskazywać na Twój zaufany serwer aktualizacji.")
+            .setMessage("Domyślnie używamy publicznych GitHub Releases FORMA. Zmień adres tylko, jeśli przeniesiesz aktualizacje na inny zaufany serwer.")
             .setView(wrap)
             .setNegativeButton("Anuluj",null)
             .setNeutralButton("Wyłącz",(d,w)->{
                 activity.getSharedPreferences("forma_preferences",0).edit()
-                    .remove(KEY_FEED).remove(KEY_LAST_CHECK).apply();
+                    .putString(KEY_FEED,"").remove(KEY_LAST_CHECK).apply();
                 Toast.makeText(activity,"Sprawdzanie aktualizacji wyłączone",Toast.LENGTH_SHORT).show();
             })
             .setPositiveButton("Zapisz",(d,w)->{
@@ -93,7 +94,9 @@ public final class Updater {
     public void check(boolean manual) {
         String url=feed();
         if(url.isEmpty()) {
-            if(manual) configure();
+            if(manual) new AlertDialog.Builder(activity).setTitle("Aktualizacje wyłączone")
+                .setMessage("Włącz kanał OTA w ustawieniach aplikacji.")
+                .setPositiveButton("OK",null).show();
             return;
         }
         long now=System.currentTimeMillis();
