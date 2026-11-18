@@ -574,6 +574,17 @@ public final class MainActivity extends Activity {
         Button export=button("Eksportuj CSV",false);
         add(backup,export);
         export.setOnClickListener(v->exportCsv());
+        space(backup,8);
+        Button saveBackup=button("Zapisz pełną kopię JSON",true);
+        add(backup,saveBackup);
+        saveBackup.setOnClickListener(v->exportBackup());
+        space(backup,6);
+        Button restore=button("Przywróć kopię JSON",false);
+        restore.setTextColor(SKY);
+        add(backup,restore);
+        restore.setOnClickListener(v->importBackup());
+        space(backup,5);
+        add(backup,text("Kopia JSON zawiera historię, notatki, RIR i plany. Nie zawiera haseł ani tokenów logowania.",12,MUTED,false));
 
         space(content,8);
         smallLabel(content,"ODPOCZYNEK MIĘDZY SERIAMI");
@@ -614,6 +625,18 @@ public final class MainActivity extends Activity {
                 }
             });
         }
+        space(timerSettings,7);
+        boolean sound=getSharedPreferences("forma_settings",0).getBoolean("timer_sound",true);
+        Button soundToggle=button("Dźwięk końca przerwy: "+(sound?"WŁ.":"WYŁ."),false);
+        soundToggle.setTextColor(sound?GREEN:AMBER);
+        add(timerSettings,soundToggle);
+        soundToggle.setOnClickListener(v->{
+            getSharedPreferences("forma_settings",0).edit().putBoolean("timer_sound",!sound).apply();
+            render();
+        });
+        space(timerSettings,6);
+        add(timerSettings,text("Dźwięk to standardowy sygnał powiadomienia Androida. "+
+            "Można go zmienić lub wyciszyć w ustawieniach kanału powiadomień.",12,MUTED,false));
         space(timerSettings,7);
         boolean auto=getSharedPreferences("forma_settings",0).getBoolean("auto_next",true);
         Button next=button("Auto-przejście do następnego ćwiczenia: "+(auto?"WŁ.":"WYŁ."),false);
@@ -1838,6 +1861,86 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void exportBackup() {
+        Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        intent.putExtra(Intent.EXTRA_TITLE,"forma-kopia-"+
+            new SimpleDateFormat("yyyy-MM-dd",Locale.US).format(new Date())+".json");
+        startActivityForResult(intent,BACKUP_REQUEST);
+    }
+
+    private void importBackup() {
+        Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivityForResult(intent,RESTORE_REQUEST);
+    }
+
+    private void handleJsonBackup(Uri uri) {
+        new Thread(()->{
+            try {
+                org.json.JSONObject content=WorkoutBackup.exportData(db,getSharedPreferences("forma_settings",0));
+                try(OutputStream output=getContentResolver().openOutputStream(uri)) {
+                    if(output==null)throw new Exception("Nie można utworzyć pliku");
+                    output.write(content.toString(2).getBytes(StandardCharsets.UTF_8));
+                }
+                runOnUiThread(()->Toast.makeText(this,"Pełna kopia JSON zapisana ✓",Toast.LENGTH_LONG).show());
+            } catch(Exception e) {
+                runOnUiThread(()->new AlertDialog.Builder(this)
+                    .setTitle("Błąd eksportu").setMessage(e.getMessage())
+                    .setPositiveButton("OK",null).show());
+            }
+        }).start();
+    }
+
+    private void handleJsonRestore(Uri uri) {
+        new Thread(()->{
+            try {
+                byte[] bytes;
+                try(InputStream input=getContentResolver().openInputStream(uri);
+                    ByteArrayOutputStream output=new ByteArrayOutputStream()) {
+                    if(input==null)throw new Exception("Nie można odczytać pliku");
+                    byte[] buffer=new byte[8192];int size;
+                    while((size=input.read(buffer))!=-1) {
+                        if(output.size()+size>16_000_000)
+                            throw new Exception("Plik kopii jest za duży (maks. 16 MB)");
+                        output.write(buffer,0,size);
+                    }
+                    bytes=output.toByteArray();
+                }
+                final org.json.JSONObject backup=new org.json.JSONObject(
+                    new String(bytes,StandardCharsets.UTF_8));
+                final String preview=WorkoutBackup.preview(backup);
+                runOnUiThread(()->new AlertDialog.Builder(this)
+                    .setTitle("Przywrócić kopię treningów?")
+                    .setMessage(preview)
+                    .setNegativeButton("Anuluj",null)
+                    .setPositiveButton("Połącz dane",(d,w)->new Thread(()->{
+                        try {
+                            String summary=WorkoutBackup.restore(db,
+                                getSharedPreferences("forma_settings",0),backup);
+                            runOnUiThread(()->{
+                                page="history";render();
+                                new AlertDialog.Builder(this).setTitle("Import ukończony")
+                                    .setMessage(summary).setPositiveButton("OK",null).show();
+                            });
+                        } catch(Exception error) {
+                            runOnUiThread(()->new AlertDialog.Builder(this)
+                                .setTitle("Błąd przywracania")
+                                .setMessage("Nie zmieniono bazy (operacja jest transakcyjna). "+
+                                    error.getMessage()).setPositiveButton("OK",null).show());
+                        }
+                    }).start()).show());
+            } catch(Exception e) {
+                runOnUiThread(()->new AlertDialog.Builder(this)
+                    .setTitle("Nieprawidłowy plik kopii")
+                    .setMessage(e.getMessage()).setPositiveButton("OK",null).show());
+            }
+        }).start();
+    }
+
     private void exportCsv() {
         Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
@@ -1848,6 +1951,10 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int result,Intent data) {
         super.onActivityResult(request,result,data);
+        if(result==RESULT_OK && data!=null && data.getData()!=null) {
+            if(request==BACKUP_REQUEST) {handleJsonBackup(data.getData());return;}
+            if(request==RESTORE_REQUEST) {handleJsonRestore(data.getData());return;}
+        }
         if(request==EXPORT_REQUEST&&result==RESULT_OK&&data!=null&&data.getData()!=null) {
             Uri uri=data.getData();
             try(OutputStream out=getContentResolver().openOutputStream(uri)) {
