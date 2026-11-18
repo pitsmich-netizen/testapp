@@ -9,6 +9,7 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.provider.Settings;
 import android.content.Intent;
+import android.content.ClipData;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.text.Editable;
@@ -23,6 +24,7 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.DragEvent;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.AdapterView;
@@ -70,6 +72,13 @@ public final class MainActivity extends Activity {
     private static final int BACKUP_REQUEST=1902;
     private static final int RESTORE_REQUEST=1903;
     private int editingWorkout=Plan.UPPER_A;
+    private String editingSetExercise="";
+    private int editingSetIndex=-1;
+    private boolean canUndoSet=false;
+    private long undoSession=-1;
+    private String undoExercise="";
+    private int undoIndex=-1;
+    private WorkoutDb.Entry undoPrevious;
     private int calendarMonth=Calendar.getInstance().get(Calendar.MONTH);
     private int calendarYear=Calendar.getInstance().get(Calendar.YEAR);
 
@@ -125,6 +134,8 @@ public final class MainActivity extends Activity {
             selectedProgressWorkout=state.getInt("selectedProgressWorkout",Plan.UPPER_A);
             expandedExerciseId=state.getString("expandedExerciseId","");
             editingWorkout=state.getInt("editingWorkout",Plan.UPPER_A);
+            editingSetExercise=state.getString("editingSetExercise","");
+            editingSetIndex=state.getInt("editingSetIndex",-1);
             calendarMonth=state.getInt("calendarMonth",calendarMonth);
             calendarYear=state.getInt("calendarYear",calendarYear);
         }
@@ -141,6 +152,8 @@ public final class MainActivity extends Activity {
         state.putInt("selectedProgressWorkout",selectedProgressWorkout);
         state.putString("expandedExerciseId",expandedExerciseId);
         state.putInt("editingWorkout",editingWorkout);
+        state.putString("editingSetExercise",editingSetExercise);
+        state.putInt("editingSetIndex",editingSetIndex);
         state.putInt("calendarMonth",calendarMonth);
         state.putInt("calendarYear",calendarYear);
         super.onSaveInstanceState(state);
@@ -225,7 +238,7 @@ public final class MainActivity extends Activity {
         TextView logo=text("FORMA",20,TEAL,true);
         logo.setLetterSpacing(0.10f);
         brand.addView(logo,new LinearLayout.LayoutParams(0,dp(39),1));
-        TextView version=text("0.7.0",12,MUTED,true);
+        TextView version=text("0.8.0",12,MUTED,true);
         version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         brand.addView(version,new LinearLayout.LayoutParams(dp(54),dp(44)));
         TextView gear=text(page.equals("settings")?"‹":"⚙",26,TEAL,true);
@@ -259,9 +272,10 @@ public final class MainActivity extends Activity {
         else if(page.equals("edit")) showCompletedEditor();
         else if(page.equals("planEditor")) showPlanEditor();
         else if(page.equals("calendar")) showCalendar();
+        else if(page.equals("summary")) showSessionSummary();
         else showSettings();
 
-        if(!page.equals("session") && !page.equals("detail") && !page.equals("edit") && !page.equals("exerciseProgress") && !page.equals("planEditor")) showNavigation();
+        if(!page.equals("session") && !page.equals("detail") && !page.equals("edit") && !page.equals("exerciseProgress") && !page.equals("planEditor") && !page.equals("summary")) showNavigation();
     }
 
     private void showNavigation() {
@@ -348,40 +362,128 @@ public final class MainActivity extends Activity {
                 expandedExerciseId="";page="session";render();
             });
         }
-        String[] days={"PONIEDZIAŁEK","ŚRODA","PIĄTEK"};
-        for(int i=0;i<3;i++) {
-            final int workout=i;
-            int accent=dayColor(i);
+        add(content,text("Przytrzymaj uchwyt ⠿ i przeciągnij dzień. Dotknij nazwy dnia, by zmienić termin.",12,MUTED,false));
+        space(content,9);
+        for(WorkoutDb.ScheduleDay scheduled:db.schedule()) {
+            final int workout=scheduled.workout;
+            int accent=dayColor(workout);
             LinearLayout card=card(content);
             LinearLayout first=row();
-            TextView day=actionLabel(days[i],accent);
-            first.addView(day,new LinearLayout.LayoutParams(0,dp(27),1));
-            TextView editPlan=actionLabel("✎  Edytuj",SKY);
-            editPlan.setGravity(Gravity.CENTER);
-            editPlan.setContentDescription("Edytuj plan "+Plan.title(i));
-            first.addView(editPlan,new LinearLayout.LayoutParams(dp(90),dp(36)));
-            editPlan.setOnClickListener(v->{
-                if(db.active()!=null) {
-                    new AlertDialog.Builder(this)
-                        .setTitle("Trening jest w toku")
-                        .setMessage("Aby zachować spójność liczby serii, edytuj plan po zakończeniu lub anulowaniu rozpoczętej sesji.")
-                        .setPositiveButton("OK",null).show();
-                    return;
-                }
-                editingWorkout=workout;page="planEditor";render();
+
+            TextView drag=actionLabel("⠿",accent);
+            drag.setTextSize(26);
+            drag.setGravity(Gravity.CENTER);
+            drag.setContentDescription("Przytrzymaj i przesuń "+scheduled.title);
+            first.addView(drag,new LinearLayout.LayoutParams(dp(41),dp(45)));
+            drag.setOnLongClickListener(v->{
+                ClipData payload=ClipData.newPlainText("forma-workout",Integer.toString(workout));
+                return v.startDragAndDrop(payload,new View.DragShadowBuilder(card),null,0);
             });
-            TextView step=actionLabel("›",MUTED);
-            first.addView(step);
+            TextView day=actionLabel(weekdayName(scheduled.weekday).toUpperCase(Locale.forLanguageTag("pl-PL")),accent);
+            day.setGravity(Gravity.CENTER_VERTICAL);
+            first.addView(day,new LinearLayout.LayoutParams(0,dp(40),1));
+            day.setOnClickListener(v->editScheduleDay(workout));
+
+            TextView settings=actionLabel("⋯  Dzień",SKY);
+            settings.setGravity(Gravity.CENTER);
+            first.addView(settings,new LinearLayout.LayoutParams(dp(82),dp(42)));
+            settings.setOnClickListener(v->editScheduleDay(workout));
+            TextView editPlan=actionLabel("✎  Plan",SKY);
+            editPlan.setGravity(Gravity.CENTER);
+            first.addView(editPlan,new LinearLayout.LayoutParams(dp(82),dp(42)));
+            editPlan.setOnClickListener(v->openPlanEditor(workout));
             add(card,first);
-            add(card,text(Plan.title(i),21,TEXT,true));
+
+            add(card,text(scheduled.title,21,TEXT,true));
             space(card,4);
-            int sets=0;for(Plan.Exercise ex:db.workoutPlan(i))sets+=db.expectedSets(i,ex);
-            TextView details=text(db.workoutPlan(i).size()+" ćwiczeń  •  "+sets+" serii  •  "+Plan.focus(i),12,MUTED,false);
+            int sets=0;
+            for(Plan.Exercise ex:db.workoutPlan(workout))
+                sets+=db.expectedSets(workout,ex);
+            TextView details=text(db.workoutPlan(workout).size()+" ćwiczeń  •  "+sets+
+                " serii  •  "+Plan.focus(workout),12,MUTED,false);
             details.setMaxLines(2);
             add(card,details);
             clickCard(card,()->startWorkout(workout));
+            card.setOnDragListener((v,event)->{
+                if(event.getAction()==DragEvent.ACTION_DRAG_STARTED)
+                    return event.getClipDescription()!=null &&
+                        event.getClipDescription().hasMimeType("text/plain");
+                if(event.getAction()==DragEvent.ACTION_DRAG_ENTERED){
+                    tintCard(card,accent);return true;
+                }
+                if(event.getAction()==DragEvent.ACTION_DRAG_EXITED ||
+                    event.getAction()==DragEvent.ACTION_DRAG_ENDED){
+                    card.setBackground(rounded(CARD,15,BORDER));return true;
+                }
+                if(event.getAction()==DragEvent.ACTION_DROP){
+                    card.setBackground(rounded(CARD,15,BORDER));
+                    try {
+                        ClipData clip=event.getClipData();
+                        if(clip==null||clip.getItemCount()==0)return false;
+                        int source=Integer.parseInt(clip.getItemAt(0).coerceToText(this).toString());
+                        if(db.active()!=null){
+                            Toast.makeText(this,"Zakończ lub wstrzymaj trening przed zmianą kolejności",Toast.LENGTH_LONG).show();
+                            return true;
+                        }
+                        db.moveScheduledWorkout(source,workout);render();return true;
+                    }catch(Exception ignored){return false;}
+                }
+                return true;
+            });
         }
         add(content,text("Wybierz cały kafelek, aby rozpocząć sesję. Poprzednie ciężary są podpowiadane.",12,MUTED,false));
+    }
+
+    private static String weekdayName(int weekday){
+        String[] names={"Poniedziałek","Wtorek","Środa","Czwartek","Piątek","Sobota","Niedziela"};
+        return names[Math.max(0,Math.min(6,weekday-1))];
+    }
+    private void openPlanEditor(int workout){
+        if(db.active()!=null){
+            new AlertDialog.Builder(this).setTitle("Trening w toku")
+                .setMessage("Zakończ lub anuluj sesję przed zmianą ćwiczeń.")
+                .setPositiveButton("OK",null).show();
+            return;
+        }
+        editingWorkout=workout;page="planEditor";render();
+    }
+    private void editScheduleDay(int workout){
+        if(db.active()!=null){
+            Toast.makeText(this,"Najpierw zakończ lub wstrzymaj bieżący trening",Toast.LENGTH_LONG).show();
+            return;
+        }
+        WorkoutDb.ScheduleDay chosen=null;
+        for(WorkoutDb.ScheduleDay d:db.schedule())if(d.workout==workout)chosen=d;
+        if(chosen==null)return;
+        final WorkoutDb.ScheduleDay current=chosen;
+        new AlertDialog.Builder(this).setTitle("Dzień i rodzaj treningu")
+            .setItems(new String[]{"Zmień dzień tygodnia","Zmień nazwę treningu",
+                "Przenieś wyżej","Przenieś niżej"},(dialog,index)->{
+                if(index==0) {
+                    String[] options={"Poniedziałek","Wtorek","Środa","Czwartek","Piątek","Sobota","Niedziela"};
+                    new AlertDialog.Builder(this).setTitle("Przypisz dzień tygodnia")
+                        .setSingleChoiceItems(options,current.weekday-1,(d,position)->{
+                            // A conflicting assignment swaps weekdays between the two plans.
+                            db.assignWeekday(workout,position+1);
+                            d.dismiss();render();
+                        }).setNegativeButton("Anuluj",null).show();
+                } else if(index==1) {
+                    EditText name=field(current.title,"Nazwa treningu",false);
+                    name.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+                    new AlertDialog.Builder(this).setTitle("Nazwa rodzaju treningu")
+                        .setView(name).setNegativeButton("Anuluj",null)
+                        .setPositiveButton("Zapisz",(d,w)->{
+                            try{db.renameWorkout(workout,name.getText().toString());render();}
+                            catch(Exception e){Toast.makeText(this,"Nazwa: od 1 do 32 znaków",Toast.LENGTH_LONG).show();}
+                        }).show();
+                } else {
+                    List<WorkoutDb.ScheduleDay> days=db.schedule();
+                    int target=current.position+(index==2?-1:1);
+                    if(target>=0&&target<days.size()){
+                        db.moveScheduledWorkout(workout,days.get(target).workout);render();
+                    }
+                }
+            }).show();
     }
 
     private void showPlanEditor() {
@@ -652,7 +754,7 @@ public final class MainActivity extends Activity {
         LinearLayout ota=card(content);
         smallLabel(ota,"AKTUALIZACJE APLIKACJI");
         space(ota,7);
-        add(ota,text("FORMA 0.7.0",20,TEXT,true));
+        add(ota,text("FORMA 0.8.0",20,TEXT,true));
         space(ota,4);
         add(ota,text("Sprawdzanie OTA odbywa się automatycznie przy uruchomieniu.",14,MUTED,false));
         space(ota,12);
@@ -2026,6 +2128,7 @@ public final class MainActivity extends Activity {
     }
     @Override public void onBackPressed() {
         if(page.equals("edit")) {completeEditing();return;}
+        if(page.equals("summary")) {page="history";render();return;}
         if(page.equals("planEditor")) {page="plan";render();return;}
         if(page.equals("exerciseProgress")) {page="progress";render();return;}
         if(page.equals("session")) {
