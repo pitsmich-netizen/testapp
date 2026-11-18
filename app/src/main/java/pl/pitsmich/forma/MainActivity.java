@@ -73,6 +73,7 @@ public final class MainActivity extends Activity {
     private static final int RESTORE_REQUEST=1903;
     private int editingWorkout=Plan.UPPER_A;
     private String editingSetExercise="";
+    private boolean descriptionExpanded=false;
 
     private int editingSetIndex=-1;
     private boolean canUndoSet=false;
@@ -356,7 +357,7 @@ public final class MainActivity extends Activity {
             TextView arrow=actionLabel("WZNÓW  ›",stateColor);
             top.addView(arrow);
             add(resume,top);
-            add(resume,text(Plan.title(active.workout)+"  ·  "+active.sets+" serii",19,TEXT,true));
+            add(resume,text(db.sessionWorkoutLabel(active)+"  ·  "+active.sets+" serii",19,TEXT,true));
             clickCard(resume,()->{
                 if(active.pausedAt>0) db.resume(active.id);
                 openSession=active.id;openWorkout=active.workout;
@@ -715,7 +716,7 @@ public final class MainActivity extends Activity {
                 int max=Integer.parseInt(fields[2].getText().toString().trim());
                 int rest=Integer.parseInt(fields[3].getText().toString().trim());
                 Plan.Exercise updated=new Plan.Exercise(ex.id,ex.name,ex.description,
-                    sets,min,max,rest,ex.eachSide);
+                    sets,min,max,rest,ex.eachSide,ex.rirMin,ex.rirMax);
                 items.set(position,updated);
                 db.savePlan(editingWorkout,items);
                 dialog.dismiss();render();
@@ -905,7 +906,7 @@ public final class MainActivity extends Activity {
         if(active!=null) {
             new AlertDialog.Builder(this)
                 .setTitle(active.pausedAt>0?"Wstrzymany trening":"Masz rozpoczęty trening")
-                .setMessage("Możesz wrócić do niezakończonej sesji "+Plan.title(active.workout)+".")
+                .setMessage("Możesz wrócić do niezakończonej sesji "+db.sessionWorkoutLabel(active)+".")
                 .setPositiveButton("Wznów",(d,w)->{
                     if(active.pausedAt>0)db.resume(active.id);
                     openSession=active.id;openWorkout=active.workout;page="session";render();
@@ -1220,7 +1221,7 @@ public final class MainActivity extends Activity {
                             if(e.id.equals(exercise.id)) {
                                 plan.set(i,new Plan.Exercise(e.id,e.name,e.description,
                                     Math.min(12,db.expectedSets(openWorkout,e)+1),
-                                    e.minReps,e.maxReps,e.restSeconds,e.eachSide));
+                                    e.minReps,e.maxReps,e.restSeconds,e.eachSide,e.rirMin,e.rirMax));
                                 break;
                             }
                         }
@@ -1547,7 +1548,7 @@ public final class MainActivity extends Activity {
         title.setBackground(rounded(CARD,16,GREEN));
         smallLabel(title,"✓  TRENING ZAKOŃCZONY");
         space(title,8);
-        add(title,text(Plan.title(session.workout),25,TEXT,true));
+        add(title,text(db.sessionWorkoutLabel(session),25,TEXT,true));
         add(title,text(new SimpleDateFormat("dd.MM.yyyy  HH:mm",
             Locale.forLanguageTag("pl-PL")).format(new Date(session.startedAt)),13,MUTED,false));
 
@@ -1631,7 +1632,7 @@ public final class MainActivity extends Activity {
         for(WorkoutDb.Session session:list) {
             LinearLayout c=card(content);
             LinearLayout top=row();
-            TextView kind=actionLabel(Plan.title(session.workout),dayColor(session.workout));
+            TextView kind=actionLabel(db.sessionWorkoutLabel(session),dayColor(session.workout));
             top.addView(kind,new LinearLayout.LayoutParams(0,dp(35),1));
             TextView more=actionLabel("⋮",SKY);
             more.setGravity(Gravity.CENTER);
@@ -1757,7 +1758,7 @@ public final class MainActivity extends Activity {
 
     private void showCompletedActions(WorkoutDb.Session session) {
         new AlertDialog.Builder(this)
-            .setTitle(Plan.title(session.workout))
+            .setTitle(db.sessionWorkoutLabel(session))
             .setItems(new String[]{"Zobacz serie","Edytuj trening","Usuń trening"},(d,index)->{
                 if(index==0){detailSession=session.id;page="detail";render();}
                 else if(index==1){detailSession=session.id;page="edit";render();}
@@ -1769,7 +1770,7 @@ public final class MainActivity extends Activity {
     private void confirmDeleteCompleted(WorkoutDb.Session session) {
         new AlertDialog.Builder(this)
             .setTitle("Usunąć trening?")
-            .setMessage(Plan.title(session.workout)+" • "+date(session.startedAt)+
+            .setMessage(db.sessionWorkoutLabel(session)+" • "+date(session.startedAt)+
                 "\n\nUsunięte zostaną wszystkie serie oraz ich wyniki w progresie. "+
                 "Jeżeli korzystasz z chmury, usunięcie zostanie przesłane także do Supabase.")
             .setNegativeButton("Anuluj",null)
@@ -1872,7 +1873,7 @@ public final class MainActivity extends Activity {
         add(content,back);
         back.setOnClickListener(v->completeEditing());
         space(content,11);
-        headline(content,"Edytuj • "+Plan.title(session.workout));
+        headline(content,"Edytuj • "+db.sessionWorkoutLabel(session));
         add(content,text("Zmieniaj serie, ciężary, datę i notatkę. Zmiany zapisują się lokalnie.",14,MUTED,false));
         space(content,15);
         LinearLayout dateCard=card(content);
