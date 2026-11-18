@@ -242,20 +242,24 @@ public final class MainActivity extends Activity {
         LinearLayout nav=row();
         nav.setPadding(dp(4),dp(8),dp(4),0);
         String[] names={"Plan","Historia","Progres"};
+        String[] icons={"▦","◷","↗"};
         String[] pages={"plan","history","progress"};
         for(int i=0;i<names.length;i++) {
             final String selected=pages[i];
             boolean active=page.equals(selected);
             LinearLayout item=col();
             item.setGravity(Gravity.CENTER);
-            TextView name=text(names[i],14,active?TEAL:MUTED,active);
+            TextView symbol=text(icons[i],19,active?TEAL:MUTED,active);
+            symbol.setGravity(Gravity.CENTER);
+            add(item,symbol);
+            TextView name=text(names[i],12,active?TEAL:MUTED,active);
             name.setGravity(Gravity.CENTER);
             add(item,name);
-            space(item,5);
+            space(item,4);
             View indicator=new View(this);
             indicator.setBackground(rounded(active?TEAL:BG,3,0));
             item.addView(indicator,new LinearLayout.LayoutParams(dp(active?29:14),dp(3)));
-            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(55),1);
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(57),1);
             nav.addView(item,lp);
             item.setContentDescription("Otwórz "+names[i]);
             item.setOnClickListener(v->{page=selected;render();});
