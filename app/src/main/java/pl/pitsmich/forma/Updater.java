@@ -39,6 +39,7 @@ public final class Updater {
     private static final long MAX_APK_BYTES=150L*1024L*1024L;
     private final Activity activity;
     private final Handler main=new Handler(Looper.getMainLooper());
+    private boolean awaitingPermission=false;
 
     private static final class Release {
         int versionCode;
@@ -46,6 +47,14 @@ public final class Updater {
     }
 
     public Updater(Activity activity) { this.activity=activity; }
+
+    public void afterPermissionReturn() {
+        if(awaitingPermission && (Build.VERSION.SDK_INT<26 || activity.getPackageManager().canRequestPackageInstalls())) {
+            awaitingPermission=false;
+            File apk=new File(activity.getCacheDir(),"forma-update.apk");
+            if(apk.isFile()) install(apk);
+        }
+    }
 
     public String feed() {
         return activity.getSharedPreferences("forma_preferences",0).getString(KEY_FEED,"");
@@ -191,6 +200,7 @@ public final class Updater {
                     .setMessage("Android wymaga jednorazowego zezwolenia na instalowanie aktualizacji przez aplikację FORMA. Włącz zezwolenie w ustawieniach i wróć tutaj.")
                     .setNegativeButton("Anuluj",null)
                     .setPositiveButton("Otwórz ustawienia",(d,w)->{
+                        awaitingPermission=true;
                         Intent i=new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                             Uri.parse("package:"+activity.getPackageName()));
                         activity.startActivity(i);
