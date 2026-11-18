@@ -666,6 +666,7 @@ public final class MainActivity extends Activity {
         finish.setOnClickListener(v->finishWorkout());
         space(content,8);
         Button pause=button("Wstrzymaj i wróć do planu",false);
+        pause.setTextColor(AMBER);
         add(content,pause);
         pause.setOnClickListener(v->pauseWorkout());
     }
@@ -674,82 +675,92 @@ public final class MainActivity extends Activity {
         WorkoutDb.Entry current=db.get(openSession,ex.id,index);
         WorkoutDb.Entry previous=db.previous(ex.id,index);
         LinearLayout block=col();
-        block.setPadding(dp(13),dp(12),dp(13),dp(13));
-        block.setBackground(rounded(CARD2,13,0));
+        block.setPadding(dp(10),dp(9),dp(10),dp(9));
+        block.setBackground(rounded(CARD2,12,0));
         LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,-2);
-        bp.bottomMargin=dp(10);
+        bp.bottomMargin=dp(7);
         target.addView(block,bp);
 
         LinearLayout header=row();
-        TextView series=text("SERIA "+(index+1),14,TEXT,true);
-        header.addView(series,new LinearLayout.LayoutParams(0,dp(30),1));
-        TextView status=text(current!=null?"✓ Zapisana":"Do wykonania",13,current!=null?TEAL:MUTED,true);
+        TextView number=text("SERIA "+(index+1),13,TEXT,true);
+        header.addView(number,new LinearLayout.LayoutParams(0,dp(28),1));
+        TextView status=text(current!=null?"✓ Zapisana":"Do wykonania",12,current!=null?GREEN:MUTED,true);
         status.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         header.addView(status);
         add(block,header);
-        if(previous!=null) {
-            TextView prev=text("Poprzednio: "+weight(previous.weight)+" kg  ×  "+previous.reps,13,MUTED,false);
-            add(block,prev);
-            space(block,7);
-        } else space(block,6);
 
         LinearLayout inputs=row();
-        LinearLayout left=col();
-        add(left,text("CIĘŻAR  •  KG",12,MUTED,true));
-        space(left,5);
-        EditText kg=field(current!=null?weight(current.weight):(previous!=null?weight(previous.weight):""),"0",true);
-        kg.setContentDescription("Ciężar w kilogramach, seria "+(index+1)+" "+ex.name);
-        add(left,kg);
-        inputs.addView(left,new LinearLayout.LayoutParams(0,-2,1));
-
-        LinearLayout right=col();
-        add(right,text("POWTÓRZENIA",12,MUTED,true));
-        space(right,5);
+        EditText kg=field(current!=null?weight(current.weight):(previous!=null?weight(previous.weight):""),"kg",true);
+        kg.setTextSize(18);
+        kg.setMinHeight(dp(48));
+        kg.setContentDescription("Ciężar kg, seria "+(index+1)+" "+ex.name);
+        inputs.addView(kg,new LinearLayout.LayoutParams(0,dp(50),1));
         EditText reps=field(current!=null?Integer.toString(current.reps):
-            (previous!=null?Integer.toString(previous.reps):""),"0",false);
+            (previous!=null?Integer.toString(previous.reps):""),"powt.",false);
+        reps.setTextSize(18);
+        reps.setMinHeight(dp(48));
         reps.setContentDescription("Powtórzenia, seria "+(index+1)+" "+ex.name);
-        add(right,reps);
-        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-2,1);
-        rp.leftMargin=dp(10);
-        inputs.addView(right,rp);
+        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,dp(50),1);
+        rp.leftMargin=dp(7);
+        inputs.addView(reps,rp);
+        Button save=button(current!=null?"Zmień":"Zapisz",current==null);
+        save.setTextSize(13);
+        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(dp(83),dp(50));
+        sp.leftMargin=dp(7);
+        inputs.addView(save,sp);
         add(block,inputs);
-        space(block,10);
 
-        Button save=button(current!=null?"Zmień zapisaną serię":"✓  Zapisz serię",current==null);
-        add(block,save);
-        save.setContentDescription("Zapisz lub edytuj serię "+(index+1)+" ćwiczenia "+ex.name);
+        LinearLayout foot=row();
+        String previousText=previous==null?"Cel: "+ex.minReps+"–"+ex.maxReps+" powt.":
+            "Poprz.: "+weight(previous.weight)+" kg × "+previous.reps;
+        TextView hint=text(previousText,12,MUTED,false);
+        foot.addView(hint,new LinearLayout.LayoutParams(0,dp(29),1));
+        if(index>0) {
+            TextView copy=text("↺ Kopiuj serię",12,SKY,true);
+            copy.setPadding(dp(9),0,0,0);
+            copy.setContentDescription("Kopiuj poprzednią zapisaną serię");
+            foot.addView(copy);
+            copy.setOnClickListener(v->{
+                WorkoutDb.Entry from=db.get(openSession,ex.id,index-1);
+                if(from==null) {
+                    Toast.makeText(this,"Najpierw zapisz poprzednią serię",Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                kg.setText(weight(from.weight));
+                reps.setText(Integer.toString(from.reps));
+            });
+        }
+        add(block,foot);
         save.setOnClickListener(v->{
             try {
                 String input=kg.getText().toString().trim().replace(',','.');
-                if(input.isEmpty()) throw new NumberFormatException();
+                if(input.isEmpty())throw new NumberFormatException();
                 double w=Double.parseDouble(input);
                 int rep=Integer.parseInt(reps.getText().toString().trim());
-                if(!Double.isFinite(w)||w<0||w>2000||rep<1||rep>1000)
-                    throw new NumberFormatException();
+                if(!Double.isFinite(w)||w<0||w>2000||rep<1||rep>1000)throw new NumberFormatException();
                 boolean first=db.get(openSession,ex.id,index)==null;
                 db.save(openSession,ex.id,index,w,rep);
                 status.setText("✓ Zapisana");
-                status.setTextColor(TEAL);
-                save.setText("Zmień zapisaną serię");
+                status.setTextColor(GREEN);
+                save.setText("Zmień");
                 save.setTextColor(TEXT);
                 save.setBackgroundTintList(ColorStateList.valueOf(CARD));
                 exerciseStatus.setText(db.countExerciseSets(openSession,ex.id)+"/"+ex.sets+" serii");
                 updateSessionProgress();
                 if(first)startRest(ex.restSeconds);
                 Toast.makeText(this,"Seria zapisana ✓",Toast.LENGTH_SHORT).show();
-            }catch(Exception error) {
+            } catch(Exception invalid) {
                 Toast.makeText(this,"Sprawdź ciężar i liczbę powtórzeń",Toast.LENGTH_LONG).show();
             }
         });
         save.setOnLongClickListener(v->{
             new AlertDialog.Builder(this).setTitle("Usunąć tę serię?")
-                .setMessage("Dłuższe przytrzymanie pozwala usunąć zapis.")
-                .setNegativeButton("Anuluj",null)
+                .setNegativeButton("Zostaw",null)
                 .setPositiveButton("Usuń",(d,w)->{
                     db.delete(openSession,ex.id,index);
                     status.setText("Do wykonania");
                     status.setTextColor(MUTED);
-                    save.setText("✓  Zapisz serię");
+                    save.setText("Zapisz");
                     save.setTextColor(BG);
                     save.setBackgroundTintList(ColorStateList.valueOf(TEAL));
                     exerciseStatus.setText(db.countExerciseSets(openSession,ex.id)+"/"+ex.sets+" serii");
@@ -892,10 +903,12 @@ public final class MainActivity extends Activity {
         WorkoutDb.Session selected=db.byId(detailSession);
         if(selected==null){page="history";render();return;}
         LinearLayout actions=row();
-        Button edit=button("Edytuj trening",true);
+        Button edit=button("Edytuj trening",false);
+        edit.setTextColor(SKY);
         actions.addView(edit,new LinearLayout.LayoutParams(0,dp(53),1));
         edit.setOnClickListener(v->{page="edit";render();});
         Button del=button("Usuń",false);
+        del.setTextColor(RED);
         LinearLayout.LayoutParams dlp=new LinearLayout.LayoutParams(dp(91),dp(53));
         dlp.leftMargin=dp(8);actions.addView(del,dlp);
         del.setOnClickListener(v->confirmDeleteCompleted(selected));
@@ -1111,6 +1124,7 @@ public final class MainActivity extends Activity {
         done.setOnClickListener(v->completeEditing());
         space(content,9);
         Button remove=button("Usuń cały trening",false);
+        remove.setTextColor(RED);
         add(content,remove);
         remove.setOnClickListener(v->confirmDeleteCompleted(session));
     }
