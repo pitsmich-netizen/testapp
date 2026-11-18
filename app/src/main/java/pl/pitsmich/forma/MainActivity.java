@@ -45,6 +45,7 @@ public final class MainActivity extends Activity {
 
     private WorkoutDb db;
     private Updater updater;
+    private CloudSync cloud;
     private LinearLayout root, content;
     private String page="plan";
     private long openSession=-1, detailSession=-1;
@@ -79,6 +80,7 @@ public final class MainActivity extends Activity {
         getWindow().setNavigationBarColor(BG);
         db=new WorkoutDb(this);
         updater=new Updater(this);
+        cloud=new CloudSync(this,db);
         restUntil=getSharedPreferences("forma_timer",0).getLong("restUntil",0);
         if(state!=null) {
             page=state.getString("page","plan");
@@ -105,6 +107,7 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onDestroy() {
         handler.removeCallbacks(ticker);
+        if(cloud!=null)cloud.close();
         db.close();
         super.onDestroy();
     }
@@ -232,6 +235,32 @@ public final class MainActivity extends Activity {
         Button config=button("Ustawienia kanału OTA",false);
         add(ota,config);
         config.setOnClickListener(v->updater.configure());
+        LinearLayout cloudCard=card(content);
+        add(cloudCard,text("KOPIA TRENINGÓW W CHMURZE",12,TEAL,true));
+        space(cloudCard,6);
+        add(cloudCard,text(cloud.signedIn()
+            ? "Zalogowano do Supabase • dane na telefonie pozostają dostępne offline"
+            : "Opcjonalna kopia danych w Supabase. Bez logowania trening działa offline.",
+            13,MUTED,false));
+        space(cloudCard,9);
+        Button syncButton=button(cloud.signedIn()?"Synchronizuj treningi":"Zaloguj się / utwórz konto",true);
+        add(cloudCard,syncButton);
+        syncButton.setOnClickListener(v->{
+            if(cloud.signedIn()) runCloudSync();
+            else showCloudLogin();
+        });
+        if(cloud.signedIn()) {
+            space(cloudCard,5);
+            Button logout=button("Wyloguj z chmury",false);
+            add(cloudCard,logout);
+            logout.setOnClickListener(v->{
+                new AlertDialog.Builder(this)
+                    .setTitle("Wylogować?")
+                    .setMessage("Treningi lokalne pozostaną zapisane. Powtórne logowanie włączy synchronizację.")
+                    .setNegativeButton("Anuluj",null)
+                    .setPositiveButton("Wyloguj",(d,w)->{cloud.signOut();render();}).show();
+            });
+        }
         String[] days={"PONIEDZIAŁEK","ŚRODA","PIĄTEK"};
         for(int w=0;w<3;w++) {
             final int workout=w;
@@ -248,6 +277,49 @@ public final class MainActivity extends Activity {
         add(content,text("Przy bólu lędźwi nie wykonuj ćwiczeń przez narastający ból. Dostosuj zakres ruchu i ciężar.",12,MUTED,false));
     }
 
+    private void showCloudLogin() {
+        LinearLayout form=col();
+        form.setPadding(dp(18),dp(8),dp(18),0);
+        TextView intro=text("Logowanie służy wyłącznie do synchronizacji historii treningowej z Twoim kontem Supabase.",13,MUTED,false);
+        add(form,intro);space(form,12);
+        EditText email=new EditText(this);
+        email.setSingleLine(true);
+        email.setHint("Adres e-mail");
+        email.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        add(form,email);
+        space(form,7);
+        EditText pass=new EditText(this);
+        pass.setSingleLine(true);
+        pass.setHint("Hasło");
+        pass.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        add(form,pass);
+        new AlertDialog.Builder(this)
+            .setTitle("Chmura FORMA")
+            .setView(form)
+            .setNegativeButton("Anuluj",null)
+            .setNeutralButton("Utwórz konto",(dialog,which)->{
+                cloud.signIn(email.getText().toString(),pass.getText().toString(),true,(ok,msg)->{
+                    new AlertDialog.Builder(this).setTitle(ok?"Supabase":"Błąd logowania")
+                        .setMessage(msg).setPositiveButton("OK",null).show();
+                    if(ok)render();
+                });
+            })
+            .setPositiveButton("Zaloguj",(dialog,which)->{
+                cloud.signIn(email.getText().toString(),pass.getText().toString(),false,(ok,msg)->{
+                    new AlertDialog.Builder(this).setTitle(ok?"Synchronizacja":"Błąd logowania")
+                        .setMessage(msg).setPositiveButton("OK",null).show();
+                    if(ok)render();
+                });
+            })
+            .show();
+    }
+    private void runCloudSync() {
+        Toast.makeText(this,"Synchronizowanie treningów…",Toast.LENGTH_SHORT).show();
+        cloud.sync((ok,msg)->{
+            Toast.makeText(this,(ok?"✓ ":"Błąd: ")+msg,Toast.LENGTH_LONG).show();
+            if(ok && (page.equals("history")||page.equals("progress"))) render();
+        });
+    }
     private void startWorkout(int workout) {
         WorkoutDb.Session active=db.active();
         if(active!=null) {
@@ -343,6 +415,7 @@ public final class MainActivity extends Activity {
                 .setNegativeButton("Jeszcze nie",null)
                 .setPositiveButton("Zakończ",(d,w)->{
                     db.finish(openSession);openSession=-1;stopRest();page="history";render();
+                    if(cloud.signedIn()) runCloudSync();
                 }).show();
         });
     }
