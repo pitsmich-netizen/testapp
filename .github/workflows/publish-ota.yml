@@ -8,6 +8,10 @@ on:
         required: false
         default: 'Ulepszenia dziennika treningowego.'
   push:
+    branches:
+      - main
+    paths:
+      - '.release-requests/forma-0.8.0.txt'
     tags:
       - 'v*'
 
