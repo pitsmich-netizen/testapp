@@ -18,7 +18,7 @@ public final class WorkoutBackup {
     public static JSONObject exportData(WorkoutDb db,SharedPreferences settings) throws Exception {
         JSONObject root=new JSONObject();
         root.put("format",FORMAT);
-        root.put("schema",1);
+        root.put("schema",2);
         root.put("exported_at",System.currentTimeMillis());
         JSONObject options=new JSONObject();
         options.put("auto_next",settings.getBoolean("auto_next",true));
@@ -79,6 +79,39 @@ public final class WorkoutBackup {
             plans.put(day);
         }
         root.put("plans",plans);
+
+        JSONArray custom=new JSONArray();
+        try(Cursor c=sql.rawQuery("SELECT id,name,description,region,equipment,sets,min_reps,"+
+            "max_reps,rest_seconds,each_side FROM personal_exercises ORDER BY name",null)) {
+            while(c.moveToNext()){
+                JSONObject item=new JSONObject();
+                item.put("id",c.getString(0));item.put("name",c.getString(1));
+                item.put("description",c.getString(2));item.put("region",c.getString(3));
+                item.put("equipment",c.getString(4));item.put("sets",c.getInt(5));
+                item.put("min_reps",c.getInt(6));item.put("max_reps",c.getInt(7));
+                item.put("rest_seconds",c.getInt(8));item.put("each_side",c.getInt(9)!=0);
+                custom.put(item);
+            }
+        }
+        root.put("personal_exercises",custom);
+        JSONArray loads=new JSONArray();
+        try(Cursor c=sql.rawQuery("SELECT exercise_id,step_kg,multiplier FROM load_settings",null)){
+            while(c.moveToNext()){
+                JSONObject item=new JSONObject();
+                item.put("exercise_id",c.getString(0));
+                item.put("step_kg",c.getDouble(1));item.put("multiplier",c.getInt(2));
+                loads.put(item);
+            }
+        }
+        root.put("load_settings",loads);
+        JSONArray schedule=new JSONArray();
+        for(WorkoutDb.ScheduleDay day:db.schedule()){
+            JSONObject item=new JSONObject();
+            item.put("workout",day.workout);item.put("position",day.position);
+            item.put("weekday",day.weekday);item.put("title",day.title);
+            schedule.put(item);
+        }
+        root.put("workout_schedule",schedule);
         JSONArray tombstones=new JSONArray();
         for(String cloudId:db.deletedCloudIds())tombstones.put(cloudId);
         root.put("pending_remote_deletes",tombstones);
@@ -97,6 +130,7 @@ public final class WorkoutBackup {
         }
         return "Sesje: "+sessions.length()+"\nSerie: "+entries+
             "\nPlany treningowe: "+backup.optJSONArray("plans").length()+
+            "\nWłasne ćwiczenia: "+(backup.optJSONArray("personal_exercises")==null?0:backup.optJSONArray("personal_exercises").length())+
             "\n\nImport połączy brakujące treningi z historią na telefonie. "+
             "Istniejące sesje zostaną pominięte, poza początkowym importem 18.11, który zostanie zastąpiony Twoją kopią. "+
             "Plany i preferencje aplikacji zostaną przywrócone z kopii. "+
@@ -104,7 +138,8 @@ public final class WorkoutBackup {
     }
 
     private static void validateHeader(JSONObject backup) throws Exception {
-        if(!FORMAT.equals(backup.optString("format")) || backup.optInt("schema",-1)!=1)
+        int version=backup.optInt("schema",-1);
+        if(!FORMAT.equals(backup.optString("format")) || (version!=1&&version!=2))
             throw new Exception("Plik nie jest obsługiwaną kopią FORMA.");
         if(backup.optJSONArray("sessions")==null || backup.optJSONArray("plans")==null)
             throw new Exception("Kopia nie zawiera pełnych danych treningowych.");
@@ -120,6 +155,70 @@ public final class WorkoutBackup {
         boolean hasActive=db.active()!=null;
         sql.beginTransaction();
         try {
+            // Restore exercise definitions BEFORE referencing them in historical sets.
+            JSONArray personal=backup.optJSONArray("personal_exercises");
+            if(personal!=null){
+                if(personal.length()>500)throw new Exception("Zbyt wiele ćwiczeń w kopii");
+                for(int i=0;i<personal.length();i++){
+                    JSONObject src=personal.getJSONObject(i);
+                    String id=src.getString("id"),name=src.getString("name");
+                    String description=src.optString("description","");
+                    String region=src.optString("region","");
+                    String equipment=src.optString("equipment","");
+                    int count=src.getInt("sets"),min=src.getInt("min_reps"),
+                        max=src.getInt("max_reps"),rest=src.getInt("rest_seconds");
+                    if(!id.startsWith("custom_")||id.length()>90||name.isEmpty()||
+                        name.length()>70||description.length()>500||region.length()>70||
+                        equipment.length()>70||count<1||count>12||min<1||max<min||max>40||
+                        rest<15||rest>600)throw new Exception("Nieprawidłowe własne ćwiczenie");
+                    ContentValues row=new ContentValues();
+                    row.put("id",id);row.put("name",name);row.put("description",description);
+                    row.put("region",region);row.put("equipment",equipment);
+                    row.put("sets",count);row.put("min_reps",min);row.put("max_reps",max);
+                    row.put("rest_seconds",rest);row.put("each_side",src.optBoolean("each_side",false)?1:0);
+                    sql.insertWithOnConflict("personal_exercises",null,row,SQLiteDatabase.CONFLICT_REPLACE);
+                }
+            }
+            JSONArray loadSettings=backup.optJSONArray("load_settings");
+            if(loadSettings!=null){
+                if(loadSettings.length()>700)throw new Exception("Za dużo ustawień ciężaru");
+                for(int i=0;i<loadSettings.length();i++){
+                    JSONObject source=loadSettings.getJSONObject(i);
+                    String exercise=source.getString("exercise_id");
+                    double step=source.getDouble("step_kg");
+                    int multiplier=source.getInt("multiplier");
+                    if(db.exerciseById(exercise)==null||!Double.isFinite(step)||
+                        step<0.25||step>50||multiplier<1||multiplier>2)
+                        throw new Exception("Błędny przelicznik ciężaru");
+                    ContentValues row=new ContentValues();
+                    row.put("exercise_id",exercise);row.put("step_kg",step);
+                    row.put("multiplier",multiplier);
+                    sql.insertWithOnConflict("load_settings",null,row,SQLiteDatabase.CONFLICT_REPLACE);
+                }
+            }
+            JSONArray schedule=backup.optJSONArray("workout_schedule");
+            if(schedule!=null){
+                if(schedule.length()!=3)throw new Exception("Błędny harmonogram treningów");
+                HashSet<Integer> usedWorkouts=new HashSet<>(),usedWeekdays=new HashSet<>(),
+                    usedPositions=new HashSet<>();
+                java.util.ArrayList<ContentValues> rows=new java.util.ArrayList<>();
+                for(int i=0;i<schedule.length();i++){
+                    JSONObject item=schedule.getJSONObject(i);
+                    int workout=item.getInt("workout"),position=item.getInt("position"),
+                        weekday=item.getInt("weekday");
+                    String title=item.getString("title");
+                    if(workout<0||workout>2||position<0||position>2||
+                        weekday<1||weekday>7||title.trim().isEmpty()||title.length()>32||
+                        !usedWorkouts.add(workout)||!usedWeekdays.add(weekday)||
+                        !usedPositions.add(position))throw new Exception("Błędna kolejność dni");
+                    ContentValues row=new ContentValues();
+                    row.put("workout",workout);row.put("position",position);
+                    row.put("weekday",weekday);row.put("title",title);
+                    rows.add(row);
+                }
+                sql.delete("workout_schedule",null,null);
+                for(ContentValues row:rows)sql.insertOrThrow("workout_schedule",null,row);
+            }
             for(int i=0;i<sessions.length();i++) {
                 JSONObject src=sessions.getJSONObject(i);
                 String cloudId=src.getString("cloud_id");
@@ -181,7 +280,7 @@ public final class WorkoutBackup {
                     int rir=original.optInt("rir",-1);
                     String note=original.optString("note","");
                     boolean warmup=original.optBoolean("warmup",false);
-                    if(Plan.byId(ex)==null || index<0||index>100 || !seen.add(ex+"#"+index) ||
+                    if(db.exerciseById(ex)==null || index<0||index>100 || !seen.add(ex+"#"+index) ||
                        !Double.isFinite(kg)||kg<0||kg>2000||reps<1||reps>1000||
                        rir < -1||rir>4||note.length()>500)
                         throw new Exception("Nieprawidłowa seria w kopii");
@@ -210,7 +309,7 @@ public final class WorkoutBackup {
                     String id=item.getString("exercise_id");
                     int sets=item.getInt("sets"),min=item.getInt("min_reps"),
                         max=item.getInt("max_reps"),rest=item.getInt("rest_seconds");
-                    if(Plan.byId(id)==null||!seenIds.add(id)||sets<1||sets>12||
+                    if(db.exerciseById(id)==null||!seenIds.add(id)||sets<1||sets>12||
                         min<1||max<min||max>40||rest<15||rest>600)
                         throw new Exception("Nieprawidłowe ćwiczenie w planie");
                     ContentValues row=new ContentValues();
