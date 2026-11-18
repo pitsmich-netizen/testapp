@@ -390,6 +390,54 @@ public final class MainActivity extends Activity {
         export.setOnClickListener(v->exportCsv());
 
         space(content,8);
+        smallLabel(content,"ODPOCZYNEK MIĘDZY SERIAMI");
+        space(content,9);
+        LinearLayout timerSettings=card(content);
+        smallLabel(timerSettings,"TIMER W TLE");
+        space(timerSettings,6);
+        add(timerSettings,text("Powiadomienie i wibracja po zakończeniu przerwy, także po zablokowaniu ekranu.",14,MUTED,false));
+        space(timerSettings,8);
+        add(timerSettings,text(RestTimer.canNotify(this)?"Powiadomienia: dostępne":"Powiadomienia: wymagają zezwolenia",13,RestTimer.canNotify(this)?GREEN:AMBER,true));
+        space(timerSettings,5);
+        add(timerSettings,text(RestTimer.canScheduleExact(this)?"Dokładne alarmy: włączone":
+            "Dokładne alarmy: wyłączone (system może opóźnić powiadomienie)",13,
+            RestTimer.canScheduleExact(this)?GREEN:AMBER,false));
+        space(timerSettings,9);
+        Button alerts=button("Ustaw powiadomienia",false);
+        add(timerSettings,alerts);
+        alerts.setOnClickListener(v->{
+            try {
+                Intent i=new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                i.putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName());
+                startActivity(i);
+            } catch(Exception ignored) {
+                Toast.makeText(this,"Otwórz ustawienia powiadomień aplikacji w Androidzie",Toast.LENGTH_LONG).show();
+            }
+        });
+        if(Build.VERSION.SDK_INT>=31 && !RestTimer.canScheduleExact(this)) {
+            space(timerSettings,6);
+            Button precise=button("Włącz dokładne alarmy",false);
+            add(timerSettings,precise);
+            precise.setOnClickListener(v->{
+                try {
+                    Intent i=new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                    i.setData(Uri.parse("package:"+getPackageName()));
+                    startActivity(i);
+                } catch(Exception error) {
+                    Toast.makeText(this,"Zezwól na alarmy i przypomnienia w ustawieniach Androida",Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+        space(timerSettings,7);
+        boolean auto=getSharedPreferences("forma_settings",0).getBoolean("auto_next",true);
+        Button next=button("Auto-przejście do następnego ćwiczenia: "+(auto?"WŁ.":"WYŁ."),false);
+        add(timerSettings,next);
+        next.setOnClickListener(v->{
+            getSharedPreferences("forma_settings",0).edit().putBoolean("auto_next",!auto).apply();
+            render();
+        });
+
+        space(content,8);
         smallLabel(content,"APLIKACJA");
         space(content,9);
         LinearLayout ota=card(content);
@@ -904,6 +952,10 @@ public final class MainActivity extends Activity {
             String duration=imported?"bez czasu":formatTime(db.durationMillis(session)/1000);
             String info=session.sets+" serii  •  "+duration+"  •  "+weight(session.volume)+" kg obj.";
             add(c,text(info,13,MUTED,false));
+            if(imported && session.sets!=18) {
+                space(c,3);
+                add(c,text("⚠  Porównaj import z pierwszymi notatkami (18 serii)",12,AMBER,false));
+            }
             clickCard(c,()->{detailSession=session.id;page="detail";render();});
         }
     }
@@ -929,6 +981,20 @@ public final class MainActivity extends Activity {
         add(content,actions);
         space(content,13);
         String notes=db.sessionNotes(detailSession);
+        if(notes!=null && notes.startsWith("Import z notatek 18.11.2026")) {
+            LinearLayout audit=card(content);
+            smallLabel(audit,selected.sets==18?"IMPORT ZGODNY LICZBOWO":"SPRAWDŹ PIERWSZY IMPORT");
+            space(audit,6);
+            add(audit,text("Z notatek: 18 serii • w aplikacji: "+selected.sets,14,
+                selected.sets==18?GREEN:AMBER,true));
+            space(audit,9);
+            Button check=button("Pokaż porównanie ćwiczeń",false);
+            add(audit,check);
+            check.setOnClickListener(v->new AlertDialog.Builder(this)
+                .setTitle("Audyt treningu 18.11.2026")
+                .setMessage(db.initialImportAudit(selected.id))
+                .setPositiveButton("OK",null).show());
+        }
         if(notes!=null&&!notes.isEmpty()) {
             LinearLayout c=card(content);
             add(c,text(notes,14,MUTED,false));
