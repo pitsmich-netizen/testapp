@@ -1,14 +1,37 @@
 plugins { id 'com.android.application' }
 
+def signingStorePath = System.getenv('FORMA_SIGNING_STORE_FILE')
+def signingPassword = System.getenv('FORMA_SIGNING_STORE_PASSWORD')
+def signingAlias = System.getenv('FORMA_SIGNING_KEY_ALIAS')
+def signingKeyPassword = System.getenv('FORMA_SIGNING_KEY_PASSWORD')
+def hasSigning = signingStorePath && signingPassword && signingAlias && signingKeyPassword
+
 android {
     namespace 'pl.pitsmich.forma'
     compileSdk 35
+
     defaultConfig {
         applicationId 'pl.pitsmich.forma'
         minSdk 26
         targetSdk 35
         versionCode 1
         versionName '0.1.0'
+    }
+    signingConfigs {
+        release {
+            if (hasSigning) {
+                storeFile file(signingStorePath)
+                storePassword signingPassword
+                keyAlias signingAlias
+                keyPassword signingKeyPassword
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (hasSigning) signingConfig signingConfigs.release
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
