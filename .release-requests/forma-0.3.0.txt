@@ -1,0 +1,4 @@
+Publish signed FORMA v0.3.0 (versionCode 3).
+Improved legibility, large labelled weight/rep fields, collapsible exercise cards, persistent training timer, progress history and accessible navigation.
+The package ID and release signing certificate stay unchanged to preserve installed app data during OTA.
+Requested by owner on 2026-11-18.
