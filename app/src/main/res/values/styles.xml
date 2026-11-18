@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="FormaTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowBackground">#000000</item>
+        <item name="android:colorBackground">#000000</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:colorAccent">#63E5C6</item>
+        <item name="android:textColorPrimary">#F8F8F8</item>
+        <item name="android:textColorSecondary">#C6C6C6</item>
+        <item name="android:alertDialogTheme">@style/FormaDialog</item>
+    </style>
+    <style name="FormaDialog" parent="android:style/Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">#181818</item>
+        <item name="android:colorAccent">#63E5C6</item>
+        <item name="android:textColorPrimary">#F8F8F8</item>
+        <item name="android:textColorSecondary">#C6C6C6</item>
+    </style>
+</resources>

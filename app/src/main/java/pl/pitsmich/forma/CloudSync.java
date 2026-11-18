@@ -22,6 +22,9 @@ import java.text.SimpleDateFormat;
 import java.time.OffsetDateTime;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
+import java.net.URLEncoder;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -158,8 +161,17 @@ public final class CloudSync {
         String uid=required(token,"uid");
         String access=required(token,"access_token");
 
-        // Download first, then upload locally stored workouts.
+        // Delete remotely before pulling, otherwise deleted workouts can reappear.
+        int removed=0;
+        for(String deleted:db.deletedCloudIds()) {
+            request("DELETE",BASE+"/rest/v1/forma_sessions?client_id=eq."+
+                URLEncoder.encode(deleted,"UTF-8"),null,access,null);
+            db.markCloudDeletionDone(deleted);
+            removed++;
+        }
+
         Map<String,String> remoteIds=new HashMap<>();
+        Set<String> justDownloaded=new HashSet<>();
         int pulledSessions=0;
         for(JSONObject remote:allPages("forma_sessions","id,client_id,workout,started_at,finished_at,notes",access)) {
             String cloudId=remote.getString("client_id");
@@ -168,21 +180,25 @@ public final class CloudSync {
             long started=parseTime(remote.getString("started_at"));
             long finished=remote.isNull("finished_at")?0:parseTime(remote.getString("finished_at"));
             if(finished==0) continue; // Do not overwrite or duplicate an active workout.
-            db.insertCloudSession(cloudId,remote.getInt("workout"),started,finished,remote.optString("notes",""));
-            pulledSessions++;
+            if(!db.hasCloudId(cloudId)) {
+                db.insertCloudSession(cloudId,remote.getInt("workout"),started,finished,remote.optString("notes",""));
+                justDownloaded.add(cloudId);
+                pulledSessions++;
+            }
         }
 
         Map<String,Long> localIds=new HashMap<>();
         for(WorkoutDb.Session session:db.completed()) {
             if(session.cloudId!=null) localIds.put(session.cloudId,session.id);
         }
-        for(JSONObject remote:allPages("forma_sets","session_id,exercise_id,set_index,weight_kg,reps",access)) {
+        List<JSONObject> remoteSets=allPages("forma_sets","session_id,exercise_id,set_index,weight_kg,reps",access);
+        for(JSONObject remote:remoteSets) {
             String remoteSessionId=remote.getString("session_id");
             String cloudId=null;
             for(Map.Entry<String,String> e:remoteIds.entrySet()) {
                 if(e.getValue().equals(remoteSessionId)) { cloudId=e.getKey(); break; }
             }
-            if(cloudId==null) continue;
+            if(cloudId==null || !justDownloaded.contains(cloudId)) continue;
             Long localId=localIds.get(cloudId);
             if(localId==null) continue;
             db.insertCloudSet(localId,remote.getString("exercise_id"),
@@ -208,8 +224,19 @@ public final class CloudSync {
                 remoteId=res.getJSONObject(0).getString("id");
                 remoteIds.put(session.cloudId,remoteId);
             }
+            // Keep session date and notes consistent after editing.
+            JSONObject edit=new JSONObject();
+            edit.put("workout",session.workout);
+            edit.put("started_at",iso(session.startedAt));
+            edit.put("finished_at",iso(session.finishedAt));
+            edit.put("notes",session.notes==null?"":session.notes);
+            request("PATCH",BASE+"/rest/v1/forma_sessions?id=eq."+remoteId,
+                edit.toString(),access,"return=minimal");
+
+            Set<String> localSetKeys=new HashSet<>();
             JSONArray sets=new JSONArray();
             for(WorkoutDb.Entry entry:db.sets(session.id)) {
+                localSetKeys.add(entry.exerciseId+"#"+entry.setIndex);
                 JSONObject row=new JSONObject();
                 row.put("session_id",remoteId);
                 row.put("user_id",uid);
@@ -219,13 +246,24 @@ public final class CloudSync {
                 row.put("reps",entry.reps);
                 sets.put(row);
             }
+            // Remove sets deleted locally. Only the owning session is ever modified.
+            for(JSONObject existing:remoteSets) {
+                if(!remoteId.equals(existing.optString("session_id"))) continue;
+                String exId=existing.getString("exercise_id");
+                int index=existing.getInt("set_index");
+                if(localSetKeys.contains(exId+"#"+index)) continue;
+                String url=BASE+"/rest/v1/forma_sets?session_id=eq."+remoteId+
+                    "&exercise_id=eq."+URLEncoder.encode(exId,"UTF-8")+
+                    "&set_index=eq."+index;
+                request("DELETE",url,null,access,null);
+            }
             if(sets.length()>0)
                 request("POST",BASE+"/rest/v1/forma_sets?on_conflict=session_id,exercise_id,set_index",
                     sets.toString(),access,"resolution=merge-duplicates,return=minimal");
             uploaded++;
         }
         return "Synchronizacja gotowa. Sesje lokalne: "+uploaded+
-            ", sesje z chmury: "+pulledSessions+".";
+            ", pobrane: "+pulledSessions+", usunięte z chmury: "+removed+".";
     }
 
     private List<JSONObject> allPages(String table,String columns,String token) throws Exception {
