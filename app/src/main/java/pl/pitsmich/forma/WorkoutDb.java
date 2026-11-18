@@ -29,12 +29,19 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     public static final class Session {
         public final long id, startedAt, finishedAt;
         public final String notes, cloudId;
+        public final long pausedAt, pausedTotalMs;
         public final int workout, sets;
         public final double volume;
         Session(long id, int workout, long startedAt, long finishedAt, int sets, double volume, String notes, String cloudId) {
             this.id=id; this.workout=workout; this.startedAt=startedAt;
             this.finishedAt=finishedAt; this.sets=sets; this.volume=volume;
             this.notes=notes; this.cloudId=cloudId;
+            this.pausedAt=0; this.pausedTotalMs=0;
+        }
+        Session(long id,int workout,long startedAt,long finishedAt,int sets,double volume,String notes,String cloudId,long pausedAt,long pausedTotalMs) {
+            this.id=id;this.workout=workout;this.startedAt=startedAt;this.finishedAt=finishedAt;
+            this.sets=sets;this.volume=volume;this.notes=notes;this.cloudId=cloudId;
+            this.pausedAt=pausedAt;this.pausedTotalMs=pausedTotalMs;
         }
     }
     public static final class Progress {
@@ -44,14 +51,15 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         Progress(long date) { this.date=date; }
     }
 
-    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 4); }
+    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 5); }
     @Override public void onConfigure(SQLiteDatabase db) { super.onConfigure(db); db.setForeignKeyConstraintsEnabled(true); }
     @Override public void onCreate(SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, workout INTEGER NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER, notes TEXT NOT NULL DEFAULT '', cloud_id TEXT)");
+        db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, workout INTEGER NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER, notes TEXT NOT NULL DEFAULT '', cloud_id TEXT, paused_at INTEGER, paused_total_ms INTEGER NOT NULL DEFAULT 0)");
         db.execSQL("CREATE TABLE exercise_sets (session_id INTEGER NOT NULL, exercise_id TEXT NOT NULL, set_index INTEGER NOT NULL, weight REAL NOT NULL, reps INTEGER NOT NULL, PRIMARY KEY(session_id,exercise_id,set_index), FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE)");
         db.execSQL("CREATE INDEX idx_sets_exercise ON exercise_sets(exercise_id)");
         db.execSQL("CREATE INDEX idx_sessions_time ON sessions(started_at)");
         db.execSQL("CREATE UNIQUE INDEX idx_sessions_cloud_id ON sessions(cloud_id)");
+        db.execSQL("CREATE TABLE pending_remote_deletes (cloud_id TEXT PRIMARY KEY)");
         seedInitialWorkout(db);
     }
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -63,6 +71,11 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_cloud_id ON sessions(cloud_id)");
             db.execSQL("UPDATE sessions SET cloud_id='forma-import-20261118' WHERE notes LIKE 'Import z notatek 18.11.2026%'");
             db.execSQL("UPDATE sessions SET cloud_id=lower(hex(randomblob(16))) WHERE cloud_id IS NULL");
+        }
+        if(oldVersion<5) {
+            db.execSQL("ALTER TABLE sessions ADD COLUMN paused_at INTEGER");
+            db.execSQL("ALTER TABLE sessions ADD COLUMN paused_total_ms INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("CREATE TABLE IF NOT EXISTS pending_remote_deletes (cloud_id TEXT PRIMARY KEY)");
         }
         if(oldVersion<2) seedInitialWorkout(db);
         if(oldVersion<3) seedAdditionalNovemberSets(db);
@@ -129,15 +142,99 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         return getWritableDatabase().insertOrThrow("sessions", null, v);
     }
     public void finish(long id) {
+        resume(id);
         ContentValues v=new ContentValues(); v.put("finished_at", System.currentTimeMillis());
         getWritableDatabase().update("sessions", v, "id=?", new String[]{Long.toString(id)});
     }
     public Session active() {
-        try(Cursor c=getReadableDatabase().rawQuery("SELECT id,workout,started_at,notes,cloud_id FROM sessions WHERE finished_at IS NULL ORDER BY id DESC LIMIT 1",null)) {
+        try(Cursor c=getReadableDatabase().rawQuery("SELECT id,workout,started_at,notes,cloud_id,paused_at,paused_total_ms FROM sessions WHERE finished_at IS NULL ORDER BY id DESC LIMIT 1",null)) {
             if(!c.moveToFirst()) return null;
-            return new Session(c.getLong(0),c.getInt(1),c.getLong(2),0,countSets(c.getLong(0)),0,c.getString(3),c.getString(4));
+            return new Session(c.getLong(0),c.getInt(1),c.getLong(2),0,countSets(c.getLong(0)),0,c.getString(3),c.getString(4),c.isNull(5)?0:c.getLong(5),c.getLong(6));
         }
     }
+    public Session byId(long id) {
+        String q="SELECT s.id,s.workout,s.started_at,s.finished_at,COUNT(e.set_index),COALESCE(SUM(e.weight*e.reps),0),s.notes,s.cloud_id,s.paused_at,s.paused_total_ms "+
+            "FROM sessions s LEFT JOIN exercise_sets e ON e.session_id=s.id WHERE s.id=? GROUP BY s.id";
+        try(Cursor c=getReadableDatabase().rawQuery(q,new String[]{Long.toString(id)})) {
+            if(!c.moveToFirst()) return null;
+            return new Session(c.getLong(0),c.getInt(1),c.getLong(2),c.isNull(3)?0:c.getLong(3),
+                c.getInt(4),c.getDouble(5),c.getString(6),c.getString(7),c.isNull(8)?0:c.getLong(8),c.getLong(9));
+        }
+    }
+    public long durationMillis(Session session) {
+        if(session==null) return 0;
+        long end=session.finishedAt>0?session.finishedAt:System.currentTimeMillis();
+        long currentPause=session.pausedAt>0?Math.max(0,end-session.pausedAt):0;
+        return Math.max(0,end-session.startedAt-session.pausedTotalMs-currentPause);
+    }
+    public void pause(long id) {
+        ContentValues v=new ContentValues();
+        v.put("paused_at",System.currentTimeMillis());
+        getWritableDatabase().update("sessions",v,"id=? AND finished_at IS NULL AND paused_at IS NULL",
+            new String[]{Long.toString(id)});
+    }
+    public void resume(long id) {
+        SQLiteDatabase sql=getWritableDatabase();
+        sql.beginTransaction();
+        try {
+            long paused=0;
+            try(Cursor c=sql.rawQuery("SELECT paused_at FROM sessions WHERE id=? AND finished_at IS NULL",
+                new String[]{Long.toString(id)})) {
+                if(c.moveToFirst()&&!c.isNull(0)) paused=c.getLong(0);
+            }
+            if(paused>0) {
+                ContentValues v=new ContentValues();
+                v.putNull("paused_at");
+                sql.execSQL("UPDATE sessions SET paused_total_ms=paused_total_ms+? WHERE id=?",
+                    new Object[]{Math.max(0,System.currentTimeMillis()-paused),id});
+                sql.update("sessions",v,"id=?",new String[]{Long.toString(id)});
+            }
+            sql.setTransactionSuccessful();
+        } finally {sql.endTransaction();}
+    }
+    public void deleteSession(long id) {
+        SQLiteDatabase sql=getWritableDatabase();
+        sql.beginTransaction();
+        try {
+            try(Cursor c=sql.rawQuery("SELECT cloud_id FROM sessions WHERE id=?",
+                    new String[]{Long.toString(id)})) {
+                if(c.moveToFirst() && !c.isNull(0)) {
+                    ContentValues tombstone=new ContentValues();
+                    tombstone.put("cloud_id",c.getString(0));
+                    sql.insertWithOnConflict("pending_remote_deletes",null,tombstone,SQLiteDatabase.CONFLICT_IGNORE);
+                }
+            }
+            sql.delete("sessions","id=?",new String[]{Long.toString(id)});
+            sql.setTransactionSuccessful();
+        } finally {sql.endTransaction();}
+    }
+    public List<String> deletedCloudIds() {
+        ArrayList<String> ids=new ArrayList<>();
+        try(Cursor c=getReadableDatabase().rawQuery("SELECT cloud_id FROM pending_remote_deletes",null)) {
+            while(c.moveToNext()) ids.add(c.getString(0));
+        }
+        return ids;
+    }
+    public void markCloudDeletionDone(String cloudId) {
+        getWritableDatabase().delete("pending_remote_deletes","cloud_id=?",new String[]{cloudId});
+    }
+    public boolean hasCloudId(String cloudId) {
+        try(Cursor c=getReadableDatabase().rawQuery("SELECT 1 FROM sessions WHERE cloud_id=? LIMIT 1",
+                new String[]{cloudId})) {
+            return c.moveToFirst();
+        }
+    }
+    public void updateCompleted(long id,long startedAt,String notes) {
+        Session s=byId(id);
+        if(s==null||s.finishedAt<=0)throw new IllegalArgumentException("Nie znaleziono zakończonego treningu");
+        ContentValues v=new ContentValues();
+        v.put("started_at",startedAt);
+        v.put("finished_at",Math.max(startedAt,s.finishedAt+(startedAt-s.startedAt)));
+        v.put("notes",notes==null?"":notes.substring(0,Math.min(1000,notes.length())));
+        getWritableDatabase().update("sessions",v,"id=? AND finished_at IS NOT NULL",
+            new String[]{Long.toString(id)});
+    }
+
     public void save(long session, String exercise, int index, double weight, int reps) {
         ContentValues v=new ContentValues();
         v.put("session_id",session); v.put("exercise_id",exercise);
@@ -190,12 +287,12 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     }
     public List<Session> completed() {
         ArrayList<Session> result=new ArrayList<>();
-        String q="SELECT s.id,s.workout,s.started_at,s.finished_at,COUNT(e.set_index),COALESCE(SUM(e.weight*e.reps),0),s.notes,s.cloud_id " +
+        String q="SELECT s.id,s.workout,s.started_at,s.finished_at,COUNT(e.set_index),COALESCE(SUM(e.weight*e.reps),0),s.notes,s.cloud_id,s.paused_at,s.paused_total_ms " +
                 "FROM sessions s LEFT JOIN exercise_sets e ON e.session_id=s.id WHERE s.finished_at IS NOT NULL " +
                 "GROUP BY s.id ORDER BY s.started_at DESC LIMIT 100";
         try(Cursor c=getReadableDatabase().rawQuery(q,null)) {
             while(c.moveToNext())
-                result.add(new Session(c.getLong(0),c.getInt(1),c.getLong(2),c.getLong(3),c.getInt(4),c.getDouble(5),c.getString(6),c.getString(7)));
+                result.add(new Session(c.getLong(0),c.getInt(1),c.getLong(2),c.getLong(3),c.getInt(4),c.getDouble(5),c.getString(6),c.getString(7),c.isNull(8)?0:c.getLong(8),c.getLong(9)));
         }
         return result;
     }
