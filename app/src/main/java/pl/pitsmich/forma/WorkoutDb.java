@@ -51,15 +51,16 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         Progress(long date) { this.date=date; }
     }
 
-    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 5); }
+    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 6); }
     @Override public void onConfigure(SQLiteDatabase db) { super.onConfigure(db); db.setForeignKeyConstraintsEnabled(true); }
     @Override public void onCreate(SQLiteDatabase db) {
-        db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, workout INTEGER NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER, notes TEXT NOT NULL DEFAULT '', cloud_id TEXT, paused_at INTEGER, paused_total_ms INTEGER NOT NULL DEFAULT 0)");
+        db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, workout INTEGER NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER, notes TEXT NOT NULL DEFAULT '', cloud_id TEXT, paused_at INTEGER, paused_total_ms INTEGER NOT NULL DEFAULT 0, audit_resolution TEXT NOT NULL DEFAULT 'pending')");
         db.execSQL("CREATE TABLE exercise_sets (session_id INTEGER NOT NULL, exercise_id TEXT NOT NULL, set_index INTEGER NOT NULL, weight REAL NOT NULL, reps INTEGER NOT NULL, PRIMARY KEY(session_id,exercise_id,set_index), FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE)");
         db.execSQL("CREATE INDEX idx_sets_exercise ON exercise_sets(exercise_id)");
         db.execSQL("CREATE INDEX idx_sessions_time ON sessions(started_at)");
         db.execSQL("CREATE UNIQUE INDEX idx_sessions_cloud_id ON sessions(cloud_id)");
         db.execSQL("CREATE TABLE pending_remote_deletes (cloud_id TEXT PRIMARY KEY)");
+        createPlanTable(db);
         seedInitialWorkout(db);
     }
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -77,9 +78,130 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE sessions ADD COLUMN paused_total_ms INTEGER NOT NULL DEFAULT 0");
             db.execSQL("CREATE TABLE IF NOT EXISTS pending_remote_deletes (cloud_id TEXT PRIMARY KEY)");
         }
+        if(oldVersion<6) {
+            db.execSQL("ALTER TABLE sessions ADD COLUMN audit_resolution TEXT NOT NULL DEFAULT 'pending'");
+            createPlanTable(db);
+        }
         if(oldVersion<2) seedInitialWorkout(db);
         if(oldVersion<3) seedAdditionalNovemberSets(db);
     }
+    private static void createPlanTable(SQLiteDatabase sql) {
+        sql.execSQL("CREATE TABLE IF NOT EXISTS plan_items ("+
+            "workout INTEGER NOT NULL,position INTEGER NOT NULL,exercise_id TEXT NOT NULL,"+
+            "sets INTEGER NOT NULL,min_reps INTEGER NOT NULL,max_reps INTEGER NOT NULL,"+
+            "rest_seconds INTEGER NOT NULL,PRIMARY KEY(workout,position),"+
+            "UNIQUE(workout,exercise_id))");
+    }
+
+    /** User plan customization; existing completed sessions are never rewritten. */
+    public List<Plan.Exercise> workoutPlan(int workout) {
+        if(workout<0||workout>2)throw new IllegalArgumentException("Nieznany trening");
+        ArrayList<Plan.Exercise> list=new ArrayList<>();
+        try(Cursor c=getReadableDatabase().rawQuery(
+            "SELECT exercise_id,sets,min_reps,max_reps,rest_seconds FROM plan_items "+
+            "WHERE workout=? ORDER BY position",new String[]{Integer.toString(workout)})) {
+            while(c.moveToNext()) {
+                Plan.Exercise source=Plan.byId(c.getString(0));
+                if(source!=null)list.add(new Plan.Exercise(
+                    source.id,source.name,source.description,
+                    c.getInt(1),c.getInt(2),c.getInt(3),c.getInt(4),source.eachSide));
+            }
+        }
+        return list.isEmpty()?new ArrayList<>(Plan.exercises(workout)):list;
+    }
+
+    public void savePlan(int workout,List<Plan.Exercise> list) {
+        if(workout<0||workout>2 || list==null||list.isEmpty()||list.size()>18)
+            throw new IllegalArgumentException("Nieprawidłowy plan");
+        java.util.HashSet<String> ids=new java.util.HashSet<>();
+        for(Plan.Exercise e:list) {
+            if(Plan.byId(e.id)==null || !ids.add(e.id)||e.sets<1||e.sets>12||
+                e.minReps<1||e.maxReps<e.minReps||e.maxReps>40||
+                e.restSeconds<15||e.restSeconds>600)
+                throw new IllegalArgumentException("Nieprawidłowe parametry ćwiczenia");
+        }
+        SQLiteDatabase sql=getWritableDatabase();
+        sql.beginTransaction();
+        try {
+            sql.delete("plan_items","workout=?",new String[]{Integer.toString(workout)});
+            for(int i=0;i<list.size();i++) {
+                Plan.Exercise e=list.get(i);
+                ContentValues row=new ContentValues();
+                row.put("workout",workout);
+                row.put("position",i);
+                row.put("exercise_id",e.id);
+                row.put("sets",e.sets);
+                row.put("min_reps",e.minReps);
+                row.put("max_reps",e.maxReps);
+                row.put("rest_seconds",e.restSeconds);
+                sql.insertOrThrow("plan_items",null,row);
+            }
+            sql.setTransactionSuccessful();
+        } finally {sql.endTransaction();}
+    }
+
+    public void resetPlan(int workout) {
+        getWritableDatabase().delete("plan_items","workout=?",new String[]{Integer.toString(workout)});
+    }
+
+    public boolean customPlan(int workout) {
+        try(Cursor c=getReadableDatabase().rawQuery(
+            "SELECT 1 FROM plan_items WHERE workout=? LIMIT 1",
+            new String[]{Integer.toString(workout)})) {return c.moveToFirst();}
+    }
+
+    public String auditResolution(long sessionId) {
+        try(Cursor c=getReadableDatabase().rawQuery(
+            "SELECT audit_resolution FROM sessions WHERE id=?",
+            new String[]{Long.toString(sessionId)})) {
+            return c.moveToFirst()?c.getString(0):"pending";
+        }
+    }
+    public void setAuditResolution(long sessionId,String status) {
+        if(!"pending".equals(status)&&!"confirmed".equals(status)&&!"dismissed".equals(status))
+            throw new IllegalArgumentException("Nieprawidłowy wynik audytu");
+        ContentValues values=new ContentValues();
+        values.put("audit_resolution",status);
+        getWritableDatabase().update("sessions",values,
+            "id=? AND notes LIKE 'Import z notatek 18.11.2026%'",
+            new String[]{Long.toString(sessionId)});
+    }
+
+    /** Last completed workout containing this exercise, scoped to the same day type. */
+    private long lastExerciseSession(int workout,String exercise) {
+        try(Cursor c=getReadableDatabase().rawQuery(
+            "SELECT s.id FROM sessions s JOIN exercise_sets e ON e.session_id=s.id "+
+            "WHERE s.workout=? AND e.exercise_id=? AND s.finished_at IS NOT NULL "+
+            "GROUP BY s.id ORDER BY s.started_at DESC,s.id DESC LIMIT 1",
+            new String[]{Integer.toString(workout),exercise})) {
+            return c.moveToFirst()?c.getLong(0):-1L;
+        }
+    }
+
+    public int expectedSets(int workout,Plan.Exercise exercise) {
+        if(customPlan(workout)) return exercise.sets;
+        long session=lastExerciseSession(workout,exercise.id);
+        if(session<0)return exercise.sets;
+        int count=countExerciseSets(session,exercise.id);
+        return count>0?Math.min(12,count):exercise.sets;
+    }
+
+    public Entry previousWorkout(int workout,String exercise,int index) {
+        long session=lastExerciseSession(workout,exercise);
+        if(session>=0) {
+            Entry exact=get(session,exercise,index);
+            if(exact!=null)return exact;
+            // For an added set, reuse the last set's load when available.
+            try(Cursor c=getReadableDatabase().rawQuery(
+                "SELECT set_index,weight,reps FROM exercise_sets WHERE session_id=? AND exercise_id=? "+
+                "ORDER BY set_index DESC LIMIT 1",
+                new String[]{Long.toString(session),exercise})) {
+                if(c.moveToFirst())return new Entry(exercise,c.getInt(0),c.getDouble(1),c.getInt(2));
+            }
+        }
+        return previous(exercise,index);
+    }
+
     private void seedAdditionalNovemberSets(SQLiteDatabase sql) {
         try(Cursor c=sql.rawQuery("SELECT id FROM sessions WHERE notes LIKE 'Import z notatek 18.11.2026%' ORDER BY id LIMIT 1",null)) {
             if(!c.moveToFirst()) return;
@@ -240,10 +362,18 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         v.put("session_id",session); v.put("exercise_id",exercise);
         v.put("set_index",index); v.put("weight",weight); v.put("reps",reps);
         getWritableDatabase().insertWithOnConflict("exercise_sets",null,v,SQLiteDatabase.CONFLICT_REPLACE);
+        invalidateAuditAfterSetChange(session);
+    }
+    private void invalidateAuditAfterSetChange(long session) {
+        getWritableDatabase().execSQL(
+            "UPDATE sessions SET audit_resolution='pending' WHERE id=? "+
+            "AND notes LIKE 'Import z notatek 18.11.2026%'",
+            new Object[]{session});
     }
     public void delete(long session, String exercise, int index) {
         getWritableDatabase().delete("exercise_sets","session_id=? AND exercise_id=? AND set_index=?",
                 new String[]{Long.toString(session),exercise,Integer.toString(index)});
+        invalidateAuditAfterSetChange(session);
     }
     public Entry get(long session,String exercise,int index) {
         try(Cursor c=getReadableDatabase().rawQuery(
