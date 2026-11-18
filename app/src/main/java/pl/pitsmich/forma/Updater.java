@@ -240,7 +240,18 @@ public final class Updater {
             }
         } catch(Exception e) {
             new AlertDialog.Builder(activity).setTitle("Nie można otworzyć instalatora")
-                .setMessage(e.getMessage()).setPositiveButton("OK",null).show();
+                .setMessage("Instalacja automatyczna nie powiodła się: "+e.getMessage()+
+                    "\\n\\nMożesz pobrać podpisany APK z GitHub Releases i otworzyć go z folderu Pobrane, bez odinstalowywania FORMA.")
+                .setNegativeButton("Zamknij",null)
+                .setPositiveButton("Otwórz GitHub Releases",(d,w)->{
+                    try {
+                        Intent browser=new Intent(Intent.ACTION_VIEW,
+                            Uri.parse("https://github.com/pitsmich-netizen/testapp/releases/latest"));
+                        activity.startActivity(browser);
+                    } catch(Exception ignored) {
+                        Toast.makeText(activity,"Nie można otworzyć przeglądarki",Toast.LENGTH_LONG).show();
+                    }
+                }).show();
         }
     }
     private String readManifest(String url) throws Exception {
