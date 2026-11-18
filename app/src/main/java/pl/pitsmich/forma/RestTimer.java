@@ -11,11 +11,14 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
 
 public final class RestTimer {
     private static final String PREFS = "forma_timer";
     private static final String KEY_END = "restUntil"; // Keep compatible with 0.5.1.
-    private static final String CHANNEL_ID = "forma_rest_finished_v1";
+    private static final String CHANNEL_SOUND = "forma_rest_sound_v2";
+    private static final String CHANNEL_SILENT = "forma_rest_vibration_v2";
     private static final int ALARM_CODE = 6651;
     private static final int NOTIFICATION_ID = 6652;
     private RestTimer() { }
@@ -94,16 +97,29 @@ public final class RestTimer {
     private static void showFinished(Context context) {
         NotificationManager manager=(NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
         if(manager==null)return;
-        NotificationChannel channel=new NotificationChannel(CHANNEL_ID,"FORMA — koniec przerwy",
+        // Android notification channel sound is immutable; distinct IDs let users
+        // switch between sound+vibration and vibration only without recreating a channel.
+        boolean sound=context.getSharedPreferences("forma_settings",Context.MODE_PRIVATE)
+            .getBoolean("timer_sound",true);
+        String channelId=sound?CHANNEL_SOUND:CHANNEL_SILENT;
+        NotificationChannel channel=new NotificationChannel(channelId,
+            sound?"FORMA — dźwięk i wibracja":"FORMA — tylko wibracja",
             NotificationManager.IMPORTANCE_HIGH);
-        channel.setDescription("Powiadomienie i wibracja po zakończeniu przerwy między seriami");
+        channel.setDescription("Koniec przerwy między seriami. Dźwiękiem możesz sterować w ustawieniach FORMA.");
         channel.enableVibration(true);
+        if(sound) {
+            AudioAttributes attrs=new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build();
+            channel.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),attrs);
+        } else channel.setSound(null,null);
         manager.createNotificationChannel(channel);
         Intent activity=new Intent(context,MainActivity.class);
         activity.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent open=PendingIntent.getActivity(context,ALARM_CODE,activity,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        Notification notification=new Notification.Builder(context,CHANNEL_ID)
+        Notification notification=new Notification.Builder(context,channelId)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("FORMA • Przerwa zakończona")
             .setContentText("Możesz rozpocząć następną serię.")
