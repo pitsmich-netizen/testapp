@@ -318,6 +318,52 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         row.put("reps",reps);
         getWritableDatabase().insertWithOnConflict("exercise_sets",null,row,SQLiteDatabase.CONFLICT_IGNORE);
     }
+    /**
+     * Compare imported data with the six exercises explicitly reported for 18 Nov.
+     * It is diagnostic only: NEVER delete or rewrite a user's exercise sets.
+     */
+    public String initialImportAudit(long sessionId) {
+        Session session=byId(sessionId);
+        if(session==null || session.notes==null ||
+            !session.notes.startsWith("Import z notatek 18.11.2026")) {
+            return "To nie jest początkowy import z 18.11.2026.";
+        }
+        String[] original={"db_flat","lat_wide","row_cable","butterfly","cable_lateral","facepull"};
+        java.util.Map<String,Integer> counts=new java.util.LinkedHashMap<>();
+        for(String id:original)counts.put(id,0);
+        for(Entry entry:sets(sessionId)) {
+            counts.put(entry.exerciseId,counts.containsKey(entry.exerciseId)?
+                counts.get(entry.exerciseId)+1:1);
+        }
+        int reported=18;
+        StringBuilder report=new StringBuilder();
+        report.append("W pierwszych notatkach było 6 ćwiczeń po 3 serie, czyli 18 serii.\\n");
+        report.append("W aplikacji jest teraz ").append(session.sets).append(" serii.\\n\\n");
+        int beyond=0,missing=0;
+        for(java.util.Map.Entry<String,Integer> entry:counts.entrySet()) {
+            String exercise=entry.getKey();
+            int actual=entry.getValue();
+            int expected=java.util.Arrays.asList(original).contains(exercise)?3:0;
+            Plan.Exercise ex=Plan.byId(exercise);
+            String title=ex==null?exercise:ex.name;
+            report.append("• ").append(title).append(": ").append(actual);
+            if(actual!=expected) {
+                report.append(" (w notatkach: ").append(expected).append(")");
+                beyond+=Math.max(0,actual-expected);
+                missing+=Math.max(0,expected-actual);
+            }
+            report.append("\\n");
+        }
+        report.append("\\n");
+        if(beyond==0 && missing==0)report.append("Zapis zgadza się z notatkami.");
+        else {
+            if(beyond>0)report.append("Dodatkowe serie względem notatek: ").append(beyond).append(". ");
+            if(missing>0)report.append("Brakujące serie względem notatek: ").append(missing).append(". ");
+            report.append("To nie dowodzi duplikacji — mogłeś później dopisać kolejne serie lub ćwiczenia. Nic nie zostało usunięte.");
+        }
+        return report.toString().replace("\\\\n","\\n");
+    }
+
     public String sessionNotes(long id) {
         try(Cursor c=getReadableDatabase().rawQuery("SELECT notes FROM sessions WHERE id=?",
                 new String[]{Long.toString(id)})) {
