@@ -1,0 +1,5 @@
+Release request: FORMA version 0.2.0 (versionCode 2)
+
+Publish the production-signed APK and HTTPS latest.json to public GitHub Releases.
+Only metadata and compiled APK are published; Android signing secrets remain in GitHub Actions Secrets.
+Requested by repository owner on 2026-11-18.
