@@ -193,15 +193,13 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     }
     public void assignWeekday(int workout,int weekday) {
         ArrayList<ScheduleDay> days=new ArrayList<>(schedule());
+        int oldDay=-1;
+        for(ScheduleDay d:days)if(d.workout==workout)oldDay=d.weekday;
+        if(oldDay<0)return;
         for(int i=0;i<days.size();i++) {
             ScheduleDay d=days.get(i);
             if(d.workout==workout)days.set(i,new ScheduleDay(d.workout,i,weekday,d.title));
-            else if(d.weekday==weekday) {
-                ScheduleDay current=null;
-                for(ScheduleDay x:days)if(x.workout==workout)current=x;
-                if(current!=null)days.set(i,new ScheduleDay(d.workout,i,
-                    current.weekday,d.title));
-            }
+            else if(d.weekday==weekday)days.set(i,new ScheduleDay(d.workout,i,oldDay,d.title));
         }
         updateSchedule(days);
     }
@@ -297,10 +295,16 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     }
     public int prCount(long session) {
         int count=0;
-        java.util.HashSet<String> visited=new java.util.HashSet<>();
-        for(Entry e:sets(session)) {
-            if(visited.add(e.exerciseId)&&isPersonalRecord(session,e.exerciseId,e))count++;
+        java.util.Map<String,Entry> best=new java.util.HashMap<>();
+        for(Entry entry:sets(session)) {
+            if(entry.warmup)continue;
+            Entry previous=best.get(entry.exerciseId);
+            if(previous==null||entry.weight>previous.weight||
+                (entry.weight==previous.weight&&entry.reps>previous.reps))
+                best.put(entry.exerciseId,entry);
         }
+        for(java.util.Map.Entry<String,Entry> e:best.entrySet())
+            if(isPersonalRecord(session,e.getKey(),e.getValue()))count++;
         return count;
     }
 
