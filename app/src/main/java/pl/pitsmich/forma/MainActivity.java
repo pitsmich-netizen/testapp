@@ -19,6 +19,8 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -294,7 +296,7 @@ public final class MainActivity extends Activity {
         }
 
         String[] days={"PONIEDZIAŁEK","ŚRODA","PIĄTEK"};
-        String[] tags={"KLATKA + PLECY","NOGI","PLECY + KLATKA"};
+        String[] tags={"KLATKA + PLECY","UDA + POŚLADKI + ŁYDKI","PLECY + KLATKA"};
         for(int w=0;w<3;w++) {
             final int workout=w;
             LinearLayout c=card(content);
@@ -324,8 +326,10 @@ public final class MainActivity extends Activity {
     private void showSettings() {
         space(content,8);
         headline(content,"Ustawienia");
-        add(content,text("Aktualizacje, kopia zapasowa i dane",15,MUTED,false));
+        add(content,text("Dane, konto i aktualizacje",15,MUTED,false));
         space(content,17);
+        smallLabel(content,"KONTO I DANE");
+        space(content,9);
 
         LinearLayout cloudCard=card(content);
         smallLabel(cloudCard,"KOPIA W CHMURZE");
@@ -348,6 +352,20 @@ public final class MainActivity extends Activity {
                 .setPositiveButton("Wyloguj",(d,w)->{cloud.signOut();render();}).show());
         }
 
+        LinearLayout backup=card(content);
+        smallLabel(backup,"EKSPORT DANYCH");
+        space(backup,7);
+        add(backup,text("Kopia historii treningów",18,TEXT,true));
+        space(backup,5);
+        add(backup,text("Zapisz serie jako plik CSV, który możesz przechować poza telefonem.",14,MUTED,false));
+        space(backup,12);
+        Button export=button("Eksportuj CSV",false);
+        add(backup,export);
+        export.setOnClickListener(v->exportCsv());
+
+        space(content,8);
+        smallLabel(content,"APLIKACJA");
+        space(content,9);
         LinearLayout ota=card(content);
         smallLabel(ota,"AKTUALIZACJE APLIKACJI");
         space(ota,7);
@@ -363,16 +381,6 @@ public final class MainActivity extends Activity {
         add(ota,config);
         config.setOnClickListener(v->updater.configure());
 
-        LinearLayout backup=card(content);
-        smallLabel(backup,"EKSPORT DANYCH");
-        space(backup,7);
-        add(backup,text("Kopia historii treningów",18,TEXT,true));
-        space(backup,5);
-        add(backup,text("Zapisz serie jako plik CSV, który możesz przechować poza telefonem.",14,MUTED,false));
-        space(backup,12);
-        Button export=button("Eksportuj CSV",false);
-        add(backup,export);
-        export.setOnClickListener(v->exportCsv());
     }
 
     private void showCloudLogin() {
@@ -1112,15 +1120,67 @@ public final class MainActivity extends Activity {
         space(selector,7);
         Button choose=button((display.isEmpty()?"Wybierz ćwiczenie":display)+"  ⌄",false);
         add(selector,choose);
-        choose.setOnClickListener(v->new AlertDialog.Builder(this)
-            .setTitle("Wybierz ćwiczenie")
-            .setItems(options,(dialog,index)->{
-                selectedExercise=exercises.get(index).id;
-                render();
-            }).show());
+        choose.setOnClickListener(v->showExercisePicker());
         LinearLayout results=col();
         add(content,results);
         drawProgress(results,selectedExercise);
+    }
+
+    private void showExercisePicker() {
+        final Dialog dialog=new Dialog(this);
+        LinearLayout container=col();
+        container.setPadding(dp(18),dp(19),dp(18),dp(18));
+        container.setBackground(rounded(CARD,22,BORDER));
+        add(container,text("Wybierz ćwiczenie",21,TEXT,true));
+        space(container,13);
+        EditText search=new EditText(this);
+        search.setSingleLine(true);
+        search.setTextSize(16);
+        search.setHint("Szukaj ćwiczenia…");
+        search.setTextColor(TEXT);
+        search.setHintTextColor(MUTED);
+        search.setPadding(dp(14),dp(12),dp(14),dp(12));
+        search.setBackground(rounded(CARD2,12,BORDER));
+        add(container,search);
+        space(container,14);
+        ScrollView scroll=new ScrollView(this);
+        scroll.setFillViewport(false);
+        scroll.setVerticalScrollBarEnabled(false);
+        container.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        LinearLayout results=col();
+        scroll.addView(results);
+        List<Plan.Exercise> exercises=Plan.uniqueExercises();
+        Runnable refresh=()->{
+            results.removeAllViews();
+            String query=search.getText().toString().trim().toLowerCase(Locale.ROOT);
+            for(Plan.Exercise ex:exercises) {
+                if(!ex.name.toLowerCase(Locale.ROOT).contains(query))continue;
+                TextView item=text(ex.name,16,ex.id.equals(selectedExercise)?TEAL:TEXT,ex.id.equals(selectedExercise));
+                item.setMinHeight(dp(52));
+                item.setPadding(dp(12),dp(8),dp(12),dp(8));
+                item.setBackground(rounded(ex.id.equals(selectedExercise)?CARD2:CARD,10,0));
+                LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);
+                p.bottomMargin=dp(5);
+                results.addView(item,p);
+                item.setOnClickListener(v->{selectedExercise=ex.id;dialog.dismiss();render();});
+            }
+            if(results.getChildCount()==0)add(results,text("Brak ćwiczeń",15,MUTED,false));
+        };
+        refresh.run();
+        search.addTextChangedListener(new TextWatcher(){
+            @Override public void beforeTextChanged(CharSequence text,int start,int count,int after){}
+            @Override public void onTextChanged(CharSequence text,int start,int before,int count){refresh.run();}
+            @Override public void afterTextChanged(Editable editable){}
+        });
+        dialog.setContentView(container);
+        dialog.show();
+        Window w=dialog.getWindow();
+        if(w!=null) {
+            w.setBackgroundDrawableResource(android.R.color.transparent);
+            w.setGravity(Gravity.BOTTOM);
+            w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT,(int)(getResources().getDisplayMetrics().heightPixels*0.77f));
+            w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        }
     }
 
     private void drawProgress(LinearLayout target,String ex) {
