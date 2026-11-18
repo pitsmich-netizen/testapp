@@ -1,38 +1,47 @@
 # Aktualizacje OTA — FORMA
 
-## Stan
-Klient OTA znajduje się w aplikacji od pierwszej wersji: sprawdza manifest HTTPS (ręcznie lub nie częściej niż raz na 24 h), porównuje `versionCode`, wyświetla informacje, pobiera APK, sprawdza SHA-256 oraz certyfikat podpisu i otwiera systemowy instalator Androida po akcji użytkownika.
+## Co już działa
+Klient aplikacji sprawdza aktualizacje na starcie (nie częściej niż raz na 24 h) i na żądanie. Weryfikuje `versionCode`, pobiera podpisane APK po HTTPS, sprawdza SHA-256 i certyfikat podpisu oraz uruchamia systemowy instalator po akcji użytkownika.
 
-**Publikowanie OTA nie jest jeszcze aktywne.** Repozytorium źródłowe `pitsmich-netizen/testapp` jest prywatne. Nie umieszczaj tokenu GitHub ani klucza podpisywania w APK.
+**Domyślny kanał OTA** jest skonfigurowany w aplikacji:
+`https://github.com/pitsmich-netizen/testapp/releases/latest/download/latest.json`
 
-## Wymagania do aktywacji OTA
-1. Trwały klucz podpisywania APK (keystore). Wszystkie kolejne aktualizacje muszą mieć ten sam identyfikator aplikacji i certyfikat podpisu. Zachowaj kopię klucza w bezpiecznym miejscu.
-2. Cztery sekrety GitHub Actions w **Settings → Secrets and variables → Actions**:
-   `FORMA_KEYSTORE_BASE64` (keystore w base64), `FORMA_KEYSTORE_PASSWORD`, `FORMA_KEY_ALIAS`, `FORMA_KEY_PASSWORD`. Repozytorium buduje wtedy instalacyjny `forma-release-signed-apk`.
-3. Publiczny adres HTTPS do plików APK i `latest.json`. Hosting może przechowywać wyłącznie pliki instalacyjne oraz JSON — kod źródłowy pozostaje prywatny.
-4. W aplikacji wybierz **Ustawienia kanału OTA** i podaj URL do pliku `latest.json`. Następnie **Sprawdź aktualizacje**.
+Kod źródłowy pozostaje na GitHubie, a nową wersję udostępniamy jako GitHub Release z dwoma plikami: `forma-vX.Y.Z.apk` i `latest.json`. Nie ma konieczności ręcznego wpisywania adresu w aplikacji.
 
-## Kontrakt manifestu
+**Uwaga: sam klient OTA jest gotowy, ale automatyczne aktualizacje nie zadziałają, dopóki nie zostanie opublikowana pierwsza poprawnie podpisana wersja release.** Aktualne `app-debug.apk` jest do testów; nie jest podstawą bezproblemowych aktualizacji.
+
+## Jednorazowe przygotowanie podpisywania
+
+1. Utwórz **prywatny** klucz do aplikacji na swoim komputerze (JDK):
+   ```bash
+   keytool -genkeypair -v -keystore forma-release.jks -alias forma -keyalg RSA -keysize 3072 -validity 10000
+   ```
+   Zapisz hasła poza repozytorium i zrób bezpieczną kopię `forma-release.jks`. Bez tego klucza nie da się podpisać kompatybilnych aktualizacji.
+2. W GitHub `testapp → Settings → Secrets and variables → Actions` dodaj cztery sekrety:
+   - `FORMA_KEYSTORE_BASE64` — zawartość pliku `forma-release.jks` zakodowana Base64 w **jednym wierszu**
+   - `FORMA_KEYSTORE_PASSWORD` — hasło magazynu kluczy
+   - `FORMA_KEY_ALIAS` — `forma`
+   - `FORMA_KEY_PASSWORD` — hasło klucza
+   Przykład uzyskania Base64 na Linux/macOS: `base64 -w0 forma-release.jks` (na macOS: `base64 < forma-release.jks | tr -d '\\n'`).
+3. Otwórz **Actions → Publish signed OTA release → Run workflow**. Workflow odczytuje `versionCode` i `versionName` z `app/build.gradle`, buduje podpisany release, generuje sumę SHA-256 i publikuje dwa pliki na GitHub Releases.
+4. Zainstaluj na telefonie APK **z wydania GitHub Releases** (nie wersję debug). Kolejne wersje zwiększają `versionCode`, utrzymują package ID i są podpisywane **tym samym kluczem**.
+5. Po udostępnieniu nowego wydania aplikacja sama wykryje aktualizację przy otwarciu lub po naciśnięciu **Sprawdź aktualizacje**. Instalację musi zaakceptować użytkownik w Androidzie.
+
+## Manifest JSON
 ```json
 {
   "versionCode": 2,
   "versionName": "0.2.0",
-  "apkUrl": "https://your-updates-host.example/forma-v0.2.0.apk",
-  "sha256": "<64 znaki hex SHA-256 podpisanego APK>",
-  "notes": "Co nowego w tej wersji."
+  "apkUrl": "https://github.com/pitsmich-netizen/testapp/releases/download/v0.2.0/forma-v0.2.0.apk",
+  "sha256": "<64 znaki hex prawdziwego SHA-256 podpisanego APK>",
+  "notes": "Nowości w aktualizacji"
 }
 ```
 
-Po zbudowaniu podpisanego APK i umieszczeniu go w publicznym hostingu uruchom:
-```sh
-python3 scripts/create_ota_manifest.py app-release.apk 2 0.2.0 https://twoj-serwer.example/forma-v0.2.0.apk
-```
-Wgraj wygenerowany `latest.json` pod stały publiczny adres. Aby opublikować kolejną wersję, zwiększ `versionCode` w `app/build.gradle`, zbuduj podpisaną wersję tym samym keystore, wgraj APK i podmień manifest.
-
-## Bezpieczeństwo
-- Brak instalacji po cichu: Android wymaga zatwierdzenia.
-- Weryfikacja integralności (SHA-256), nazwy pakietu, wersji i zgodności certyfikatu podpisu.
-- Tylko HTTPS, limit rozmiaru pobierania 150 MB, bez przechowywania tokenów w aplikacji.
-- Aplikacja może potrzebować jednorazowego zezwolenia Androida: **Zezwalaj z tego źródła**.
-- Wersji debug APK z GitHub Actions nie używaj jako podstawy produkcyjnego OTA: jej podpis może się różnić między przebiegami. Instalację pierwszą i kolejne wykonuj z **podpisanego APK release**.
-- Aktualizacje APK z tego mechanizmu są do dystrybucji prywatnej (poza Google Play). Jeżeli aplikacja trafi do Google Play, należy przejść na aktualizacje Play In-App Updates.
+## Zasady bezpieczeństwa i prywatności
+- Nigdy nie publikuj keystore lub haseł w repozytorium (repo jest publiczne!).
+- Jedynie pliki release APK oraz manifest JSON są publikowane publicznie.
+- Pliki treningowe pozostają na telefonie; nie synchronizujemy ich z GitHubem.
+- **Zestaw startowy treningu z 18.11.2026 jest umieszczony w kodzie źródłowym pierwszej wersji, dlatego jego ciężary są widoczne w publicznym repozytorium.** Po udostępnieniu aplikacji dalsze wpisy pozostają wyłącznie lokalnie.
+- Android wymaga zezwolenia na instalację aplikacji z danego źródła. Nie instalujemy aktualizacji po cichu.
+- Jeśli planujesz publikację w Google Play, zamiast tego mechanizmu OTA użyj Play In-App Updates.
