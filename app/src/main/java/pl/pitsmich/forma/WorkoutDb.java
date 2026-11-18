@@ -22,8 +22,15 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         public final String exerciseId;
         public final int setIndex, reps;
         public final double weight;
-        Entry(String exerciseId, int setIndex, double weight, int reps) {
-            this.exerciseId=exerciseId; this.setIndex=setIndex; this.weight=weight; this.reps=reps;
+        public final int rir; // -1 if not supplied
+        public final String note;
+        public final boolean warmup;
+        Entry(String exerciseId,int setIndex,double weight,int reps) {
+            this(exerciseId,setIndex,weight,reps,-1,"",false);
+        }
+        Entry(String exerciseId,int setIndex,double weight,int reps,int rir,String note,boolean warmup) {
+            this.exerciseId=exerciseId;this.setIndex=setIndex;this.weight=weight;this.reps=reps;
+            this.rir=rir;this.note=note==null?"":note;this.warmup=warmup;
         }
     }
     public static final class Session {
@@ -51,11 +58,11 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         Progress(long date) { this.date=date; }
     }
 
-    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 6); }
+    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 7); }
     @Override public void onConfigure(SQLiteDatabase db) { super.onConfigure(db); db.setForeignKeyConstraintsEnabled(true); }
     @Override public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, workout INTEGER NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER, notes TEXT NOT NULL DEFAULT '', cloud_id TEXT, paused_at INTEGER, paused_total_ms INTEGER NOT NULL DEFAULT 0, audit_resolution TEXT NOT NULL DEFAULT 'pending')");
-        db.execSQL("CREATE TABLE exercise_sets (session_id INTEGER NOT NULL, exercise_id TEXT NOT NULL, set_index INTEGER NOT NULL, weight REAL NOT NULL, reps INTEGER NOT NULL, PRIMARY KEY(session_id,exercise_id,set_index), FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE)");
+        db.execSQL("CREATE TABLE exercise_sets (session_id INTEGER NOT NULL, exercise_id TEXT NOT NULL, set_index INTEGER NOT NULL, weight REAL NOT NULL, reps INTEGER NOT NULL, rir INTEGER NOT NULL DEFAULT -1, note TEXT NOT NULL DEFAULT '', warmup INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(session_id,exercise_id,set_index), FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE)");
         db.execSQL("CREATE INDEX idx_sets_exercise ON exercise_sets(exercise_id)");
         db.execSQL("CREATE INDEX idx_sessions_time ON sessions(started_at)");
         db.execSQL("CREATE UNIQUE INDEX idx_sessions_cloud_id ON sessions(cloud_id)");
@@ -81,6 +88,11 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         if(oldVersion<6) {
             db.execSQL("ALTER TABLE sessions ADD COLUMN audit_resolution TEXT NOT NULL DEFAULT 'pending'");
             createPlanTable(db);
+        }
+        if(oldVersion<7) {
+            db.execSQL("ALTER TABLE exercise_sets ADD COLUMN rir INTEGER NOT NULL DEFAULT -1");
+            db.execSQL("ALTER TABLE exercise_sets ADD COLUMN note TEXT NOT NULL DEFAULT ''");
+            db.execSQL("ALTER TABLE exercise_sets ADD COLUMN warmup INTEGER NOT NULL DEFAULT 0");
         }
         if(oldVersion<2) seedInitialWorkout(db);
         if(oldVersion<3) seedAdditionalNovemberSets(db);
@@ -193,10 +205,10 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             if(exact!=null)return exact;
             // For an added set, reuse the last set's load when available.
             try(Cursor c=getReadableDatabase().rawQuery(
-                "SELECT set_index,weight,reps FROM exercise_sets WHERE session_id=? AND exercise_id=? "+
+                "SELECT set_index,weight,reps,rir,note,warmup FROM exercise_sets WHERE session_id=? AND exercise_id=? "+
                 "ORDER BY set_index DESC LIMIT 1",
                 new String[]{Long.toString(session),exercise})) {
-                if(c.moveToFirst())return new Entry(exercise,c.getInt(0),c.getDouble(1),c.getInt(2));
+                if(c.moveToFirst())return new Entry(exercise,c.getInt(0),c.getDouble(1),c.getInt(2),c.getInt(3),c.getString(4),c.getInt(5)!=0);
             }
         }
         return previous(exercise,index);
@@ -275,7 +287,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         }
     }
     public Session byId(long id) {
-        String q="SELECT s.id,s.workout,s.started_at,s.finished_at,COUNT(e.set_index),COALESCE(SUM(e.weight*e.reps),0),s.notes,s.cloud_id,s.paused_at,s.paused_total_ms "+
+        String q="SELECT s.id,s.workout,s.started_at,s.finished_at,COUNT(e.set_index),COALESCE(SUM(CASE WHEN e.warmup=0 THEN e.weight*e.reps ELSE 0 END),0),s.notes,s.cloud_id,s.paused_at,s.paused_total_ms "+
             "FROM sessions s LEFT JOIN exercise_sets e ON e.session_id=s.id WHERE s.id=? GROUP BY s.id";
         try(Cursor c=getReadableDatabase().rawQuery(q,new String[]{Long.toString(id)})) {
             if(!c.moveToFirst()) return null;
@@ -357,10 +369,21 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             new String[]{Long.toString(id)});
     }
 
-    public void save(long session, String exercise, int index, double weight, int reps) {
+    public void save(long session,String exercise,int index,double weight,int reps) {
+        Entry existing=get(session,exercise,index);
+        save(session,exercise,index,weight,reps,
+            existing==null?-1:existing.rir,
+            existing==null?"":existing.note,
+            existing!=null&&existing.warmup);
+    }
+    public void save(long session,String exercise,int index,double weight,int reps,int rir,String note,boolean warmup) {
+        if(index<0||index>100 || weight<0||weight>2000 || !Double.isFinite(weight) ||
+            reps<1||reps>1000 || rir < -1||rir >4||note==null||note.length()>500)
+            throw new IllegalArgumentException("Nieprawidłowe dane serii");
         ContentValues v=new ContentValues();
-        v.put("session_id",session); v.put("exercise_id",exercise);
-        v.put("set_index",index); v.put("weight",weight); v.put("reps",reps);
+        v.put("session_id",session);v.put("exercise_id",exercise);
+        v.put("set_index",index);v.put("weight",weight);v.put("reps",reps);
+        v.put("rir",rir);v.put("note",note);v.put("warmup",warmup?1:0);
         getWritableDatabase().insertWithOnConflict("exercise_sets",null,v,SQLiteDatabase.CONFLICT_REPLACE);
         invalidateAuditAfterSetChange(session);
     }
@@ -377,16 +400,16 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     }
     public Entry get(long session,String exercise,int index) {
         try(Cursor c=getReadableDatabase().rawQuery(
-                "SELECT weight,reps FROM exercise_sets WHERE session_id=? AND exercise_id=? AND set_index=?",
+                "SELECT weight,reps,rir,note,warmup FROM exercise_sets WHERE session_id=? AND exercise_id=? AND set_index=?",
                 new String[]{Long.toString(session),exercise,Integer.toString(index)})) {
             if(!c.moveToFirst()) return null;
-            return new Entry(exercise,index,c.getDouble(0),c.getInt(1));
+            return new Entry(exercise,index,c.getDouble(0),c.getInt(1),c.getInt(2),c.getString(3),c.getInt(4)!=0);
         }
     }
     public Entry previous(String exercise,int index) {
         try(Cursor c=getReadableDatabase().rawQuery(
-                "SELECT e.weight,e.reps FROM exercise_sets e JOIN sessions s ON s.id=e.session_id " +
-                "WHERE e.exercise_id=? AND e.set_index=? AND s.finished_at IS NOT NULL ORDER BY s.started_at DESC LIMIT 1",
+                "SELECT e.weight,e.reps,e.rir,e.note,e.warmup FROM exercise_sets e JOIN sessions s ON s.id=e.session_id " +
+                "WHERE e.exercise_id=? AND e.set_index=? AND e.warmup=0 AND s.finished_at IS NOT NULL ORDER BY s.started_at DESC LIMIT 1",
                 new String[]{exercise,Integer.toString(index)})) {
             if(!c.moveToFirst()) return null;
             return new Entry(exercise,index,c.getDouble(0),c.getInt(1));
@@ -396,7 +419,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     public String progressionTip(Plan.Exercise exercise) {
         String q="SELECT COUNT(*),MIN(e.reps),MIN(e.weight),MAX(e.weight) " +
             "FROM exercise_sets e JOIN sessions s ON s.id=e.session_id " +
-            "WHERE e.exercise_id=? AND e.set_index<? AND s.id=(" +
+            "WHERE e.exercise_id=? AND e.warmup=0 AND e.set_index<? AND s.id=(" +
             "SELECT x.id FROM sessions x JOIN exercise_sets y ON y.session_id=x.id " +
             "WHERE y.exercise_id=? AND x.finished_at IS NOT NULL " +
             "ORDER BY x.started_at DESC,x.id DESC LIMIT 1)";
@@ -414,7 +437,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
 
     public int countExerciseSets(long session,String exercise) {
         try(Cursor c=getReadableDatabase().rawQuery(
-                "SELECT COUNT(*) FROM exercise_sets WHERE session_id=? AND exercise_id=?",
+                "SELECT COUNT(*) FROM exercise_sets WHERE session_id=? AND exercise_id=? AND warmup=0",
                 new String[]{Long.toString(session),exercise})) {
             return c.moveToFirst()?c.getInt(0):0;
         }
@@ -429,9 +452,9 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     public List<Entry> sets(long session) {
         ArrayList<Entry> result=new ArrayList<>();
         try(Cursor c=getReadableDatabase().rawQuery(
-                "SELECT exercise_id,set_index,weight,reps FROM exercise_sets WHERE session_id=? ORDER BY rowid",
+                "SELECT exercise_id,set_index,weight,reps,rir,note,warmup FROM exercise_sets WHERE session_id=? ORDER BY rowid",
                 new String[]{Long.toString(session)})) {
-            while(c.moveToNext()) result.add(new Entry(c.getString(0),c.getInt(1),c.getDouble(2),c.getInt(3)));
+            while(c.moveToNext()) result.add(new Entry(c.getString(0),c.getInt(1),c.getDouble(2),c.getInt(3),c.getInt(4),c.getString(5),c.getInt(6)!=0));
         }
         return result;
     }
@@ -529,7 +552,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     public List<Progress> progress(String exercise) {
         ArrayList<Progress> result=new ArrayList<>();
         String q="SELECT s.id,s.started_at,e.weight,e.reps FROM exercise_sets e JOIN sessions s ON s.id=e.session_id " +
-                "WHERE e.exercise_id=? AND s.finished_at IS NOT NULL ORDER BY s.started_at DESC,e.set_index ASC";
+                "WHERE e.exercise_id=? AND e.warmup=0 AND s.finished_at IS NOT NULL ORDER BY s.started_at DESC,e.set_index ASC";
         try(Cursor c=getReadableDatabase().rawQuery(q,new String[]{exercise})) {
             long sessionId=-1; Progress p=null;
             while(c.moveToNext()) {
@@ -551,8 +574,8 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         return result;
     }
     public void exportCsv(Writer writer) throws IOException {
-        writer.write("\uFEFFData;Trening;Ćwiczenie;Seria;Ciężar kg;Powtórzenia\n");
-        String q="SELECT s.started_at,s.workout,e.exercise_id,e.set_index,e.weight,e.reps " +
+        writer.write("\uFEFFData;Trening;Ćwiczenie;Seria;Ciężar kg;Powtórzenia;RIR;Notatka;Rozgrzewka\n");
+        String q="SELECT s.started_at,s.workout,e.exercise_id,e.set_index,e.weight,e.reps,e.rir,e.note,e.warmup " +
                 "FROM exercise_sets e JOIN sessions s ON s.id=e.session_id ORDER BY s.started_at,e.rowid";
         SimpleDateFormat fmt=new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
         try(Cursor c=getReadableDatabase().rawQuery(q,null)) {
@@ -561,7 +584,8 @@ public final class WorkoutDb extends SQLiteOpenHelper {
                 String name=ex!=null?ex.name:c.getString(2);
                 String line=csv(fmt.format(new Date(c.getLong(0))))+";"+csv(Plan.title(c.getInt(1)))+";"+
                         csv(name)+";"+(c.getInt(3)+1)+";"+
-                        String.format(Locale.forLanguageTag("pl-PL"),"%.2f",c.getDouble(4))+";"+c.getInt(5)+"\n";
+                        String.format(Locale.forLanguageTag("pl-PL"),"%.2f",c.getDouble(4))+";"+c.getInt(5)+";"+
+                        (c.getInt(6)<0?"":c.getInt(6))+";"+csv(c.getString(7))+";"+(c.getInt(8)!=0?"TAK":"NIE")+"\n";
                 writer.write(line);
             }
         }
