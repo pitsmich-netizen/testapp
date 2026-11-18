@@ -335,10 +335,9 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             counts.put(entry.exerciseId,counts.containsKey(entry.exerciseId)?
                 counts.get(entry.exerciseId)+1:1);
         }
-        int reported=18;
         StringBuilder report=new StringBuilder();
-        report.append("W pierwszych notatkach było 6 ćwiczeń po 3 serie, czyli 18 serii.\\n");
-        report.append("W aplikacji jest teraz ").append(session.sets).append(" serii.\\n\\n");
+        report.append("W pierwszych notatkach było 6 ćwiczeń po 3 serie, czyli 18 serii.\n");
+        report.append("W aplikacji jest teraz ").append(session.sets).append(" serii.\n\n");
         int beyond=0,missing=0;
         for(java.util.Map.Entry<String,Integer> entry:counts.entrySet()) {
             String exercise=entry.getKey();
@@ -352,16 +351,16 @@ public final class WorkoutDb extends SQLiteOpenHelper {
                 beyond+=Math.max(0,actual-expected);
                 missing+=Math.max(0,expected-actual);
             }
-            report.append("\\n");
+            report.append("\n");
         }
-        report.append("\\n");
+        report.append("\n");
         if(beyond==0 && missing==0)report.append("Zapis zgadza się z notatkami.");
         else {
             if(beyond>0)report.append("Dodatkowe serie względem notatek: ").append(beyond).append(". ");
             if(missing>0)report.append("Brakujące serie względem notatek: ").append(missing).append(". ");
             report.append("To nie dowodzi duplikacji — mogłeś później dopisać kolejne serie lub ćwiczenia. Nic nie zostało usunięte.");
         }
-        return report.toString().replace("\\\\n","\\n");
+        return report.toString().replace("\\\n","\n");
     }
 
     public String sessionNotes(long id) {
