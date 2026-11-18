@@ -2,7 +2,12 @@
 
 Natywna aplikacja Android dla planu **Góra A / Nogi / Góra B** (3 treningi po około 60 minut), z naciskiem na klatkę i szerokość pleców.
 
-## Funkcje (0.3.0)
+## Funkcje (0.4.0)
+- True-black OLED, klasyczna zębatka ustawień u góry, pogrupowane ustawienia i wyszukiwarka ćwiczeń w wysuwanym panelu.
+- Wstrzymywanie/wznawianie sesji, anulowanie sesji i automatyczne usuwanie pustych treningów.
+- Edycja zakończonych treningów: zmiana daty, notatki, poszczególnych serii, dodawanie/usuwanie serii i kasowanie całej sesji.
+- Naprawione OTA: FileProvider wskazuje katalog APK zamiast samego pliku, a instalator korzysta z systemowego ACTION_INSTALL_PACKAGE.
+- Kopia treningów w Supabase obsługuje też kasowanie/edycję sesji i serii, zapobiegając ponownemu pojawianiu się usuniętych wpisów.
 - Nowy przejrzysty interfejs z dolną nawigacją, dużymi polami ciężaru i powtórzeń, rozwijanymi ćwiczeniami i timerem zawsze widocznym podczas treningu.
 - Kompletny plan 3 dni z opisami ćwiczeń, liczbą serii, zakresem powtórzeń i przerwami.
 - Zapis ciężaru i powtórzeń **w każdej serii**; sugestie na podstawie ostatniej wykonanej sesji.
@@ -12,7 +17,7 @@ Natywna aplikacja Android dla planu **Góra A / Nogi / Góra B** (3 treningi po 
 - Timer przerw (autostart po zapisaniu serii; 60 / 90 / 120 s, +15 s, pomiń) oraz licznik czasu sesji.
 - Eksport historii do CSV.
 - **Import notatek:** sesja Góra A z 18.11.2026, 18 serii, z oryginalnymi ciężarami i uwagą „2 linki”.
-- **OTA:** gotowe: najnowsze podpisane wydanie [FORMA 0.3.0](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.3.0), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
+- **OTA:** gotowe: wcześniejsze podpisane wydanie [FORMA 0.3.0](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.3.0), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
 
 ## Kopia treningów w Supabase (opcjonalna)
 - Bez konta FORMA działa w pełni offline.
