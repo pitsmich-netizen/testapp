@@ -826,7 +826,7 @@ public final class MainActivity extends Activity {
         List<Plan.Exercise> exercises=db.workoutPlan(openWorkout);
         if(expandedExerciseId.isEmpty() && !exercises.isEmpty()) {
             for(Plan.Exercise e:exercises) {
-                if(db.countExerciseSets(openSession,e.id)<e.sets) {
+                if(db.countExerciseSets(openSession,e.id)<db.expectedSets(openWorkout,e)) {
                     expandedExerciseId=e.id;break;
                 }
             }
@@ -857,7 +857,7 @@ public final class MainActivity extends Activity {
             title.setMaxLines(3);
             add(titleBox,title);
             space(titleBox,4);
-            TextView done=text(db.countExerciseSets(openSession,ex.id)+"/"+ex.sets+" serii",13,TEAL,true);
+            TextView done=text(db.countExerciseSets(openSession,ex.id)+"/"+db.expectedSets(openWorkout,ex)+" serii",13,TEAL,true);
             add(titleBox,done);
 
             TextView chevron=text(expandedExerciseId.equals(ex.id)?"⌃":"⌄",23,MUTED,false);
@@ -889,7 +889,7 @@ public final class MainActivity extends Activity {
 
             LinearLayout rows=col();
             add(body,rows);
-            final int[] setNumber={db.setRows(openSession,ex.id,ex.sets)};
+            final int[] setNumber={db.setRows(openSession,ex.id,db.expectedSets(openWorkout,ex))};
             for(int j=0;j<setNumber[0];j++) addSetRow(rows,ex,j,done);
             Button addExtra=button("+  Dodaj serię",false);
             add(body,addExtra);
@@ -929,7 +929,7 @@ public final class MainActivity extends Activity {
     private void advanceAfterLastSet(Plan.Exercise current) {
         if(openSession<0 || !getSharedPreferences("forma_settings",0).getBoolean("auto_next",true))
             return;
-        if(db.countExerciseSets(openSession,current.id)!=current.sets)return;
+        if(db.countExerciseSets(openSession,current.id)!=db.expectedSets(openWorkout,current))return;
         List<Plan.Exercise> exercises=db.workoutPlan(openWorkout);
         for(int i=0;i<exercises.size()-1;i++) {
             if(!exercises.get(i).id.equals(current.id))continue;
@@ -946,7 +946,7 @@ public final class MainActivity extends Activity {
 
     private void addSetRow(LinearLayout target,Plan.Exercise ex,int index,TextView exerciseStatus) {
         WorkoutDb.Entry current=db.get(openSession,ex.id,index);
-        WorkoutDb.Entry previous=db.previous(ex.id,index);
+        WorkoutDb.Entry previous=db.previousWorkout(openWorkout,ex.id,index);
         LinearLayout block=col();
         block.setPadding(dp(10),dp(9),dp(10),dp(9));
         block.setBackground(rounded(CARD2,12,0));
@@ -1004,6 +1004,32 @@ public final class MainActivity extends Activity {
             });
         }
         add(block,foot);
+        LinearLayout quick=row();
+        TextView minus=actionLabel("−2,5 kg",SKY);
+        minus.setGravity(Gravity.CENTER);
+        quick.addView(minus,new LinearLayout.LayoutParams(0,dp(34),1));
+        TextView plus=actionLabel("+2,5 kg",SKY);
+        plus.setGravity(Gravity.CENTER);
+        quick.addView(plus,new LinearLayout.LayoutParams(0,dp(34),1));
+        TextView more=actionLabel("RIR / notatka  ✎",GREEN);
+        more.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        quick.addView(more,new LinearLayout.LayoutParams(0,dp(34),2));
+        minus.setOnClickListener(v->changeWeight(kg,-2.5));
+        plus.setOnClickListener(v->changeWeight(kg,2.5));
+        more.setOnClickListener(v->{
+            WorkoutDb.Entry existing=db.get(openSession,ex.id,index);
+            if(existing==null) {
+                Toast.makeText(this,"Najpierw zapisz serię, potem dodaj RIR lub notatkę",Toast.LENGTH_SHORT).show();
+            } else editSetMetadata(openSession,ex,index,()->{
+                WorkoutDb.Entry updated=db.get(openSession,ex.id,index);
+                status.setText(updated!=null&&updated.warmup?"○ Rozgrzewka":"✓ Zapisana");
+                status.setTextColor(updated!=null&&updated.warmup?AMBER:GREEN);
+                exerciseStatus.setText(db.countExerciseSets(openSession,ex.id)+"/"+
+                    db.expectedSets(openWorkout,ex)+" serii");
+                updateSessionProgress();
+            });
+        });
+        add(block,quick);
         save.setOnClickListener(v->{
             try {
                 String input=kg.getText().toString().trim().replace(',','.');
@@ -1013,8 +1039,8 @@ public final class MainActivity extends Activity {
                 if(!Double.isFinite(w)||w<0||w>2000||rep<1||rep>1000)throw new NumberFormatException();
                 boolean first=db.get(openSession,ex.id,index)==null;
                 db.save(openSession,ex.id,index,w,rep);
-                status.setText("✓ Zapisana");
-                status.setTextColor(GREEN);
+                status.setText(current!=null&&current.warmup?"○ Rozgrzewka":"✓ Zapisana");
+                status.setTextColor(current!=null&&current.warmup?AMBER:GREEN);
                 save.setText("Zmień");
                 save.setTextColor(TEXT);
                 save.setBackgroundTintList(ColorStateList.valueOf(CARD));
@@ -1042,6 +1068,68 @@ public final class MainActivity extends Activity {
                 }).show();
             return true;
         });
+    }
+
+    private void changeWeight(EditText field,double change) {
+        try {
+            double current=Double.parseDouble(field.getText().toString().trim().replace(',','.'));
+            double updated=Math.max(0,Math.min(2000,Math.round((current+change)*4)/4.0));
+            field.setText(weight(updated));
+        } catch(Exception error) {
+            field.setText(weight(Math.max(0,change)));
+        }
+    }
+
+    private void editSetMetadata(long session,Plan.Exercise ex,int index,Runnable completed) {
+        WorkoutDb.Entry entry=db.get(session,ex.id,index);
+        if(entry==null)return;
+        LinearLayout form=col();
+        form.setPadding(dp(19),dp(9),dp(19),dp(5));
+        add(form,text("ZAPAS POWTÓRZEŃ (RIR)",12,MUTED,true));
+        space(form,6);
+        Spinner rir=new Spinner(this);
+        String[] options={"Nie ustawiaj","0 — bez zapasu","1 powtórzenie","2 powtórzenia","3 powtórzenia","4 powtórzenia"};
+        ArrayAdapter<String> adapter=new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,options);
+        rir.setAdapter(adapter);
+        rir.setSelection(Math.max(0,Math.min(5,entry.rir+1)));
+        add(form,rir);
+        space(form,9);
+        CheckBox warmup=new CheckBox(this);
+        warmup.setText("Seria rozgrzewkowa — poza progresem");
+        warmup.setTextColor(TEXT);
+        warmup.setChecked(entry.warmup);
+        add(form,warmup);
+        space(form,11);
+        add(form,text("NOTATKA DO SERII",12,MUTED,true));
+        space(form,5);
+        EditText note=new EditText(this);
+        note.setSingleLine(false);note.setMinLines(2);note.setMaxLines(4);
+        note.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        note.setText(entry.note);note.setTextColor(TEXT);note.setTextSize(15);
+        note.setHint("Opcjonalnie: technika, samopoczucie…");
+        note.setHintTextColor(MUTED);
+        note.setBackground(rounded(CARD2,10,BORDER));
+        add(form,note);
+        AlertDialog dialog=new AlertDialog.Builder(this)
+            .setTitle(ex.name+" • seria "+(index+1))
+            .setView(form)
+            .setNegativeButton("Anuluj",null)
+            .setPositiveButton("Zapisz",null).create();
+        dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            try {
+                String value=note.getText().toString();
+                if(value.length()>500) {
+                    Toast.makeText(this,"Notatka może mieć maksymalnie 500 znaków",Toast.LENGTH_LONG).show();
+                    return;
+                }
+                db.save(session,ex.id,index,entry.weight,entry.reps,rir.getSelectedItemPosition()-1,value,warmup.isChecked());
+                dialog.dismiss();
+                if(completed!=null)completed.run();
+            }catch(Exception error) {
+                Toast.makeText(this,"Nie udało się zapisać szczegółów serii",Toast.LENGTH_LONG).show();
+            }
+        }));
+        dialog.show();
     }
 
     private void showSessionActions() {
