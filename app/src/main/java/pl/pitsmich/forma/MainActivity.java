@@ -9,6 +9,7 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.provider.Settings;
 import android.content.Intent;
+import android.content.ClipData;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.text.Editable;
@@ -23,6 +24,7 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.DragEvent;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.AdapterView;
@@ -70,6 +72,13 @@ public final class MainActivity extends Activity {
     private static final int BACKUP_REQUEST=1902;
     private static final int RESTORE_REQUEST=1903;
     private int editingWorkout=Plan.UPPER_A;
+    private String editingSetExercise="";
+    private int editingSetIndex=-1;
+    private boolean canUndoSet=false;
+    private long undoSession=-1;
+    private String undoExercise="";
+    private int undoIndex=-1;
+    private WorkoutDb.Entry undoPrevious;
     private int calendarMonth=Calendar.getInstance().get(Calendar.MONTH);
     private int calendarYear=Calendar.getInstance().get(Calendar.YEAR);
 
@@ -125,6 +134,8 @@ public final class MainActivity extends Activity {
             selectedProgressWorkout=state.getInt("selectedProgressWorkout",Plan.UPPER_A);
             expandedExerciseId=state.getString("expandedExerciseId","");
             editingWorkout=state.getInt("editingWorkout",Plan.UPPER_A);
+            editingSetExercise=state.getString("editingSetExercise","");
+            editingSetIndex=state.getInt("editingSetIndex",-1);
             calendarMonth=state.getInt("calendarMonth",calendarMonth);
             calendarYear=state.getInt("calendarYear",calendarYear);
         }
@@ -141,6 +152,8 @@ public final class MainActivity extends Activity {
         state.putInt("selectedProgressWorkout",selectedProgressWorkout);
         state.putString("expandedExerciseId",expandedExerciseId);
         state.putInt("editingWorkout",editingWorkout);
+        state.putString("editingSetExercise",editingSetExercise);
+        state.putInt("editingSetIndex",editingSetIndex);
         state.putInt("calendarMonth",calendarMonth);
         state.putInt("calendarYear",calendarYear);
         super.onSaveInstanceState(state);
@@ -225,7 +238,7 @@ public final class MainActivity extends Activity {
         TextView logo=text("FORMA",20,TEAL,true);
         logo.setLetterSpacing(0.10f);
         brand.addView(logo,new LinearLayout.LayoutParams(0,dp(39),1));
-        TextView version=text("0.7.0",12,MUTED,true);
+        TextView version=text("0.8.0",12,MUTED,true);
         version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         brand.addView(version,new LinearLayout.LayoutParams(dp(54),dp(44)));
         TextView gear=text(page.equals("settings")?"‹":"⚙",26,TEAL,true);
@@ -259,9 +272,10 @@ public final class MainActivity extends Activity {
         else if(page.equals("edit")) showCompletedEditor();
         else if(page.equals("planEditor")) showPlanEditor();
         else if(page.equals("calendar")) showCalendar();
+        else if(page.equals("summary")) showSessionSummary();
         else showSettings();
 
-        if(!page.equals("session") && !page.equals("detail") && !page.equals("edit") && !page.equals("exerciseProgress") && !page.equals("planEditor")) showNavigation();
+        if(!page.equals("session") && !page.equals("detail") && !page.equals("edit") && !page.equals("exerciseProgress") && !page.equals("planEditor") && !page.equals("summary")) showNavigation();
     }
 
     private void showNavigation() {
@@ -348,40 +362,128 @@ public final class MainActivity extends Activity {
                 expandedExerciseId="";page="session";render();
             });
         }
-        String[] days={"PONIEDZIAŁEK","ŚRODA","PIĄTEK"};
-        for(int i=0;i<3;i++) {
-            final int workout=i;
-            int accent=dayColor(i);
+        add(content,text("Przytrzymaj uchwyt ⠿ i przeciągnij dzień. Dotknij nazwy dnia, by zmienić termin.",12,MUTED,false));
+        space(content,9);
+        for(WorkoutDb.ScheduleDay scheduled:db.schedule()) {
+            final int workout=scheduled.workout;
+            int accent=dayColor(workout);
             LinearLayout card=card(content);
             LinearLayout first=row();
-            TextView day=actionLabel(days[i],accent);
-            first.addView(day,new LinearLayout.LayoutParams(0,dp(27),1));
-            TextView editPlan=actionLabel("✎  Edytuj",SKY);
-            editPlan.setGravity(Gravity.CENTER);
-            editPlan.setContentDescription("Edytuj plan "+Plan.title(i));
-            first.addView(editPlan,new LinearLayout.LayoutParams(dp(90),dp(36)));
-            editPlan.setOnClickListener(v->{
-                if(db.active()!=null) {
-                    new AlertDialog.Builder(this)
-                        .setTitle("Trening jest w toku")
-                        .setMessage("Aby zachować spójność liczby serii, edytuj plan po zakończeniu lub anulowaniu rozpoczętej sesji.")
-                        .setPositiveButton("OK",null).show();
-                    return;
-                }
-                editingWorkout=workout;page="planEditor";render();
+
+            TextView drag=actionLabel("⠿",accent);
+            drag.setTextSize(26);
+            drag.setGravity(Gravity.CENTER);
+            drag.setContentDescription("Przytrzymaj i przesuń "+scheduled.title);
+            first.addView(drag,new LinearLayout.LayoutParams(dp(41),dp(45)));
+            drag.setOnLongClickListener(v->{
+                ClipData payload=ClipData.newPlainText("forma-workout",Integer.toString(workout));
+                return v.startDragAndDrop(payload,new View.DragShadowBuilder(card),null,0);
             });
-            TextView step=actionLabel("›",MUTED);
-            first.addView(step);
+            TextView day=actionLabel(weekdayName(scheduled.weekday).toUpperCase(Locale.forLanguageTag("pl-PL")),accent);
+            day.setGravity(Gravity.CENTER_VERTICAL);
+            first.addView(day,new LinearLayout.LayoutParams(0,dp(40),1));
+            day.setOnClickListener(v->editScheduleDay(workout));
+
+            TextView settings=actionLabel("⋯  Dzień",SKY);
+            settings.setGravity(Gravity.CENTER);
+            first.addView(settings,new LinearLayout.LayoutParams(dp(82),dp(42)));
+            settings.setOnClickListener(v->editScheduleDay(workout));
+            TextView editPlan=actionLabel("✎  Plan",SKY);
+            editPlan.setGravity(Gravity.CENTER);
+            first.addView(editPlan,new LinearLayout.LayoutParams(dp(82),dp(42)));
+            editPlan.setOnClickListener(v->openPlanEditor(workout));
             add(card,first);
-            add(card,text(Plan.title(i),21,TEXT,true));
+
+            add(card,text(scheduled.title,21,TEXT,true));
             space(card,4);
-            int sets=0;for(Plan.Exercise ex:db.workoutPlan(i))sets+=db.expectedSets(i,ex);
-            TextView details=text(db.workoutPlan(i).size()+" ćwiczeń  •  "+sets+" serii  •  "+Plan.focus(i),12,MUTED,false);
+            int sets=0;
+            for(Plan.Exercise ex:db.workoutPlan(workout))
+                sets+=db.expectedSets(workout,ex);
+            TextView details=text(db.workoutPlan(workout).size()+" ćwiczeń  •  "+sets+
+                " serii  •  "+Plan.focus(workout),12,MUTED,false);
             details.setMaxLines(2);
             add(card,details);
             clickCard(card,()->startWorkout(workout));
+            card.setOnDragListener((v,event)->{
+                if(event.getAction()==DragEvent.ACTION_DRAG_STARTED)
+                    return event.getClipDescription()!=null &&
+                        event.getClipDescription().hasMimeType("text/plain");
+                if(event.getAction()==DragEvent.ACTION_DRAG_ENTERED){
+                    tintCard(card,accent);return true;
+                }
+                if(event.getAction()==DragEvent.ACTION_DRAG_EXITED ||
+                    event.getAction()==DragEvent.ACTION_DRAG_ENDED){
+                    card.setBackground(rounded(CARD,15,BORDER));return true;
+                }
+                if(event.getAction()==DragEvent.ACTION_DROP){
+                    card.setBackground(rounded(CARD,15,BORDER));
+                    try {
+                        ClipData clip=event.getClipData();
+                        if(clip==null||clip.getItemCount()==0)return false;
+                        int source=Integer.parseInt(clip.getItemAt(0).coerceToText(this).toString());
+                        if(db.active()!=null){
+                            Toast.makeText(this,"Zakończ lub wstrzymaj trening przed zmianą kolejności",Toast.LENGTH_LONG).show();
+                            return true;
+                        }
+                        db.moveScheduledWorkout(source,workout);render();return true;
+                    }catch(Exception ignored){return false;}
+                }
+                return true;
+            });
         }
         add(content,text("Wybierz cały kafelek, aby rozpocząć sesję. Poprzednie ciężary są podpowiadane.",12,MUTED,false));
+    }
+
+    private static String weekdayName(int weekday){
+        String[] names={"Poniedziałek","Wtorek","Środa","Czwartek","Piątek","Sobota","Niedziela"};
+        return names[Math.max(0,Math.min(6,weekday-1))];
+    }
+    private void openPlanEditor(int workout){
+        if(db.active()!=null){
+            new AlertDialog.Builder(this).setTitle("Trening w toku")
+                .setMessage("Zakończ lub anuluj sesję przed zmianą ćwiczeń.")
+                .setPositiveButton("OK",null).show();
+            return;
+        }
+        editingWorkout=workout;page="planEditor";render();
+    }
+    private void editScheduleDay(int workout){
+        if(db.active()!=null){
+            Toast.makeText(this,"Najpierw zakończ lub wstrzymaj bieżący trening",Toast.LENGTH_LONG).show();
+            return;
+        }
+        WorkoutDb.ScheduleDay chosen=null;
+        for(WorkoutDb.ScheduleDay d:db.schedule())if(d.workout==workout)chosen=d;
+        if(chosen==null)return;
+        final WorkoutDb.ScheduleDay current=chosen;
+        new AlertDialog.Builder(this).setTitle("Dzień i rodzaj treningu")
+            .setItems(new String[]{"Zmień dzień tygodnia","Zmień nazwę treningu",
+                "Przenieś wyżej","Przenieś niżej"},(dialog,index)->{
+                if(index==0) {
+                    String[] options={"Poniedziałek","Wtorek","Środa","Czwartek","Piątek","Sobota","Niedziela"};
+                    new AlertDialog.Builder(this).setTitle("Przypisz dzień tygodnia")
+                        .setSingleChoiceItems(options,current.weekday-1,(d,position)->{
+                            // A conflicting assignment swaps weekdays between the two plans.
+                            db.assignWeekday(workout,position+1);
+                            d.dismiss();render();
+                        }).setNegativeButton("Anuluj",null).show();
+                } else if(index==1) {
+                    EditText name=field(current.title,"Nazwa treningu",false);
+                    name.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+                    new AlertDialog.Builder(this).setTitle("Nazwa rodzaju treningu")
+                        .setView(name).setNegativeButton("Anuluj",null)
+                        .setPositiveButton("Zapisz",(d,w)->{
+                            try{db.renameWorkout(workout,name.getText().toString());render();}
+                            catch(Exception e){Toast.makeText(this,"Nazwa: od 1 do 32 znaków",Toast.LENGTH_LONG).show();}
+                        }).show();
+                } else {
+                    List<WorkoutDb.ScheduleDay> days=db.schedule();
+                    int target=current.position+(index==2?-1:1);
+                    if(target>=0&&target<days.size()){
+                        db.moveScheduledWorkout(workout,days.get(target).workout);render();
+                    }
+                }
+            }).show();
     }
 
     private void showPlanEditor() {
@@ -389,7 +491,7 @@ public final class MainActivity extends Activity {
         TextView back=actionLabel("‹  Wróć do planu",SKY);
         back.setMinHeight(dp(38));add(content,back);
         back.setOnClickListener(v->{page="plan";render();});
-        headline(content,"Edytuj "+Plan.title(editingWorkout));
+        headline(content,"Edytuj "+db.workoutLabel(editingWorkout));
         add(content,text("Przesuwaj ćwiczenia strzałkami. Dotknij nazwy, aby zmienić serie, zakres lub przerwę.",13,MUTED,false));
         space(content,12);
         List<Plan.Exercise> items=db.workoutPlan(editingWorkout);
@@ -404,7 +506,7 @@ public final class MainActivity extends Activity {
             TextView more=actionLabel("⋮",SKY);
             more.setGravity(Gravity.CENTER);
             more.setTextSize(23);
-            more.setContentDescription("Zamień albo usuń "+exercise.name);
+            more.setContentDescription("Zamień, ustaw ciężary lub usuń "+exercise.name);
             first.addView(more,new LinearLayout.LayoutParams(dp(42),dp(42)));
             more.setOnClickListener(v->showPlanItemOptions(position));
             add(card,first);
@@ -452,10 +554,11 @@ public final class MainActivity extends Activity {
     private void showPlanItemOptions(int position) {
         new AlertDialog.Builder(this)
             .setTitle("Ćwiczenie")
-            .setItems(new String[]{"Edytuj serie i powtórzenia","Zamień ćwiczenie","Usuń z planu"},
+            .setItems(new String[]{"Edytuj serie i powtórzenia","Zamień ćwiczenie","Skok ciężaru i objętość","Usuń z planu"},
                 (d,choice)->{
                     if(choice==0)editPlanParameters(position);
                     else if(choice==1)showPlanExerciseChooser(position);
+                    else if(choice==2)editExerciseLoadSettings(db.workoutPlan(editingWorkout).get(position));
                     else {
                         java.util.ArrayList<Plan.Exercise> items=new java.util.ArrayList<>(db.workoutPlan(editingWorkout));
                         if(items.size()<=1) {
@@ -479,15 +582,16 @@ public final class MainActivity extends Activity {
         java.util.HashSet<String> used=new java.util.HashSet<>();
         for(int i=0;i<items.size();i++)
             if(i!=replaceAt)used.add(items.get(i).id);
-        for(Plan.Exercise ex:Plan.uniqueExercises())if(!used.contains(ex.id))options.add(ex);
-        if(options.isEmpty()) {
-            Toast.makeText(this,"Brak innych ćwiczeń do wyboru",Toast.LENGTH_LONG).show();return;
-        }
-        String[] titles=new String[options.size()];
-        for(int i=0;i<options.size();i++)titles[i]=options.get(i).name;
+        for(Plan.Exercise ex:db.exerciseCatalog())if(!used.contains(ex.id))options.add(ex);
+        // "Utwórz własne" must remain available even after using every catalog item.
+        String[] titles=new String[options.size()+1];
+        titles[0]="+ Utwórz własne ćwiczenie";
+        for(int i=0;i<options.size();i++)titles[i+1]=options.get(i).name;
         new AlertDialog.Builder(this)
             .setTitle(replaceAt<0?"Dodaj ćwiczenie":"Zamień ćwiczenie")
             .setItems(titles,(d,choice)->{
+                if(choice==0){createCustomExercise(replaceAt);return;}
+                choice--;
                 if(replaceAt<0&&items.size()>=18){
                     Toast.makeText(this,"Maksymalnie 18 ćwiczeń",Toast.LENGTH_LONG).show();return;
                 }
@@ -497,6 +601,91 @@ public final class MainActivity extends Activity {
                 render();
             })
             .setNegativeButton("Anuluj",null).show();
+    }
+
+    private void createCustomExercise(int replaceAt) {
+        LinearLayout form=col();
+        form.setPadding(dp(19),dp(9),dp(19),dp(5));
+        add(form,text("NAZWA ĆWICZENIA",12,MUTED,true));
+        EditText name=new EditText(this);
+        name.setSingleLine(true);name.setTextColor(TEXT);name.setHint("Np. wyciskanie neutralne");
+        name.setHintTextColor(MUTED);add(form,name);
+        add(form,text("SPRZĘT / GRUPA MIĘŚNIOWA",12,MUTED,true));
+        EditText equipment=new EditText(this);
+        equipment.setSingleLine(true);equipment.setTextColor(TEXT);
+        equipment.setHint("Np. hantle • klatka");equipment.setHintTextColor(MUTED);
+        add(form,equipment);
+        add(form,text("KRÓTKI OPIS",12,MUTED,true));
+        EditText description=new EditText(this);
+        description.setSingleLine(true);description.setTextColor(TEXT);
+        description.setHint("Opcjonalnie");description.setHintTextColor(MUTED);
+        add(form,description);
+        add(form,text("SERIE / MIN POWT. / MAX POWT.",12,MUTED,true));
+        LinearLayout inputs=row();
+        EditText sets=field("3","Serie",false);
+        EditText min=field("8","Od",false);
+        EditText max=field("12","Do",false);
+        inputs.addView(sets,new LinearLayout.LayoutParams(0,dp(51),1));
+        inputs.addView(min,new LinearLayout.LayoutParams(0,dp(51),1));
+        inputs.addView(max,new LinearLayout.LayoutParams(0,dp(51),1));
+        add(form,inputs);
+        AlertDialog dialog=new AlertDialog.Builder(this)
+            .setTitle("Nowe ćwiczenie").setView(form)
+            .setNegativeButton("Anuluj",null).setPositiveButton("Utwórz",null).create();
+        dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            .setOnClickListener(v->{
+                try{
+                    String label=name.getText().toString().trim();
+                    String tool=equipment.getText().toString().trim();
+                    String details=description.getText().toString().trim();
+                    int count=Integer.parseInt(sets.getText().toString());
+                    int low=Integer.parseInt(min.getText().toString());
+                    int high=Integer.parseInt(max.getText().toString());
+                    if(replaceAt<0&&db.workoutPlan(editingWorkout).size()>=18)
+                        throw new IllegalArgumentException("Maksymalnie 18 ćwiczeń w planie");
+                    Plan.Exercise exercise=db.createExercise(label,details,tool,tool,
+                        count,low,high,90,false);
+                    java.util.ArrayList<Plan.Exercise> items=
+                        new java.util.ArrayList<>(db.workoutPlan(editingWorkout));
+                    if(replaceAt<0)items.add(exercise);else items.set(replaceAt,exercise);
+                    db.savePlan(editingWorkout,items);
+                    dialog.dismiss();render();
+                }catch(Exception e){
+                    Toast.makeText(this,e.getMessage()==null?"Sprawdź dane ćwiczenia":e.getMessage(),Toast.LENGTH_LONG).show();
+                }
+            }));
+        dialog.show();
+    }
+    private void editExerciseLoadSettings(Plan.Exercise exercise) {
+        LinearLayout form=col();
+        form.setPadding(dp(18),dp(8),dp(18),dp(5));
+        add(form,text("SKOK CIĘŻARU (KG)",13,MUTED,true));
+        EditText step=field(weight(db.weightStep(exercise.id)),"np. 2,5",true);
+        add(form,step);
+        space(form,11);
+        add(form,text("JAK PODAJESZ CIĘŻAR?",13,MUTED,true));
+        String[] modes={"Łączny ciężar / stos maszyny (×1)","Jedna hantla — obie ręce (×2)"};
+        Spinner multiplier=new Spinner(this);
+        multiplier.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,modes));
+        multiplier.setSelection(db.loadMultiplier(exercise.id)-1);
+        add(form,multiplier);
+        add(form,text("Mnożnik dotyczy wyłącznie statystyk objętości, "+
+            "nie zmienia zapisanych kilogramów ani rekordów PR.",12,MUTED,false));
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(exercise.name)
+            .setView(form).setNegativeButton("Anuluj",null)
+            .setPositiveButton("Zapisz",null).create();
+        dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            .setOnClickListener(v->{
+                try{
+                    double kg=Double.parseDouble(step.getText().toString().replace(',','.'));
+                    db.saveLoadSettings(exercise.id,kg,multiplier.getSelectedItemPosition()+1);
+                    dialog.dismiss();render();
+                }catch(Exception error){
+                    Toast.makeText(this,"Skok 0,25–50 kg. Wybierz sposób podawania obciążenia.",
+                        Toast.LENGTH_LONG).show();
+                }
+            }));
+        dialog.show();
     }
 
     private void editPlanParameters(int position) {
@@ -652,7 +841,7 @@ public final class MainActivity extends Activity {
         LinearLayout ota=card(content);
         smallLabel(ota,"AKTUALIZACJE APLIKACJI");
         space(ota,7);
-        add(ota,text("FORMA 0.7.0",20,TEXT,true));
+        add(ota,text("FORMA 0.8.0",20,TEXT,true));
         space(ota,4);
         add(ota,text("Sprawdzanie OTA odbywa się automatycznie przy uruchomieniu.",14,MUTED,false));
         space(ota,12);
@@ -725,6 +914,7 @@ public final class MainActivity extends Activity {
         openWorkout=workout;
         stopRest();
         openSession=db.start(workout);
+        canUndoSet=false;editingSetExercise="";editingSetIndex=-1;
         expandedExerciseId="";
         page="session";render();
     }
@@ -752,7 +942,8 @@ public final class MainActivity extends Activity {
     }
     private void updateSessionProgress() {
         if(openSession<0) return;
-        int done=db.countSets(openSession);
+        int done=0;
+        for(Plan.Exercise ex:db.workoutPlan(openWorkout))done+=db.countExerciseSets(openSession,ex.id);
         if(sessionCount!=null) sessionCount.setText(done+" / "+plannedSets+" serii");
         if(sessionProgress!=null) sessionProgress.setProgress(Math.min(done,plannedSets));
     }
@@ -766,7 +957,7 @@ public final class MainActivity extends Activity {
         back.setPadding(dp(1),0,dp(12),0);
         back.setOnClickListener(v->{page="plan";render();});
         top.addView(back,new LinearLayout.LayoutParams(dp(88),dp(44)));
-        TextView title=text(Plan.title(openWorkout),21,TEXT,true);
+        TextView title=text(db.workoutLabel(openWorkout),19,TEXT,true);
         title.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         top.addView(title,new LinearLayout.LayoutParams(0,dp(44),1));
         TextView controls=text("⋮",29,TEAL,true);
@@ -777,11 +968,16 @@ public final class MainActivity extends Activity {
         add(root,top);
 
         LinearLayout count=row();
-        TextView small=text("POSTĘP TRENINGU",12,MUTED,true);
+        TextView small=text("POSTĘP • SERIE ROBOCZE",11,MUTED,true);
         count.addView(small,new LinearLayout.LayoutParams(0,dp(29),1));
         sessionCount=text("0 / "+plannedSets+" serii",14,TEAL,true);
         sessionCount.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         count.addView(sessionCount);
+        TextView undo=actionLabel("  ↶ COFNIJ",canUndoSet&&undoSession==openSession?AMBER:MUTED);
+        undo.setGravity(Gravity.CENTER);
+        undo.setContentDescription("Cofnij ostatnio zapisaną serię");
+        count.addView(undo,new LinearLayout.LayoutParams(dp(83),dp(34)));
+        undo.setOnClickListener(v->undoLastSet());
         add(root,count);
 
         sessionProgress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);
@@ -796,28 +992,28 @@ public final class MainActivity extends Activity {
 
         LinearLayout timerShell=col();
         timerShell.setBackground(rounded(CARD,17,BORDER));
-        timerShell.setPadding(dp(13),dp(10),dp(13),dp(11));
+        timerShell.setPadding(dp(10),dp(7),dp(10),dp(8));
         LinearLayout.LayoutParams shellLp=new LinearLayout.LayoutParams(-1,-2);
-        shellLp.topMargin=dp(10);shellLp.bottomMargin=dp(8);
+        shellLp.topMargin=dp(7);shellLp.bottomMargin=dp(4);
         root.addView(timerShell,shellLp);
 
         LinearLayout times=row();
         LinearLayout elapsed=col();
         add(elapsed,text("CZAS TRENINGU",11,MUTED,true));
-        elapsedLabel=text("00:00",22,TEXT,true);
+        elapsedLabel=text("00:00",19,TEXT,true);
         add(elapsed,elapsedLabel);
-        times.addView(elapsed,new LinearLayout.LayoutParams(0,dp(51),1));
+        times.addView(elapsed,new LinearLayout.LayoutParams(0,dp(41),1));
 
         LinearLayout rest=col();
         add(rest,text("PRZERWA",11,MUTED,true));
-        timerLabel=text("00:00",24,TEAL,true);
+        timerLabel=text("00:00",20,TEAL,true);
         add(rest,timerLabel);
-        times.addView(rest,new LinearLayout.LayoutParams(0,dp(51),1));
+        times.addView(rest,new LinearLayout.LayoutParams(0,dp(41),1));
 
         TextView skip=text("Pomiń  ×",13,TEAL,true);
         skip.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         skip.setPadding(dp(7),0,0,0);
-        times.addView(skip,new LinearLayout.LayoutParams(dp(73),dp(51)));
+        times.addView(skip,new LinearLayout.LayoutParams(dp(73),dp(41)));
         skip.setOnClickListener(v->stopRest());
         add(timerShell,times);
 
@@ -857,10 +1053,8 @@ public final class MainActivity extends Activity {
         }
 
         space(content,5);
-        add(content,text("Ćwiczenia",23,TEXT,true));
+        add(content,text("Ćwiczenia",21,TEXT,true));
         space(content,6);
-        add(content,text("Dotknij ćwiczenia, aby wprowadzić serie. Zapisywane są od razu.",14,MUTED,false));
-        space(content,16);
 
         for(int i=0;i<exercises.size();i++) {
             final Plan.Exercise ex=exercises.get(i);
@@ -880,7 +1074,10 @@ public final class MainActivity extends Activity {
             title.setMaxLines(3);
             add(titleBox,title);
             space(titleBox,4);
-            TextView done=text(db.countExerciseSets(openSession,ex.id)+"/"+db.expectedSets(openWorkout,ex)+" serii",13,TEAL,true);
+            int complete=db.countExerciseSets(openSession,ex.id);
+            int target=db.expectedSets(openWorkout,ex);
+            boolean finished=complete>=target;
+            TextView done=text((finished?"✓ ":"")+complete+"/"+target+" serii",13,finished?GREEN:TEAL,true);
             add(titleBox,done);
 
             TextView chevron=text(expandedExerciseId.equals(ex.id)?"⌃":"⌄",23,MUTED,false);
@@ -895,7 +1092,7 @@ public final class MainActivity extends Activity {
                 expandedChevron=chevron;
                 expandedCard=c;
             }
-            space(body,13);
+            space(body,5);
             int expected=db.expectedSets(openWorkout,ex);
             String objective=expected+" × "+ex.minReps+"–"+ex.maxReps+
                 (ex.eachSide?" / stronę":"")+"  •  "+ex.restSeconds+" s przerwy";
@@ -909,19 +1106,30 @@ public final class MainActivity extends Activity {
                 suggestion.setLineSpacing(dp(3),1f);
                 add(body,suggestion);
             }
-            space(body,9);
-            TextView desc=text(ex.description,15,MUTED,false);
-            desc.setLineSpacing(dp(3),1f);
+            space(body,5);
+            TextView desc=text(ex.description,12,MUTED,false);
+            desc.setMaxLines(2);
             add(body,desc);
-            space(body,13);
+            space(body,8);
+            LinearLayout labels=row();
+            String[] headings={"SERIA","CIĘŻAR","POWT.","STATUS"};
+            float[] widths={1.0f,1.6f,1.5f,1.6f};
+            for(int label=0;label<4;label++){
+                TextView heading=text(headings[label],10,MUTED,true);
+                heading.setGravity(Gravity.CENTER);
+                labels.addView(heading,new LinearLayout.LayoutParams(0,dp(25),widths[label]));
+            }
+            add(body,labels);
 
             LinearLayout rows=col();
             add(body,rows);
             final int[] setNumber={db.setRows(openSession,ex.id,db.expectedSets(openWorkout,ex))};
             for(int j=0;j<setNumber[0];j++) addSetRow(rows,ex,j,done);
-            Button addExtra=button("+  Dodaj serię",false);
+            TextView addExtra=actionLabel("+  Dodatkowa seria  ⋯",SKY);
+            addExtra.setGravity(Gravity.CENTER);
+            addExtra.setMinHeight(dp(36));
             add(body,addExtra);
-            addExtra.setOnClickListener(v->addSetRow(rows,ex,setNumber[0]++,done));
+            addExtra.setOnClickListener(v->showExtraSetOptions(ex,rows,done,setNumber));
             add(c,body);
 
             header.setPadding(0,dp(3),0,dp(3));
@@ -972,130 +1180,192 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void undoLastSet() {
+        if(!canUndoSet || undoSession!=openSession)return;
+        if(undoPrevious==null)db.delete(undoSession,undoExercise,undoIndex);
+        else db.save(undoSession,undoExercise,undoIndex,undoPrevious.weight,
+            undoPrevious.reps,undoPrevious.rir,undoPrevious.note,undoPrevious.warmup);
+        canUndoSet=false;
+        editingSetExercise=undoExercise;editingSetIndex=undoIndex;
+        expandedExerciseId=undoExercise;
+        render();
+        Toast.makeText(this,"Ostatnia zmiana cofnięta",Toast.LENGTH_SHORT).show();
+    }
+
+    private void showExtraSetOptions(Plan.Exercise exercise,LinearLayout container,
+            TextView status,int[] count) {
+        new AlertDialog.Builder(this).setTitle("Dodaj serię")
+            .setItems(new String[]{"Tylko w bieżącym treningu","Zapisz również do planu"},
+                (dialog,index)->{
+                    if(count[0]>=12){
+                        Toast.makeText(this,"Maksymalnie 12 serii roboczych na ćwiczenie",Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    if(index==1) {
+                        java.util.ArrayList<Plan.Exercise> plan=
+                            new java.util.ArrayList<>(db.workoutPlan(openWorkout));
+                        for(int i=0;i<plan.size();i++) {
+                            Plan.Exercise e=plan.get(i);
+                            if(e.id.equals(exercise.id)) {
+                                plan.set(i,new Plan.Exercise(e.id,e.name,e.description,
+                                    Math.min(12,db.expectedSets(openWorkout,e)+1),
+                                    e.minReps,e.maxReps,e.restSeconds,e.eachSide));
+                                break;
+                            }
+                        }
+                        db.savePlan(openWorkout,plan);
+                    }
+                    final int row=count[0]++;
+                    editingSetExercise=exercise.id;editingSetIndex=row;
+                    if(index==1)render();
+                    else addSetRow(container,exercise,row,status);
+                }).show();
+    }
+
     private void addSetRow(LinearLayout target,Plan.Exercise ex,int index,TextView exerciseStatus) {
         WorkoutDb.Entry current=db.get(openSession,ex.id,index);
         WorkoutDb.Entry previous=db.previousWorkout(openWorkout,ex.id,index);
+        boolean editing=current==null || (editingSetIndex==index && ex.id.equals(editingSetExercise));
+
         LinearLayout block=col();
-        block.setPadding(dp(10),dp(9),dp(10),dp(9));
-        block.setBackground(rounded(CARD2,12,0));
-        LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,-2);
-        bp.bottomMargin=dp(7);
-        target.addView(block,bp);
+        block.setPadding(dp(8),dp(editing?9:4),dp(8),dp(editing?8:4));
+        block.setBackground(rounded(editing?CARD2:CARD,9,editing?BORDER:0));
+        LinearLayout.LayoutParams layout=new LinearLayout.LayoutParams(-1,-2);
+        layout.bottomMargin=dp(4);
+        target.addView(block,layout);
 
-        LinearLayout header=row();
-        TextView number=text("SERIA "+(index+1),13,TEXT,true);
-        header.addView(number,new LinearLayout.LayoutParams(0,dp(28),1));
-        TextView status=text(current!=null?"✓ Zapisana":"Do wykonania",12,current!=null?GREEN:MUTED,true);
-        status.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
-        header.addView(status);
-        add(block,header);
+        if(!editing) {
+            LinearLayout saved=row();
+            TextView number=text(String.format(Locale.ROOT,"%02d",index+1),14,MUTED,true);
+            number.setGravity(Gravity.CENTER);
+            saved.addView(number,new LinearLayout.LayoutParams(0,dp(37),1));
+            TextView kilos=text(weight(current.weight)+" kg",15,TEXT,true);
+            kilos.setGravity(Gravity.CENTER);
+            saved.addView(kilos,new LinearLayout.LayoutParams(0,dp(37),1.6f));
+            TextView repeats=text("× "+current.reps,15,TEXT,true);
+            repeats.setGravity(Gravity.CENTER);
+            saved.addView(repeats,new LinearLayout.LayoutParams(0,dp(37),1.5f));
+            boolean pr=db.isPersonalRecord(openSession,ex.id,current);
+            TextView state=text(current.warmup?"ROZGRZ.":pr?"★ PR":"✓ EDYTUJ",
+                12,current.warmup?AMBER:pr?AMBER:GREEN,true);
+            state.setGravity(Gravity.CENTER);
+            saved.addView(state,new LinearLayout.LayoutParams(0,dp(37),1.6f));
+            add(block,saved);
+            block.setContentDescription("Seria "+(index+1)+", "+weight(current.weight)+
+                " kilogramów, "+current.reps+" powtórzeń. Dotknij, aby edytować.");
+            block.setOnClickListener(v->{
+                editingSetExercise=ex.id;editingSetIndex=index;render();
+            });
+            block.setOnLongClickListener(v->{
+                editSetMetadata(openSession,ex,index,()->render());
+                return true;
+            });
+            return;
+        }
 
-        LinearLayout inputs=row();
-        EditText kg=field(current!=null?weight(current.weight):(previous!=null?weight(previous.weight):""),"kg",true);
-        kg.setTextSize(18);
-        kg.setMinHeight(dp(48));
-        kg.setContentDescription("Ciężar kg, seria "+(index+1)+" "+ex.name);
-        inputs.addView(kg,new LinearLayout.LayoutParams(0,dp(50),1));
+        LinearLayout title=row();
+        TextView titleText=text("SERIA "+(index+1),12,TEAL,true);
+        title.addView(titleText,new LinearLayout.LayoutParams(0,dp(26),1));
+        TextView hint=text(previous==null?"Nowa seria":
+            "Poprzednio: "+weight(previous.weight)+" kg × "+previous.reps,11,MUTED,false);
+        title.addView(hint);
+        add(block,title);
+
+        LinearLayout fields=row();
+        TextView number=text(String.format(Locale.ROOT,"%02d",index+1),14,MUTED,true);
+        number.setGravity(Gravity.CENTER);
+        fields.addView(number,new LinearLayout.LayoutParams(0,dp(45),1));
+        EditText kg=field(current!=null?weight(current.weight):
+            previous!=null?weight(previous.weight):"","kg",true);
+        kg.setTextSize(17);kg.setPadding(dp(2),dp(4),dp(2),dp(4));
+        kg.setContentDescription("Ciężar w kilogramach, seria "+(index+1));
+        fields.addView(kg,new LinearLayout.LayoutParams(0,dp(45),1.6f));
         EditText reps=field(current!=null?Integer.toString(current.reps):
-            (previous!=null?Integer.toString(previous.reps):""),"powt.",false);
-        reps.setTextSize(18);
-        reps.setMinHeight(dp(48));
-        reps.setContentDescription("Powtórzenia, seria "+(index+1)+" "+ex.name);
-        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,dp(50),1);
-        rp.leftMargin=dp(7);
-        inputs.addView(reps,rp);
-        Button save=button(current!=null?"Zmień":"Zapisz",current==null);
-        save.setTextSize(13);
-        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(dp(83),dp(50));
-        sp.leftMargin=dp(7);
-        inputs.addView(save,sp);
-        add(block,inputs);
+            previous!=null?Integer.toString(previous.reps):"","powt.",false);
+        reps.setTextSize(17);reps.setPadding(dp(2),dp(4),dp(2),dp(4));
+        reps.setContentDescription("Powtórzenia, seria "+(index+1));
+        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,dp(45),1.5f);
+        rp.leftMargin=dp(5);
+        fields.addView(reps,rp);
+        Button save=button(current==null?"Zapisz":"Zmień",true);
+        save.setTextSize(12);
+        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,dp(45),1.6f);
+        sp.leftMargin=dp(5);
+        fields.addView(save,sp);
+        add(block,fields);
 
-        LinearLayout foot=row();
-        String previousText=previous==null?"Cel: "+ex.minReps+"–"+ex.maxReps+" powt.":
-            "Poprz.: "+weight(previous.weight)+" kg × "+previous.reps;
-        TextView hint=text(previousText,12,MUTED,false);
-        foot.addView(hint,new LinearLayout.LayoutParams(0,dp(29),1));
-        if(index>0) {
-            TextView copy=text("↺ Kopiuj serię",12,SKY,true);
-            copy.setPadding(dp(9),0,0,0);
-            copy.setContentDescription("Kopiuj poprzednią zapisaną serię");
-            foot.addView(copy);
-            copy.setOnClickListener(v->{
-                WorkoutDb.Entry from=db.get(openSession,ex.id,index-1);
-                if(from==null) {
-                    Toast.makeText(this,"Najpierw zapisz poprzednią serię",Toast.LENGTH_SHORT).show();
-                    return;
-                }
+        LinearLayout tools=row();
+        final double increment=db.weightStep(ex.id);
+        String amount=weight(increment);
+        TextView minus=actionLabel("−"+amount,AMBER);
+        minus.setBackground(rounded(Color.rgb(55,40,24),9,AMBER));
+        minus.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams minusLp=new LinearLayout.LayoutParams(0,dp(36),1);
+        minusLp.rightMargin=dp(5);
+        tools.addView(minus,minusLp);
+        TextView plus=actionLabel("+"+amount,GREEN);
+        plus.setGravity(Gravity.CENTER);
+        plus.setBackground(rounded(Color.rgb(24,56,42),9,GREEN));
+        tools.addView(plus,new LinearLayout.LayoutParams(0,dp(36),1));
+        minus.setOnClickListener(v->changeWeight(kg,-increment));
+        plus.setOnClickListener(v->changeWeight(kg,increment));
+        TextView copy=actionLabel("↺ Kopiuj",SKY);
+        copy.setGravity(Gravity.CENTER);
+        tools.addView(copy,new LinearLayout.LayoutParams(0,dp(36),1.15f));
+        copy.setOnClickListener(v->{
+            WorkoutDb.Entry from=db.get(openSession,ex.id,index-1);
+            if(from==null)from=db.previousWorkout(openWorkout,ex.id,index);
+            if(from==null){
+                Toast.makeText(this,"Brak poprzedniej serii",Toast.LENGTH_SHORT).show();
+            }else{
                 kg.setText(weight(from.weight));
                 reps.setText(Integer.toString(from.reps));
-            });
-        }
-        add(block,foot);
-        LinearLayout quick=row();
-        TextView minus=actionLabel("−2,5 kg",SKY);
-        minus.setGravity(Gravity.CENTER);
-        quick.addView(minus,new LinearLayout.LayoutParams(0,dp(34),1));
-        TextView plus=actionLabel("+2,5 kg",SKY);
-        plus.setGravity(Gravity.CENTER);
-        quick.addView(plus,new LinearLayout.LayoutParams(0,dp(34),1));
-        TextView more=actionLabel("RIR / notatka  ✎",GREEN);
-        more.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
-        quick.addView(more,new LinearLayout.LayoutParams(0,dp(34),2));
-        minus.setOnClickListener(v->changeWeight(kg,-2.5));
-        plus.setOnClickListener(v->changeWeight(kg,2.5));
-        more.setOnClickListener(v->{
-            WorkoutDb.Entry existing=db.get(openSession,ex.id,index);
-            if(existing==null) {
-                Toast.makeText(this,"Najpierw zapisz serię, potem dodaj RIR lub notatkę",Toast.LENGTH_SHORT).show();
-            } else editSetMetadata(openSession,ex,index,()->{
-                WorkoutDb.Entry updated=db.get(openSession,ex.id,index);
-                status.setText(updated!=null&&updated.warmup?"○ Rozgrzewka":"✓ Zapisana");
-                status.setTextColor(updated!=null&&updated.warmup?AMBER:GREEN);
-                exerciseStatus.setText(db.countExerciseSets(openSession,ex.id)+"/"+
-                    db.expectedSets(openWorkout,ex)+" serii");
-                updateSessionProgress();
-            });
-        });
-        add(block,quick);
-        save.setOnClickListener(v->{
-            try {
-                String input=kg.getText().toString().trim().replace(',','.');
-                if(input.isEmpty())throw new NumberFormatException();
-                double w=Double.parseDouble(input);
-                int rep=Integer.parseInt(reps.getText().toString().trim());
-                if(!Double.isFinite(w)||w<0||w>2000||rep<1||rep>1000)throw new NumberFormatException();
-                boolean first=db.get(openSession,ex.id,index)==null;
-                db.save(openSession,ex.id,index,w,rep);
-                status.setText(current!=null&&current.warmup?"○ Rozgrzewka":"✓ Zapisana");
-                status.setTextColor(current!=null&&current.warmup?AMBER:GREEN);
-                save.setText("Zmień");
-                save.setTextColor(TEXT);
-                save.setBackgroundTintList(ColorStateList.valueOf(CARD));
-                exerciseStatus.setText(db.countExerciseSets(openSession,ex.id)+"/"+ex.sets+" serii");
-                updateSessionProgress();
-                if(first)startRest(ex.restSeconds);
-                Toast.makeText(this,"Seria zapisana ✓",Toast.LENGTH_SHORT).show();
-                if(first) advanceAfterLastSet(ex);
-            } catch(Exception invalid) {
-                Toast.makeText(this,"Sprawdź ciężar i liczbę powtórzeń",Toast.LENGTH_LONG).show();
             }
         });
-        save.setOnLongClickListener(v->{
-            new AlertDialog.Builder(this).setTitle("Usunąć tę serię?")
-                .setNegativeButton("Zostaw",null)
-                .setPositiveButton("Usuń",(d,w)->{
-                    db.delete(openSession,ex.id,index);
-                    status.setText("Do wykonania");
-                    status.setTextColor(MUTED);
-                    save.setText("Zapisz");
-                    save.setTextColor(BG);
-                    save.setBackgroundTintList(ColorStateList.valueOf(TEAL));
-                    exerciseStatus.setText(db.countExerciseSets(openSession,ex.id)+"/"+ex.sets+" serii");
-                    updateSessionProgress();
-                }).show();
-            return true;
+        TextView note=actionLabel("RIR  ⋯",TEAL);
+        note.setGravity(Gravity.CENTER);
+        tools.addView(note,new LinearLayout.LayoutParams(0,dp(36),1.05f));
+        note.setOnClickListener(v->{
+            if(db.get(openSession,ex.id,index)==null)
+                Toast.makeText(this,"Najpierw zapisz serię",Toast.LENGTH_SHORT).show();
+            else editSetMetadata(openSession,ex,index,()->render());
         });
+        add(block,tools);
+
+        save.setOnClickListener(v->{
+            try {
+                double w=Double.parseDouble(kg.getText().toString().trim().replace(',','.'));
+                int repsValue=Integer.parseInt(reps.getText().toString().trim());
+                if(!Double.isFinite(w)||w<0||w>2000||repsValue<1||repsValue>1000)
+                    throw new NumberFormatException();
+                WorkoutDb.Entry previousEntry=db.get(openSession,ex.id,index);
+                undoPrevious=previousEntry;undoSession=openSession;
+                undoExercise=ex.id;undoIndex=index;canUndoSet=true;
+                db.save(openSession,ex.id,index,w,repsValue);
+                WorkoutDb.Entry saved=db.get(openSession,ex.id,index);
+                boolean pr=db.isPersonalRecord(openSession,ex.id,saved);
+                editingSetExercise="";editingSetIndex=-1;
+                if(previousEntry==null)startRest(ex.restSeconds);
+                if(pr)Toast.makeText(this,"★ NOWY REKORD!  "+weight(w)+" kg",Toast.LENGTH_SHORT).show();
+                if(previousEntry==null&&getSharedPreferences("forma_settings",0)
+                    .getBoolean("auto_next",true) &&
+                    db.countExerciseSets(openSession,ex.id)>=db.expectedSets(openWorkout,ex)) {
+                    advanceAfterLastSet(ex);
+                } else {
+                    render();
+                    scrollToExpandedExercise();
+                }
+            }catch(Exception error){
+                Toast.makeText(this,"Sprawdź ciężar i powtórzenia",Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private void scrollToExpandedExercise(){
+        if(contentScroll!=null&&expandedCard!=null){
+            ScrollView scroll=contentScroll;LinearLayout card=expandedCard;
+            scroll.post(()->scroll.smoothScrollTo(0,Math.max(0,card.getTop()-dp(6))));
+        }
     }
 
     private void changeWeight(EditText field,double change) {
@@ -1226,11 +1496,71 @@ public final class MainActivity extends Activity {
                 db.finish(id);
                 stopRest();
                 openSession=-1;
+                canUndoSet=false;
+                detailSession=id;
                 expandedExerciseId="";
-                page="history";
+                page="summary";
                 render();
                 if(cloud.signedIn())runCloudSync();
             }).show();
+    }
+
+    private void showSessionSummary() {
+        WorkoutDb.Session session=db.byId(detailSession);
+        if(session==null||session.finishedAt<=0){page="history";render();return;}
+        space(content,6);
+        LinearLayout title=card(content);
+        title.setBackground(rounded(CARD,16,GREEN));
+        smallLabel(title,"✓  TRENING ZAKOŃCZONY");
+        space(title,8);
+        add(title,text(Plan.title(session.workout),25,TEXT,true));
+        add(title,text(new SimpleDateFormat("dd.MM.yyyy  HH:mm",
+            Locale.forLanguageTag("pl-PL")).format(new Date(session.startedAt)),13,MUTED,false));
+
+        LinearLayout key=card(content);
+        smallLabel(key,"PODSUMOWANIE");
+        summaryLine(key,"Serie (łącznie)",Integer.toString(session.sets));
+        int working=0,warmups=0;
+        for(WorkoutDb.Entry e:db.sets(session.id)){
+            if(e.warmup)warmups++;else working++;
+        }
+        summaryLine(key,"Serie robocze",Integer.toString(working));
+        if(warmups>0)summaryLine(key,"Rozgrzewkowe",Integer.toString(warmups));
+        summaryLine(key,"Czas",formatTime(db.durationMillis(session)/1000));
+        summaryLine(key,"Objętość",weight(session.volume)+" kg");
+        summaryLine(key,"Nowe rekordy PR",Integer.toString(db.prCount(session.id)));
+        add(key,text("Objętość uwzględnia sposób podawania ciężaru dla każdego ćwiczenia. "+
+            "Rozgrzewki nie są wliczane.",12,MUTED,false));
+
+        WorkoutDb.Session previous=db.previousCompletedSameWorkout(session);
+        LinearLayout compare=card(content);
+        smallLabel(compare,"PORÓWNANIE Z POPRZEDNIM TRENINGIEM");
+        space(compare,9);
+        if(previous==null){
+            add(compare,text("To pierwszy zapisany trening tego rodzaju.",14,TEXT,false));
+        }else{
+            double diff=session.volume-previous.volume;
+            int setDiff=session.sets-previous.sets;
+            add(compare,text((diff>=0?"+":"")+weight(diff)+" kg objętości",22,
+                diff>=0?GREEN:AMBER,true));
+            add(compare,text((setDiff>=0?"+":"")+setDiff+
+                " serii  •  poprzednio "+weight(previous.volume)+" kg",13,MUTED,false));
+            space(compare,7);
+            TextView details=actionLabel("Zobacz poprzednią sesję  ›",SKY);
+            details.setMinHeight(dp(34));
+            add(compare,details);
+            details.setOnClickListener(v->{
+                detailSession=previous.id;page="detail";render();
+            });
+        }
+
+        Button history=button("Przejdź do historii",true);
+        add(content,history);
+        history.setOnClickListener(v->{page="history";render();});
+        space(content,7);
+        Button again=button("Wróć do planu",false);
+        add(content,again);
+        again.setOnClickListener(v->{page="plan";render();});
     }
 
     private void startRest(int seconds) {
@@ -1346,7 +1676,7 @@ public final class MainActivity extends Activity {
         LinearLayout current=null;
         for(WorkoutDb.Entry entry:entries) {
             if(!previous.equals(entry.exerciseId)) {
-                Plan.Exercise ex=Plan.byId(entry.exerciseId);
+                Plan.Exercise ex=db.exerciseById(entry.exerciseId);
                 current=card(content);
                 add(current,text(ex==null?entry.exerciseId:ex.name,18,TEXT,true));
                 space(current,10);
@@ -1530,7 +1860,7 @@ public final class MainActivity extends Activity {
         for(Plan.Exercise e:historyExercises)visible.add(e.id);
         for(WorkoutDb.Entry entry:db.sets(session.id)) {
             if(!visible.contains(entry.exerciseId)) {
-                Plan.Exercise original=Plan.byId(entry.exerciseId);
+                Plan.Exercise original=db.exerciseById(entry.exerciseId);
                 if(original!=null) {
                     historyExercises.add(original);
                     visible.add(original.id);
@@ -1850,7 +2180,7 @@ public final class MainActivity extends Activity {
         back.setMinHeight(dp(39));
         add(content,back);
         back.setOnClickListener(v->{page="progress";render();});
-        Plan.Exercise ex=Plan.byId(selectedExercise);
+        Plan.Exercise ex=db.exerciseById(selectedExercise);
         if(ex==null){page="progress";render();return;}
         space(content,8);
         headline(content,ex.name);
@@ -2026,6 +2356,7 @@ public final class MainActivity extends Activity {
     }
     @Override public void onBackPressed() {
         if(page.equals("edit")) {completeEditing();return;}
+        if(page.equals("summary")) {page="history";render();return;}
         if(page.equals("planEditor")) {page="plan";render();return;}
         if(page.equals("exerciseProgress")) {page="progress";render();return;}
         if(page.equals("session")) {

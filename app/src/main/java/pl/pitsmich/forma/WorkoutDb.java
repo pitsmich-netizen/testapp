@@ -58,7 +58,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         Progress(long date) { this.date=date; }
     }
 
-    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 7); }
+    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 8); }
     @Override public void onConfigure(SQLiteDatabase db) { super.onConfigure(db); db.setForeignKeyConstraintsEnabled(true); }
     @Override public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, workout INTEGER NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER, notes TEXT NOT NULL DEFAULT '', cloud_id TEXT, paused_at INTEGER, paused_total_ms INTEGER NOT NULL DEFAULT 0, audit_resolution TEXT NOT NULL DEFAULT 'pending')");
@@ -68,6 +68,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         db.execSQL("CREATE UNIQUE INDEX idx_sessions_cloud_id ON sessions(cloud_id)");
         db.execSQL("CREATE TABLE pending_remote_deletes (cloud_id TEXT PRIMARY KEY)");
         createPlanTable(db);
+        createPersonalTables(db);
         seedInitialWorkout(db);
     }
     @Override public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -94,6 +95,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE exercise_sets ADD COLUMN note TEXT NOT NULL DEFAULT ''");
             db.execSQL("ALTER TABLE exercise_sets ADD COLUMN warmup INTEGER NOT NULL DEFAULT 0");
         }
+        if(oldVersion<8) createPersonalTables(db);
         if(oldVersion<2) seedInitialWorkout(db);
         if(oldVersion<3) seedAdditionalNovemberSets(db);
     }
@@ -105,6 +107,207 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             "UNIQUE(workout,exercise_id))");
     }
 
+    public static final class ScheduleDay {
+        public final int workout,position,weekday;
+        public final String title;
+        ScheduleDay(int workout,int position,int weekday,String title) {
+            this.workout=workout;this.position=position;this.weekday=weekday;this.title=title;
+        }
+    }
+
+    private static void createPersonalTables(SQLiteDatabase sql) {
+        sql.execSQL("CREATE TABLE IF NOT EXISTS workout_schedule (workout INTEGER PRIMARY KEY, "+
+            "position INTEGER NOT NULL UNIQUE, weekday INTEGER NOT NULL UNIQUE, "+
+            "title TEXT NOT NULL)");
+        sql.execSQL("CREATE TABLE IF NOT EXISTS personal_exercises ("+
+            "id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', "+
+            "region TEXT NOT NULL DEFAULT '', equipment TEXT NOT NULL DEFAULT '', "+
+            "sets INTEGER NOT NULL, min_reps INTEGER NOT NULL, max_reps INTEGER NOT NULL, "+
+            "rest_seconds INTEGER NOT NULL, each_side INTEGER NOT NULL DEFAULT 0)");
+        sql.execSQL("CREATE TABLE IF NOT EXISTS load_settings ("+
+            "exercise_id TEXT PRIMARY KEY, step_kg REAL NOT NULL DEFAULT 2.5, "+
+            "multiplier INTEGER NOT NULL DEFAULT 1)");
+        // Only seed on the first migration. Existing user customization stays untouched.
+        try(Cursor c=sql.rawQuery("SELECT COUNT(*) FROM workout_schedule",null)) {
+            if(c.moveToFirst() && c.getInt(0)==0) {
+                String[] names={"GÓRA A","NOGI","GÓRA B"};
+                int[] days={1,3,5};
+                for(int i=0;i<3;i++) {
+                    ContentValues values=new ContentValues();
+                    values.put("workout",i);values.put("position",i);
+                    values.put("weekday",days[i]);values.put("title",names[i]);
+                    sql.insertOrThrow("workout_schedule",null,values);
+                }
+            }
+        }
+    }
+
+    public List<ScheduleDay> schedule() {
+        ArrayList<ScheduleDay> result=new ArrayList<>();
+        try(Cursor c=getReadableDatabase().rawQuery(
+            "SELECT workout,position,weekday,title FROM workout_schedule ORDER BY position",null)) {
+            while(c.moveToNext())result.add(new ScheduleDay(c.getInt(0),c.getInt(1),c.getInt(2),c.getString(3)));
+        }
+        return result;
+    }
+
+    public String workoutLabel(int workout) {
+        for(ScheduleDay d:schedule())if(d.workout==workout)return d.title;
+        return Plan.title(workout);
+    }
+    public void updateSchedule(List<ScheduleDay> days) {
+        if(days==null||days.size()!=3)throw new IllegalArgumentException("Potrzebne trzy dni treningowe");
+        java.util.HashSet<Integer> exercises=new java.util.HashSet<>();
+        java.util.HashSet<Integer> weekdays=new java.util.HashSet<>();
+        for(ScheduleDay day:days) {
+            if(day.workout<0||day.workout>2||!exercises.add(day.workout) ||
+                day.weekday<1||day.weekday>7||!weekdays.add(day.weekday) ||
+                day.title==null||day.title.trim().isEmpty()||day.title.length()>32)
+                throw new IllegalArgumentException("Dni tygodnia muszą być różne");
+        }
+        SQLiteDatabase sql=getWritableDatabase();
+        sql.beginTransaction();
+        try {
+            sql.delete("workout_schedule",null,null);
+            for(int i=0;i<days.size();i++) {
+                ScheduleDay day=days.get(i);
+                ContentValues row=new ContentValues();
+                row.put("workout",day.workout);row.put("position",i);
+                row.put("weekday",day.weekday);row.put("title",day.title.trim());
+                sql.insertOrThrow("workout_schedule",null,row);
+            }
+            sql.setTransactionSuccessful();
+        } finally {sql.endTransaction();}
+    }
+    public void moveScheduledWorkout(int sourceWorkout,int targetWorkout) {
+        ArrayList<ScheduleDay> days=new ArrayList<>(schedule());
+        int source=-1,target=-1;
+        for(int i=0;i<days.size();i++) {
+            if(days.get(i).workout==sourceWorkout)source=i;
+            if(days.get(i).workout==targetWorkout)target=i;
+        }
+        if(source<0||target<0||source==target)return;
+        ScheduleDay moved=days.remove(source);
+        days.add(target,moved);
+        updateSchedule(days);
+    }
+    public void assignWeekday(int workout,int weekday) {
+        ArrayList<ScheduleDay> days=new ArrayList<>(schedule());
+        int oldDay=-1;
+        for(ScheduleDay d:days)if(d.workout==workout)oldDay=d.weekday;
+        if(oldDay<0)return;
+        for(int i=0;i<days.size();i++) {
+            ScheduleDay d=days.get(i);
+            if(d.workout==workout)days.set(i,new ScheduleDay(d.workout,i,weekday,d.title));
+            else if(d.weekday==weekday)days.set(i,new ScheduleDay(d.workout,i,oldDay,d.title));
+        }
+        updateSchedule(days);
+    }
+    public void renameWorkout(int workout,String title) {
+        ArrayList<ScheduleDay> days=new ArrayList<>(schedule());
+        for(int i=0;i<days.size();i++) {
+            ScheduleDay d=days.get(i);
+            if(d.workout==workout)days.set(i,new ScheduleDay(workout,i,d.weekday,title));
+        }
+        updateSchedule(days);
+    }
+
+    public Plan.Exercise exerciseById(String id) {
+        Plan.Exercise existing=Plan.byId(id);
+        if(existing!=null)return existing;
+        try(Cursor c=getReadableDatabase().rawQuery(
+            "SELECT name,description,sets,min_reps,max_reps,rest_seconds,each_side "+
+            "FROM personal_exercises WHERE id=?",new String[]{id})) {
+            if(c.moveToFirst())return new Plan.Exercise(id,c.getString(0),c.getString(1),
+                c.getInt(2),c.getInt(3),c.getInt(4),c.getInt(5),c.getInt(6)!=0);
+        }
+        return null;
+    }
+    public List<Plan.Exercise> exerciseCatalog() {
+        ArrayList<Plan.Exercise> list=new ArrayList<>(Plan.uniqueExercises());
+        try(Cursor c=getReadableDatabase().rawQuery("SELECT id FROM personal_exercises ORDER BY name",null)) {
+            while(c.moveToNext()) {
+                Plan.Exercise ex=exerciseById(c.getString(0));
+                if(ex!=null)list.add(ex);
+            }
+        }
+        return list;
+    }
+    public Plan.Exercise createExercise(String name,String description,String region,String equipment,
+            int sets,int min,int max,int rest,boolean eachSide) {
+        if(name==null||name.trim().isEmpty()||name.length()>70||
+            description==null||description.length()>500 || region==null||region.length()>70 ||
+            equipment==null||equipment.length()>70 ||
+            sets<1||sets>12||min<1||max<min||max>40||rest<15||rest>600)
+            throw new IllegalArgumentException("Sprawdź nazwę, serie i zakres powtórzeń");
+        String id="custom_"+UUID.randomUUID().toString();
+        ContentValues values=new ContentValues();
+        values.put("id",id);values.put("name",name.trim());values.put("description",description.trim());
+        values.put("region",region);values.put("equipment",equipment);
+        values.put("sets",sets);values.put("min_reps",min);values.put("max_reps",max);
+        values.put("rest_seconds",rest);values.put("each_side",eachSide?1:0);
+        getWritableDatabase().insertOrThrow("personal_exercises",null,values);
+        return exerciseById(id);
+    }
+    public double weightStep(String exercise) {
+        try(Cursor c=getReadableDatabase().rawQuery(
+            "SELECT step_kg FROM load_settings WHERE exercise_id=?",new String[]{exercise})) {
+            if(c.moveToFirst())return c.getDouble(0);
+        }
+        return exercise.contains("lateral")||exercise.equals("facepull")?1.0:2.5;
+    }
+    public int loadMultiplier(String exercise) {
+        try(Cursor c=getReadableDatabase().rawQuery(
+            "SELECT multiplier FROM load_settings WHERE exercise_id=?",new String[]{exercise})) {
+            if(c.moveToFirst())return c.getInt(0);
+        }
+        return exercise.equals("db_flat")||exercise.equals("db_lateral")||exercise.equals("rev_lunge")?2:1;
+    }
+    public void saveLoadSettings(String exercise,double step,int multiplier) {
+        if(exerciseById(exercise)==null||!Double.isFinite(step)||step<0.25||step>50||
+            multiplier<1||multiplier>2)throw new IllegalArgumentException("Nieprawidłowy skok lub przelicznik");
+        ContentValues row=new ContentValues();
+        row.put("exercise_id",exercise);row.put("step_kg",step);row.put("multiplier",multiplier);
+        getWritableDatabase().insertWithOnConflict("load_settings",null,row,SQLiteDatabase.CONFLICT_REPLACE);
+    }
+    public double sessionVolume(long session) {
+        double total=0;
+        for(Entry entry:sets(session))if(!entry.warmup)total+=entry.weight*entry.reps*loadMultiplier(entry.exerciseId);
+        return total;
+    }
+    public Session previousCompletedSameWorkout(Session current) {
+        for(Session s:completed())
+            if(s.workout==current.workout && s.id!=current.id && s.startedAt<current.startedAt)return s;
+        return null;
+    }
+    public boolean isPersonalRecord(long session,String exercise,Entry candidate) {
+        if(candidate==null||candidate.warmup)return false;
+        Session own=byId(session);
+        if(own==null)return false;
+        boolean previous=false;
+        for(Progress p:progress(exercise)) {
+            if(p.date>=own.startedAt)continue;
+            previous=true;
+            if(p.maxWeight>candidate.weight ||
+                (p.maxWeight==candidate.weight&&p.repsAtMax>=candidate.reps))return false;
+        }
+        return previous;
+    }
+    public int prCount(long session) {
+        int count=0;
+        java.util.Map<String,Entry> best=new java.util.HashMap<>();
+        for(Entry entry:sets(session)) {
+            if(entry.warmup)continue;
+            Entry previous=best.get(entry.exerciseId);
+            if(previous==null||entry.weight>previous.weight||
+                (entry.weight==previous.weight&&entry.reps>previous.reps))
+                best.put(entry.exerciseId,entry);
+        }
+        for(java.util.Map.Entry<String,Entry> e:best.entrySet())
+            if(isPersonalRecord(session,e.getKey(),e.getValue()))count++;
+        return count;
+    }
+
     /** User plan customization; existing completed sessions are never rewritten. */
     public List<Plan.Exercise> workoutPlan(int workout) {
         if(workout<0||workout>2)throw new IllegalArgumentException("Nieznany trening");
@@ -113,7 +316,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             "SELECT exercise_id,sets,min_reps,max_reps,rest_seconds FROM plan_items "+
             "WHERE workout=? ORDER BY position",new String[]{Integer.toString(workout)})) {
             while(c.moveToNext()) {
-                Plan.Exercise source=Plan.byId(c.getString(0));
+                Plan.Exercise source=exerciseById(c.getString(0));
                 if(source!=null)list.add(new Plan.Exercise(
                     source.id,source.name,source.description,
                     c.getInt(1),c.getInt(2),c.getInt(3),c.getInt(4),source.eachSide));
@@ -127,7 +330,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             throw new IllegalArgumentException("Nieprawidłowy plan");
         java.util.HashSet<String> ids=new java.util.HashSet<>();
         for(Plan.Exercise e:list) {
-            if(Plan.byId(e.id)==null || !ids.add(e.id)||e.sets<1||e.sets>12||
+            if(exerciseById(e.id)==null || !ids.add(e.id)||e.sets<1||e.sets>12||
                 e.minReps<1||e.maxReps<e.minReps||e.maxReps>40||
                 e.restSeconds<15||e.restSeconds>600)
                 throw new IllegalArgumentException("Nieprawidłowe parametry ćwiczenia");
@@ -287,7 +490,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         }
     }
     public Session byId(long id) {
-        String q="SELECT s.id,s.workout,s.started_at,s.finished_at,COUNT(e.set_index),COALESCE(SUM(CASE WHEN e.warmup=0 THEN e.weight*e.reps ELSE 0 END),0),s.notes,s.cloud_id,s.paused_at,s.paused_total_ms "+
+        String q="SELECT s.id,s.workout,s.started_at,s.finished_at,COUNT(e.set_index),COALESCE(SUM(CASE WHEN e.warmup=0 THEN e.weight*e.reps*COALESCE((SELECT l.multiplier FROM load_settings l WHERE l.exercise_id=e.exercise_id),CASE WHEN e.exercise_id IN ('db_flat','db_lateral','rev_lunge') THEN 2 ELSE 1 END) ELSE 0 END),0),s.notes,s.cloud_id,s.paused_at,s.paused_total_ms "+
             "FROM sessions s LEFT JOIN exercise_sets e ON e.session_id=s.id WHERE s.id=? GROUP BY s.id";
         try(Cursor c=getReadableDatabase().rawQuery(q,new String[]{Long.toString(id)})) {
             if(!c.moveToFirst()) return null;
@@ -428,7 +631,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
                 c.isNull(2) || c.getInt(1)<exercise.maxReps ||
                 Math.abs(c.getDouble(2)-c.getDouble(3))>0.001) return null;
             double weight=c.getDouble(2);
-            double step=exercise.id.contains("lateral")||exercise.id.equals("facepull")?1.0:2.5;
+            double step=weightStep(exercise.id);
             return "Komplet serii po "+exercise.maxReps+" powt. przy "+
                 String.format(Locale.forLanguageTag("pl-PL"),"%.1f",weight)+
                 " kg. Następnym razem spróbuj "+
@@ -462,7 +665,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     }
     public List<Session> completed() {
         ArrayList<Session> result=new ArrayList<>();
-        String q="SELECT s.id,s.workout,s.started_at,s.finished_at,COUNT(e.set_index),COALESCE(SUM(e.weight*e.reps),0),s.notes,s.cloud_id,s.paused_at,s.paused_total_ms " +
+        String q="SELECT s.id,s.workout,s.started_at,s.finished_at,COUNT(e.set_index),COALESCE(SUM(CASE WHEN e.warmup=0 THEN e.weight*e.reps*COALESCE((SELECT l.multiplier FROM load_settings l WHERE l.exercise_id=e.exercise_id),CASE WHEN e.exercise_id IN ('db_flat','db_lateral','rev_lunge') THEN 2 ELSE 1 END) ELSE 0 END),0),s.notes,s.cloud_id,s.paused_at,s.paused_total_ms " +
                 "FROM sessions s LEFT JOIN exercise_sets e ON e.session_id=s.id WHERE s.finished_at IS NOT NULL " +
                 "GROUP BY s.id ORDER BY s.started_at DESC";
         try(Cursor c=getReadableDatabase().rawQuery(q,null)) {
@@ -589,7 +792,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         SimpleDateFormat fmt=new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
         try(Cursor c=getReadableDatabase().rawQuery(q,null)) {
             while(c.moveToNext()) {
-                Plan.Exercise ex=Plan.byId(c.getString(2));
+                Plan.Exercise ex=exerciseById(c.getString(2));
                 String name=ex!=null?ex.name:c.getString(2);
                 String line=csv(fmt.format(new Date(c.getLong(0))))+";"+csv(Plan.title(c.getInt(1)))+";"+
                         csv(name)+";"+(c.getInt(3)+1)+";"+
