@@ -916,6 +916,7 @@ public final class MainActivity extends Activity {
         openWorkout=workout;
         stopRest();
         openSession=db.start(workout);
+        canUndoSet=false;editingSetExercise="";editingSetIndex=-1;
         expandedExerciseId="";
         page="session";render();
     }
@@ -1497,11 +1498,71 @@ public final class MainActivity extends Activity {
                 db.finish(id);
                 stopRest();
                 openSession=-1;
+                canUndoSet=false;
+                detailSession=id;
                 expandedExerciseId="";
-                page="history";
+                page="summary";
                 render();
                 if(cloud.signedIn())runCloudSync();
             }).show();
+    }
+
+    private void showSessionSummary() {
+        WorkoutDb.Session session=db.byId(detailSession);
+        if(session==null||session.finishedAt<=0){page="history";render();return;}
+        space(content,6);
+        LinearLayout title=card(content);
+        title.setBackground(rounded(CARD,16,GREEN));
+        smallLabel(title,"✓  TRENING ZAKOŃCZONY");
+        space(title,8);
+        add(title,text(Plan.title(session.workout),25,TEXT,true));
+        add(title,text(new SimpleDateFormat("dd.MM.yyyy  HH:mm",
+            Locale.forLanguageTag("pl-PL")).format(new Date(session.startedAt)),13,MUTED,false));
+
+        LinearLayout key=card(content);
+        smallLabel(key,"PODSUMOWANIE");
+        summaryLine(key,"Serie (łącznie)",Integer.toString(session.sets));
+        int working=0,warmups=0;
+        for(WorkoutDb.Entry e:db.sets(session.id)){
+            if(e.warmup)warmups++;else working++;
+        }
+        summaryLine(key,"Serie robocze",Integer.toString(working));
+        if(warmups>0)summaryLine(key,"Rozgrzewkowe",Integer.toString(warmups));
+        summaryLine(key,"Czas",formatTime(db.durationMillis(session)/1000));
+        summaryLine(key,"Objętość",weight(session.volume)+" kg");
+        summaryLine(key,"Nowe rekordy PR",Integer.toString(db.prCount(session.id)));
+        add(key,text("Objętość uwzględnia sposób podawania ciężaru dla każdego ćwiczenia. "+
+            "Rozgrzewki nie są wliczane.",12,MUTED,false));
+
+        WorkoutDb.Session previous=db.previousCompletedSameWorkout(session);
+        LinearLayout compare=card(content);
+        smallLabel(compare,"PORÓWNANIE Z POPRZEDNIM TRENINGIEM");
+        space(compare,9);
+        if(previous==null){
+            add(compare,text("To pierwszy zapisany trening tego rodzaju.",14,TEXT,false));
+        }else{
+            double diff=session.volume-previous.volume;
+            int setDiff=session.sets-previous.sets;
+            add(compare,text((diff>=0?"+":"")+weight(diff)+" kg objętości",22,
+                diff>=0?GREEN:AMBER,true));
+            add(compare,text((setDiff>=0?"+":"")+setDiff+
+                " serii  •  poprzednio "+weight(previous.volume)+" kg",13,MUTED,false));
+            space(compare,7);
+            TextView details=actionLabel("Zobacz poprzednią sesję  ›",SKY);
+            details.setMinHeight(dp(34));
+            add(compare,details);
+            details.setOnClickListener(v->{
+                detailSession=previous.id;page="detail";render();
+            });
+        }
+
+        Button history=button("Przejdź do historii",true);
+        add(content,history);
+        history.setOnClickListener(v->{page="history";render();});
+        space(content,7);
+        Button again=button("Wróć do planu",false);
+        add(content,again);
+        again.setOnClickListener(v->{page="plan";render();});
     }
 
     private void startRest(int seconds) {
