@@ -1,0 +1,4 @@
+Publish FORMA v0.4.0 (versionCode 4) signed with the existing FORMA release keystore.
+Features: true-black OLED theme, easy access settings gear, grouped settings, searchable exercise bottom sheet, edit/add/remove sets and workouts, pause/resume/cancel active workout, no empty sessions, cloud tombstones and OTA FileProvider directory fix.
+Release must include forma-v0.4.0.apk and latest.json with SHA-256.
+Existing app data is preserved on in-place update, do not require uninstall.
