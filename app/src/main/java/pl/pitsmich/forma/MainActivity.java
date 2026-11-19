@@ -1922,14 +1922,34 @@ public final class MainActivity extends Activity {
     }
 
     private void showCompletedActions(WorkoutDb.Session session) {
-        new AlertDialog.Builder(this)
-            .setTitle(db.sessionWorkoutLabel(session))
-            .setItems(new String[]{"Zobacz serie","Edytuj trening","Usuń trening"},(d,index)->{
-                if(index==0){detailSession=session.id;page="detail";render();}
-                else if(index==1){detailSession=session.id;page="edit";render();}
-                else confirmDeleteCompleted(session);
-            })
-            .setNegativeButton("Anuluj",null).show();
+        LinearLayout sheet=col();
+        sheet.setPadding(dp(15),dp(14),dp(15),dp(14));
+        add(sheet,text(db.sessionWorkoutLabel(session),19,TEXT,true));
+        space(sheet,4);
+        add(sheet,text(date(session.startedAt),12,MUTED,false));
+        space(sheet,12);
+        AlertDialog dialog=new AlertDialog.Builder(this).setView(sheet).create();
+        addSessionMenuItem(sheet,"≡","Zobacz serie",
+            "Szczegóły zapisanego treningu",TEAL,()->{
+                dialog.dismiss();detailSession=session.id;page="detail";render();
+            });
+        space(sheet,7);
+        addSessionMenuItem(sheet,"✎","Edytuj trening",
+            "Ciężar, powtórzenia, RIR i notatki",SKY,()->{
+                dialog.dismiss();detailSession=session.id;page="edit";render();
+            });
+        space(sheet,11);
+        addSessionMenuItem(sheet,"×","Usuń trening",
+            "Wymaga potwierdzenia",RED,()->{
+                dialog.dismiss();confirmDeleteCompleted(session);
+            });
+        dialog.show();
+        Window window=dialog.getWindow();
+        if(window!=null) {
+            window.setBackgroundDrawable(rounded(CARD,15,BORDER));
+            window.setLayout(getResources().getDisplayMetrics().widthPixels-dp(44),
+                WindowManager.LayoutParams.WRAP_CONTENT);
+        }
     }
 
     private void confirmDeleteCompleted(WorkoutDb.Session session) {
