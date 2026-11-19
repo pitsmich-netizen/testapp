@@ -2,6 +2,8 @@
 
 ## FORMA 0.9.0 — spójny wygląd i analiza progresu
 
+[**Pobierz podpisaną FORMA 0.9.0**](https://github.com/pitsmich-netizen/testapp/releases/download/v0.9.0/forma-v0.9.0.apk)
+
 - **Zakończony trening:** jedna główna akcja „Gotowe”, szybka notatka oraz opcjonalna ocena samopoczucia 1–5. Zapis w istniejących notatkach sesji, zachowywany w eksporcie JSON i historii.
 - **Historia:** nagłówek sesji z datą, czasem i objętością oraz menu akcji w prawym rogu. Ćwiczenia można zwijać/rozwijać, a edycja ma krótsze, spójne przyciski.
 - **Progres:** wybór trendu ostatnich sesji według ciężaru, sumy powtórzeń albo objętości roboczej; sugestie zwiększenia obciążenia wymagają odpowiedniej liczby powtórzeń, stałego ciężaru i RIR.
