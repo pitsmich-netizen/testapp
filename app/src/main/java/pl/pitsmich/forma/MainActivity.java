@@ -240,7 +240,7 @@ public final class MainActivity extends Activity {
         TextView logo=text("FORMA",20,TEAL,true);
         logo.setLetterSpacing(0.10f);
         brand.addView(logo,new LinearLayout.LayoutParams(0,dp(39),1));
-        TextView version=text("0.8.2",12,MUTED,true);
+        TextView version=text("0.8.3",12,MUTED,true);
         version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         brand.addView(version,new LinearLayout.LayoutParams(dp(54),dp(44)));
         TextView gear=text(page.equals("settings")?"‹":"⚙",26,TEAL,true);
@@ -1137,14 +1137,14 @@ public final class MainActivity extends Activity {
                 desc.setVisibility(show?View.VISIBLE:View.GONE);
                 help.setText(show?"▴  Ukryj wskazówki":"ⓘ  Wskazówki techniczne");
             });
-            space(body,2);
+            space(body,0);
             LinearLayout labels=row();
-            String[] headings={"SERIA","CIĘŻAR","POWT.","STATUS"};
+            String[] headings={"","KG","POWT.",""};
             float[] widths={1.0f,1.6f,1.5f,1.6f};
             for(int label=0;label<4;label++){
                 TextView heading=text(headings[label],10,MUTED,true);
                 heading.setGravity(Gravity.CENTER);
-                labels.addView(heading,new LinearLayout.LayoutParams(0,dp(25),widths[label]));
+                labels.addView(heading,new LinearLayout.LayoutParams(0,dp(20),widths[label]));
             }
             add(body,labels);
 
@@ -1259,10 +1259,10 @@ public final class MainActivity extends Activity {
         boolean editing=explicit || (editingSetIndex<0 && current==null && index==firstPending);
 
         LinearLayout block=col();
-        block.setPadding(dp(7),dp(editing?7:3),dp(7),dp(editing?7:3));
+        block.setPadding(dp(5),dp(editing?6:3),dp(5),dp(editing?7:3));
         block.setBackground(rounded(editing?CARD2:CARD,9,editing?BORDER:0));
         LinearLayout.LayoutParams layout=new LinearLayout.LayoutParams(-1,-2);
-        layout.bottomMargin=dp(4);
+        layout.bottomMargin=dp(3);
         target.addView(block,layout);
 
         if(!editing && current==null) {
@@ -1315,93 +1315,94 @@ public final class MainActivity extends Activity {
 
         LinearLayout title=row();
         TextView titleText=text("SERIA "+(index+1),12,MUTED,true);
-        title.addView(titleText,new LinearLayout.LayoutParams(0,dp(24),1));
+        title.addView(titleText,new LinearLayout.LayoutParams(0,dp(20),1));
         TextView hint=text(previous==null?"Nowa seria":
             "Poprz.: "+weight(previous.weight)+" kg × "+previous.reps,11,MUTED,false);
         title.addView(hint);
         add(block,title);
 
-        // Two balanced steppers: buttons flank the editable weight/rep fields.
-        LinearLayout steppers=row();
+        // One horizontal control strip. Flexible stepper groups share remaining width
+        // after the fixed-size save and RIR actions; this avoids row overflow.
+        LinearLayout controls=row();
+        controls.setGravity(Gravity.CENTER_VERTICAL);
+        final double increment=db.weightStep(ex.id);
+
         LinearLayout weightBox=row();
         TextView minus=actionLabel("−",AMBER);
-        minus.setTextSize(22);minus.setGravity(Gravity.CENTER);
-        minus.setContentDescription("Zmniejsz ciężar o "+weight(db.weightStep(ex.id))+" kg");
-        minus.setBackground(rounded(Color.rgb(35,32,27),8,Color.rgb(65,57,47)));
-        weightBox.addView(minus,new LinearLayout.LayoutParams(dp(37),dp(43)));
+        minus.setTextSize(20);minus.setGravity(Gravity.CENTER);
+        minus.setContentDescription("Zmniejsz ciężar o "+weight(increment)+" kg");
+        minus.setBackground(rounded(Color.rgb(35,32,27),7,Color.rgb(65,57,47)));
+        weightBox.addView(minus,new LinearLayout.LayoutParams(dp(29),dp(42)));
         EditText kg=field(current!=null?weight(current.weight):
             previous!=null?weight(previous.weight):"","kg",true);
-        kg.setTextSize(17);kg.setPadding(dp(1),dp(3),dp(1),dp(3));
-        kg.setContentDescription("Ciężar w kilogramach, seria "+(index+1));
-        weightBox.addView(kg,new LinearLayout.LayoutParams(0,dp(43),1));
+        kg.setTextSize(16);kg.setPadding(dp(1),dp(2),dp(1),dp(2));
+        kg.setSingleLine(true);
+        kg.setContentDescription("Ciężar w kg, seria "+(index+1));
+        weightBox.addView(kg,new LinearLayout.LayoutParams(0,dp(42),1));
         TextView plus=actionLabel("+",GREEN);
-        plus.setTextSize(22);plus.setGravity(Gravity.CENTER);
-        plus.setContentDescription("Zwiększ ciężar o "+weight(db.weightStep(ex.id))+" kg");
-        plus.setBackground(rounded(Color.rgb(29,39,33),8,Color.rgb(48,71,58)));
-        weightBox.addView(plus,new LinearLayout.LayoutParams(dp(37),dp(43)));
-        LinearLayout.LayoutParams weightLp=new LinearLayout.LayoutParams(0,dp(43),1.1f);
-        weightLp.rightMargin=dp(9);
-        steppers.addView(weightBox,weightLp);
-        final double increment=db.weightStep(ex.id);
+        plus.setTextSize(20);plus.setGravity(Gravity.CENTER);
+        plus.setContentDescription("Zwiększ ciężar o "+weight(increment)+" kg");
+        plus.setBackground(rounded(Color.rgb(29,39,33),7,Color.rgb(48,71,58)));
+        weightBox.addView(plus,new LinearLayout.LayoutParams(dp(29),dp(42)));
+        LinearLayout.LayoutParams weightLp=new LinearLayout.LayoutParams(0,dp(42),1.12f);
+        weightLp.rightMargin=dp(5);
+        controls.addView(weightBox,weightLp);
         minus.setOnClickListener(v->changeWeight(kg,-increment));
         plus.setOnClickListener(v->changeWeight(kg,increment));
 
         LinearLayout repsBox=row();
         TextView repMinus=actionLabel("−",MUTED);
-        repMinus.setTextSize(22);repMinus.setGravity(Gravity.CENTER);
+        repMinus.setTextSize(20);repMinus.setGravity(Gravity.CENTER);
         repMinus.setContentDescription("Odejmij jedno powtórzenie");
-        repMinus.setBackground(rounded(CARD,8,BORDER));
-        repsBox.addView(repMinus,new LinearLayout.LayoutParams(dp(37),dp(43)));
+        repMinus.setBackground(rounded(CARD,7,BORDER));
+        repsBox.addView(repMinus,new LinearLayout.LayoutParams(dp(27),dp(42)));
         EditText reps=field(current!=null?Integer.toString(current.reps):
             previous!=null?Integer.toString(previous.reps):"","powt.",false);
-        reps.setTextSize(17);reps.setPadding(dp(1),dp(3),dp(1),dp(3));
+        reps.setTextSize(16);reps.setPadding(dp(1),dp(2),dp(1),dp(2));
+        reps.setSingleLine(true);
         reps.setContentDescription("Powtórzenia, seria "+(index+1));
-        repsBox.addView(reps,new LinearLayout.LayoutParams(0,dp(43),1));
+        repsBox.addView(reps,new LinearLayout.LayoutParams(0,dp(42),1));
         TextView repPlus=actionLabel("+",MUTED);
-        repPlus.setTextSize(22);repPlus.setGravity(Gravity.CENTER);
+        repPlus.setTextSize(20);repPlus.setGravity(Gravity.CENTER);
         repPlus.setContentDescription("Dodaj jedno powtórzenie");
-        repPlus.setBackground(rounded(CARD,8,BORDER));
-        repsBox.addView(repPlus,new LinearLayout.LayoutParams(dp(37),dp(43)));
-        steppers.addView(repsBox,new LinearLayout.LayoutParams(0,dp(43),1));
+        repPlus.setBackground(rounded(CARD,7,BORDER));
+        repsBox.addView(repPlus,new LinearLayout.LayoutParams(dp(27),dp(42)));
+        LinearLayout.LayoutParams repsLp=new LinearLayout.LayoutParams(0,dp(42),0.95f);
+        repsLp.rightMargin=dp(5);
+        controls.addView(repsBox,repsLp);
         repMinus.setOnClickListener(v->changeReps(reps,-1));
         repPlus.setOnClickListener(v->changeReps(reps,1));
-        add(block,steppers);
 
-        LinearLayout actions=row();
-        TextView loadLabel=text("KG",10,MUTED,true);
-        loadLabel.setGravity(Gravity.CENTER);
-        actions.addView(loadLabel,new LinearLayout.LayoutParams(0,dp(36),1));
-        TextView repLabel=text("POWTÓRZENIA",10,MUTED,true);
-        repLabel.setGravity(Gravity.CENTER);
-        actions.addView(repLabel,new LinearLayout.LayoutParams(0,dp(36),1));
         Button save=button("✓",true);
-        save.setTextSize(23);
+        save.setTextSize(20);
+        save.setPadding(0,0,0,0);
         save.setContentDescription(current==null?"Zapisz serię":"Zapisz zmianę serii");
-        LinearLayout.LayoutParams saveLp=new LinearLayout.LayoutParams(dp(68),dp(41));
-        saveLp.rightMargin=dp(7);
-        actions.addView(save,saveLp);
+        LinearLayout.LayoutParams saveLp=new LinearLayout.LayoutParams(dp(43),dp(42));
+        saveLp.rightMargin=dp(4);
+        controls.addView(save,saveLp);
+
         final int[] rirDraft={current==null?-1:current.rir};
-        TextView rir=actionLabel(rirDraft[0]<0?"RIR":"RIR "+rirDraft[0],MUTED);
+        TextView rir=actionLabel(rirDraft[0]<0?"RIR":"R"+rirDraft[0],MUTED);
         rir.setTextSize(12);rir.setGravity(Gravity.CENTER);
-        rir.setBackground(rounded(CARD2,8,BORDER));
-        rir.setContentDescription("Ustaw RIR serii. Dotknij, aby wybrać; przytrzymaj, aby edytować notatkę.");
-        actions.addView(rir,new LinearLayout.LayoutParams(dp(69),dp(41)));
+        rir.setBackground(rounded(CARD2,7,BORDER));
+        rir.setContentDescription("Ustaw RIR serii. Przytrzymaj, aby edytować notatkę.");
+        controls.addView(rir,new LinearLayout.LayoutParams(dp(44),dp(42)));
         rir.setOnClickListener(v->{
             final String[] choices={"Bez RIR","RIR 0","RIR 1","RIR 2","RIR 3","RIR 4"};
             new AlertDialog.Builder(this).setTitle("Zapas powtórzeń")
                 .setSingleChoiceItems(choices,rirDraft[0]+1,(d,selected)->{
                     rirDraft[0]=selected-1;
-                    rir.setText(rirDraft[0]<0?"RIR":"RIR "+rirDraft[0]);
+                    rir.setText(rirDraft[0]<0?"RIR":"R"+rirDraft[0]);
                     d.dismiss();
                 }).setNegativeButton("Anuluj",null).show();
         });
         rir.setOnLongClickListener(v->{
             if(db.get(openSession,ex.id,index)==null)
-                Toast.makeText(this,"Zapisz serię, aby dodać notatkę",Toast.LENGTH_SHORT).show();
+                Toast.makeText(this,"Najpierw zapisz serię, aby dodać notatkę",Toast.LENGTH_SHORT).show();
             else editSetMetadata(openSession,ex,index,()->render());
             return true;
         });
-        add(block,actions);
+        add(block,controls);
 
         save.setOnClickListener(v->{
             try {
