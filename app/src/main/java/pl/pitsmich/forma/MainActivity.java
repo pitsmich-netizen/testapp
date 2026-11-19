@@ -85,6 +85,7 @@ public final class MainActivity extends Activity {
     private int calendarMonth=Calendar.getInstance().get(Calendar.MONTH);
     private int calendarYear=Calendar.getInstance().get(Calendar.YEAR);
     private String settingsSection="";
+    private int weeklyOffset=0;
     private ProgressBar restProgress;
 
     private WorkoutDb db;
@@ -151,6 +152,7 @@ public final class MainActivity extends Activity {
             calendarMonth=state.getInt("calendarMonth",calendarMonth);
             calendarYear=state.getInt("calendarYear",calendarYear);
             settingsSection=state.getString("settingsSection","");
+            weeklyOffset=state.getInt("weeklyOffset",0);
         }
         render();
         handler.post(ticker);
@@ -170,6 +172,7 @@ public final class MainActivity extends Activity {
         state.putInt("calendarMonth",calendarMonth);
         state.putInt("calendarYear",calendarYear);
         state.putString("settingsSection",settingsSection);
+        state.putInt("weeklyOffset",weeklyOffset);
         super.onSaveInstanceState(state);
     }
     @Override protected void onResume() {
@@ -184,6 +187,14 @@ public final class MainActivity extends Activity {
         super.onDestroy();
     }
     private int dp(float size) { return (int)(size*getResources().getDisplayMetrics().density+0.5f); }
+    private boolean compactUi(){
+        return getSharedPreferences("forma_settings",0).getBoolean("compact_ui",true);
+    }
+    private int p(int compact,int standard){return dp(compactUi()?compact:standard);}
+    private int typeScale(int size){
+        int adjustment=getSharedPreferences("forma_settings",0).getInt("font_scale",0);
+        return Math.max(10,size+adjustment);
+    }
 
     private GradientDrawable rounded(int bg,int radius,int stroke) {
         GradientDrawable d=new GradientDrawable();
@@ -196,7 +207,7 @@ public final class MainActivity extends Activity {
     private LinearLayout row() { LinearLayout l=new LinearLayout(this); l.setOrientation(LinearLayout.HORIZONTAL); l.setGravity(Gravity.CENTER_VERTICAL); return l; }
     private TextView text(String s,int sp,int color,boolean strong) {
         TextView t=new TextView(this);
-        t.setText(s); t.setTextSize(sp); t.setTextColor(color);
+        t.setText(s); t.setTextSize(typeScale(sp)); t.setTextColor(color);
         t.setGravity(Gravity.CENTER_VERTICAL);
         if(strong) t.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
         return t;
@@ -205,10 +216,10 @@ public final class MainActivity extends Activity {
         View v=new View(this); target.addView(v,new LinearLayout.LayoutParams(1,dp(height)));
     }
     private LinearLayout card(LinearLayout target) {
-        LinearLayout c=col(); c.setPadding(dp(14),dp(13),dp(14),dp(13));
+        LinearLayout c=col(); c.setPadding(p(13,18),p(11,17),p(13,18),p(11,17));
         c.setBackground(rounded(CARD,15,BORDER));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
-        lp.bottomMargin=dp(9);
+        lp.bottomMargin=p(8,13);
         target.addView(c,lp);
         return c;
     }
@@ -304,9 +315,10 @@ public final class MainActivity extends Activity {
         else if(page.equals("planEditor")) showPlanEditor();
         else if(page.equals("calendar")) showCalendar();
         else if(page.equals("summary")) showSessionSummary();
+        else if(page.equals("weekly")) showWeeklyAnalysis();
         else showSettings();
 
-        if(!page.equals("session") && !page.equals("detail") && !page.equals("edit") && !page.equals("exerciseProgress") && !page.equals("planEditor") && !page.equals("summary")) showNavigation();
+        if(!page.equals("session") && !page.equals("detail") && !page.equals("edit") && !page.equals("exerciseProgress") && !page.equals("planEditor") && !page.equals("summary") && !page.equals("weekly")) showNavigation();
     }
 
     private void showNavigation() {
@@ -874,9 +886,40 @@ public final class MainActivity extends Activity {
             space(theme,6);
             add(theme,text("True Black",17,TEXT,true));
             space(theme,5);
-            add(theme,text("Czarne tło, spokojne akcenty i kompaktowy układ aktywnej serii.",13,MUTED,false));
+            add(theme,text("Czarne tło i spokojne akcenty. Ustaw wielkość całego interfejsu.",13,MUTED,false));
+            space(theme,12);
+            addSettingsToggle(theme,"Kompaktowy układ","compact_ui",true,
+                "Mniejsze karty, bez utraty czytelności");
+            space(theme,13);
+            smallLabel(theme,"WIELKOŚĆ TEKSTU");
+            space(theme,8);
+            int font=getSharedPreferences("forma_settings",0).getInt("font_scale",0);
+            addAppearanceChoice(theme,"Mniejszy","Więcej informacji na ekranie","font_scale",-1,font==-1);
+            space(theme,6);
+            addAppearanceChoice(theme,"Standardowy","Domyślny rozmiar tekstu","font_scale",0,font==0);
+            space(theme,6);
+            addAppearanceChoice(theme,"Większy","Czytelniejszy tekst","font_scale",2,font==2);
 
         }
+    }
+
+    private void addAppearanceChoice(LinearLayout target,String title,String description,
+                                     String key,int value,boolean selected) {
+        LinearLayout line=row();
+        line.setPadding(p(9,12),p(9,13),p(9,12),p(9,13));
+        line.setBackground(rounded(selected?Color.rgb(25,42,36):CARD2,10,selected?TEAL:BORDER));
+        LinearLayout left=col();
+        line.addView(left,new LinearLayout.LayoutParams(0,-2,1));
+        add(left,text(title,15,TEXT,true));
+        add(left,text(description,12,MUTED,false));
+        TextView check=text(selected?"✓":"○",21,selected?TEAL:MUTED,true);
+        check.setGravity(Gravity.CENTER);
+        line.addView(check,new LinearLayout.LayoutParams(dp(34),dp(42)));
+        line.setOnClickListener(v->{
+            getSharedPreferences("forma_settings",0).edit().putInt(key,value).apply();
+            render();
+        });
+        add(target,line);
     }
 
     private void settingsEntry(String symbol,String title,String description,String section) {
