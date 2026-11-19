@@ -710,6 +710,24 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             return new Entry(exercise,index,c.getDouble(0),c.getInt(1));
         }
     }
+    /** Conservative per-set guidance. Never automatically changes the saved load. */
+    public String loadGuidance(Plan.Exercise exercise,int workout,int setIndex) {
+        Entry previous=previousWorkout(workout,exercise.id,setIndex);
+        if(previous==null)return "Pierwszy wynik — dobierz ciężar do zakresu powtórzeń i docelowego RIR.";
+        String load=String.format(Locale.forLanguageTag("pl-PL"),"%.2f",previous.weight).replaceAll("0+$","").replaceAll("\\.$","");
+        if(previous.rir<0)return "Ostatnio: "+load+" kg × "+previous.reps+
+            ". Bez zapisanego RIR nie proponuję automatycznego zwiększania.";
+        if(exercise.rirMin>=0 && previous.rir<exercise.rirMin)
+            return "Ostatnio RIR "+previous.rir+" — najpierw zadbaj o technikę i zapas powtórzeń.";
+        if(previous.reps<exercise.minReps)
+            return "Ostatnio poniżej zakresu ("+previous.reps+" powt.). Rozważ mniejszy ciężar.";
+        if(previous.reps<exercise.maxReps)
+            return "Utrzymaj około "+load+" kg i spróbuj zwiększyć liczbę powtórzeń.";
+        if(progressionTip(exercise)!=null && !progressionTip(exercise).startsWith("Osiągnięto"))
+            return "Gotowość do progresji: rozważ +"+weightStep(exercise.id)+" kg, zachowując RIR i technikę.";
+        return "Górny zakres osiągnięty; utrzymaj ciężar, aż wszystkie serie spełnią założenia RIR.";
+    }
+
     /** Only suggest progression after ALL planned working sets hit the rep ceiling at one weight. */
     public String progressionTip(Plan.Exercise exercise) {
         // Suggest the next small increment only when the entire planned working set
