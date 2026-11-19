@@ -2109,7 +2109,9 @@ public final class MainActivity extends Activity {
 
     private void changeWorkoutNote(WorkoutDb.Session session) {
         EditText note=new EditText(this);
-        note.setText(session.notes==null?"":session.notes);
+        String original=session.notes==null?"":session.notes;
+        int feeling=sessionFeeling(original);
+        note.setText(original.replaceAll("(?m)^Samopoczucie: [1-5]/5\\\\s*\\\\n?","").trim());
         note.setTextSize(16);
         note.setTextColor(TEXT);
         note.setHint("Notatka do treningu");
@@ -2126,7 +2128,9 @@ public final class MainActivity extends Activity {
             .setView(wrap)
             .setNegativeButton("Anuluj",null)
             .setPositiveButton("Zapisz",(d,w)->{
-                db.updateCompleted(session.id,session.startedAt,note.getText().toString());
+                String userNote=note.getText().toString().trim();
+                if(feeling>0)userNote+=(userNote.isEmpty()?"":"\\n")+"Samopoczucie: "+feeling+"/5";
+                db.updateCompleted(session.id,session.startedAt,userNote);
                 render();
             }).show();
     }
@@ -2176,8 +2180,14 @@ public final class MainActivity extends Activity {
         TextView back=text("‹  Historia",15,TEAL,true);
         add(content,back);
         back.setOnClickListener(v->completeEditing());
-        space(content,11);
-        headline(content,"Edytuj • "+db.sessionWorkoutLabel(session));
+        space(content,5);
+        LinearLayout editHeader=row();
+        TextView editTitle=text("Edycja · "+db.sessionWorkoutLabel(session),21,TEXT,true);
+        editHeader.addView(editTitle,new LinearLayout.LayoutParams(0,dp(43),1));
+        TextView menu=text("⋮",25,TEAL,true);menu.setGravity(Gravity.CENTER);
+        editHeader.addView(menu,new LinearLayout.LayoutParams(dp(45),dp(43)));
+        menu.setOnClickListener(v->showCompletedActions(session));
+        add(content,editHeader);
         add(content,text("Dotknij serii, aby poprawić ciężar i powtórzenia. Zmiany zapisują się lokalnie.",12,MUTED,false));
         space(content,9);
         LinearLayout dateCard=card(content);
@@ -2186,13 +2196,16 @@ public final class MainActivity extends Activity {
         add(dateCard,text(new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL"))
             .format(new Date(session.startedAt)),18,TEXT,true));
         space(dateCard,7);
-        Button changeDate=button("Zmień datę treningu",false);
-        add(dateCard,changeDate);
+        LinearLayout sessionActions=row();
+        TextView changeDate=actionLabel("◷  Zmień datę",TEAL);
+        changeDate.setGravity(Gravity.CENTER);
+        sessionActions.addView(changeDate,new LinearLayout.LayoutParams(0,dp(40),1));
         changeDate.setOnClickListener(v->changeWorkoutDate(session));
-        space(dateCard,5);
-        Button note=button(session.notes==null||session.notes.isEmpty()?"Dodaj notatkę":"Edytuj notatkę",false);
-        add(dateCard,note);
+        TextView note=actionLabel("✎  Notatka",SKY);
+        note.setGravity(Gravity.CENTER);
+        sessionActions.addView(note,new LinearLayout.LayoutParams(0,dp(40),1));
         note.setOnClickListener(v->changeWorkoutNote(session));
+        add(dateCard,sessionActions);
 
         java.util.ArrayList<Plan.Exercise> historyExercises=new java.util.ArrayList<>(db.workoutPlan(session.workout));
         java.util.HashSet<String> visible=new java.util.HashSet<>();
@@ -2252,14 +2265,11 @@ public final class MainActivity extends Activity {
                 editSavedSet(session,ex,next,null);
             });
         }
-        Button done=button("Zapisz zmiany i wróć",true);
+        Button done=button("Gotowe",true);
         add(content,done);
         done.setOnClickListener(v->completeEditing());
-        space(content,9);
-        Button remove=button("Usuń cały trening",false);
-        remove.setTextColor(RED);
-        add(content,remove);
-        remove.setOnClickListener(v->confirmDeleteCompleted(session));
+        space(content,3);
+        add(content,text("Zmiany zapisywane są od razu. Usuwanie całego treningu znajdziesz w menu ⋮.",12,MUTED,false));
     }
 
     private void changeCalendarMonth(int delta) {
@@ -2719,6 +2729,13 @@ public final class MainActivity extends Activity {
         space(hero,4);
         add(hero,text(new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL")).format(new Date(newest.date)),12,MUTED,false));
 
+        String suggestion=db.progressionTip(ex);
+        if(suggestion!=null) {
+            LinearLayout advice=card(content);
+            smallLabel(advice,"PROPOZYCJA PROGRESJI");
+            space(advice,5);
+            add(advice,text(suggestion,13,TEXT,false));
+        }
         int count=Math.min(8,list.size());
         if(count>=2) {
             LinearLayout chart=card(content);
