@@ -1,0 +1,1 @@
+Release FORMA v0.8.2, versionCode 11. Same package and signing key as 0.8.1. UI: centered workout title, no session gear, larger weekday, compact two steppers for kg and repetitions, checkmark save and inline RIR selection, haptic feedback, automatic collapse, undo and FBW 1.0 maintained. No SQLite schema migration. Publish signed APK and latest.json for OTA.
