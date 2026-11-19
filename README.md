@@ -1,5 +1,15 @@
 # FORMA — dziennik treningowy na Androida
 
+## FORMA 0.9.0 — spójny wygląd i analiza progresu
+
+- **Zakończony trening:** jedna główna akcja „Gotowe”, szybka notatka oraz opcjonalna ocena samopoczucia 1–5. Zapis w istniejących notatkach sesji, zachowywany w eksporcie JSON i historii.
+- **Historia:** nagłówek sesji z datą, czasem i objętością oraz menu akcji w prawym rogu. Ćwiczenia można zwijać/rozwijać, a edycja ma krótsze, spójne przyciski.
+- **Progres:** wybór trendu ostatnich sesji według ciężaru, sumy powtórzeń albo objętości roboczej; sugestie zwiększenia obciążenia wymagają odpowiedniej liczby powtórzeń, stałego ciężaru i RIR.
+- **Tygodniowe statystyki:** liczba sesji, seria robocza, objętość, poprzedni tydzień i podział na główne partie. Ćwiczenia wielostawowe liczone tylko do jednej kategorii, a niewskazane własne ćwiczenia trafiają do „Inne”.
+- **Wygląd:** ustawienie układu kompaktowego/standardowego oraz wielkości tekstu.
+- **Porównania:** nie porównujemy na siłę FBW A z dawnym GÓRA A; porównujemy tylko te same etykiety planu i podobną listę ćwiczeń.
+- **Bez migracji SQLite:** plan FBW 1.0, zapisane serie, chmura, eksport JSON i podpisane OTA pozostają zachowane.
+
 ## FORMA 0.8.5 — szybkie OTA i spójniejsze ekrany szczegółowe
 
 - **Aktualizacja:** ikona ↻ w prawym górnym rogu ustawień sprawdza aktualizacje; dotknięcie numeru wersji otwiera zaawansowane OTA. Usunięto osobną kategorię menu aktualizacji.
