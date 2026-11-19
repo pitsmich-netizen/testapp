@@ -7,6 +7,8 @@
 - **Numer wersji:** nagłówek i ustawienia czytają numer z konfiguracji Androida (bez starych napisów wpisanych na sztywno).
 - **Kalendarz:** niższe wiersze tygodnia, rozróżnienie wykonanych i zaplanowanych treningów według aktualnego harmonogramu. Kliknięcie planowanego terminu pozwala rozpocząć trening **teraz**, bez zmiany daty w historii.
 - **Dane:** FBW 1.0, historia, backup JSON i schemat SQLite 9 niezmienione; podpis i mechanizm OTA zachowane.
+- [Pobierz podpisane APK FORMA 0.8.4](https://github.com/pitsmich-netizen/testapp/releases/download/v0.8.4/forma-v0.8.4.apk).
+
 
 ## FORMA 0.8.3 — kompaktowy ekran aktywnej serii
 
