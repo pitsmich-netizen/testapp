@@ -2111,7 +2111,7 @@ public final class MainActivity extends Activity {
         EditText note=new EditText(this);
         String original=session.notes==null?"":session.notes;
         int feeling=sessionFeeling(original);
-        note.setText(original.replaceAll("(?m)^Samopoczucie: [1-5]/5\\\\s*\\\\n?","").trim());
+        note.setText(original.replaceAll("(?m)^Samopoczucie: [1-5]/5\\s*\\n?","").trim());
         note.setTextSize(16);
         note.setTextColor(TEXT);
         note.setHint("Notatka do treningu");
