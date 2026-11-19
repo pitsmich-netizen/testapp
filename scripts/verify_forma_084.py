@@ -6,7 +6,7 @@ main=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text()
 gradle=(root/"app/build.gradle").read_text()
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text()
 timer=(root/"app/src/main/java/pl/pitsmich/forma/RestTimer.java").read_text()
-assert "versionCode 13" in gradle and "versionName '0.8.4'" in gradle
+assert "versionCode 14" in gradle and "versionName '0.8.5'" in gradle
 assert "buildFeatures { buildConfig true }" in gradle
 assert "BuildConfig.VERSION_NAME" in main
 assert 'text("FORMA 0.8.1"' not in main
@@ -20,7 +20,7 @@ assert 'settingsEntry("♙","Konto i synchronizacja"' in main
 assert 'settingsEntry("◷","Trening i timer"' in main
 assert 'settingsEntry("◐","Wygląd aplikacji"' in main
 assert 'settingsEntry("▣","Kopie zapasowe"' in main
-assert 'settingsEntry("⌁","Aplikacja i aktualizacje"' in main
+assert 'if(page.equals("settings")) {' in main
 assert 'new Switch(this)' in main
 assert 'getBoolean(key,defaultValue)' in main
 assert "getBoolean(\"auto_next\",true)" in main

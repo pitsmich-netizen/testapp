@@ -255,6 +255,17 @@ public final class MainActivity extends Activity {
         TextView version=text(BuildConfig.VERSION_NAME,12,MUTED,true);
         version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         brand.addView(version,new LinearLayout.LayoutParams(dp(54),dp(44)));
+        if(page.equals("settings")) {
+            version.setContentDescription("Wersja "+BuildConfig.VERSION_NAME+". Zaawansowane ustawienia OTA");
+            version.setOnClickListener(v->updater.configure());
+        }
+        if(page.equals("settings")) {
+            TextView update=text("↻",29,TEAL,true);
+            update.setGravity(Gravity.CENTER);
+            update.setContentDescription("Sprawdź aktualizacje OTA");
+            update.setOnClickListener(v->updater.check(true));
+            brand.addView(update,new LinearLayout.LayoutParams(dp(44),dp(44)));
+        }
         TextView gear=text(page.equals("settings")?"‹":"⚙",26,TEAL,true);
         gear.setGravity(Gravity.CENTER);
         gear.setContentDescription(page.equals("settings")?"Wróć do planu":"Ustawienia aplikacji");
@@ -751,14 +762,13 @@ public final class MainActivity extends Activity {
         space(content,6);
         if(settingsSection.isEmpty()) {
             headline(content,"Ustawienia");
-            add(content,text("Wybierz kategorię",13,MUTED,false));
+            add(content,text("Aktualizacje ↻ w prawym górnym rogu; dotknij wersji, aby otworzyć zaawansowane OTA.",12,MUTED,false));
             space(content,13);
             settingsEntry("♙","Konto i synchronizacja","Supabase, logowanie i stan chmury","cloud");
             settingsEntry("◷","Trening i timer","Przerwy, dźwięki i automatyczne przejście","timer");
             settingsEntry("◐","Wygląd aplikacji","Preferencje wyświetlania","appearance");
             settingsEntry("▣","Kopie zapasowe","Eksport CSV, JSON i przywracanie","backup");
-            settingsEntry("⌁","Aplikacja i aktualizacje","Wersja i aktualizacje OTA","updates");
-            return;
+             return;
         }
         TextView back=actionLabel("‹  Wszystkie ustawienia",TEAL);
         back.setMinHeight(dp(40));
@@ -865,22 +875,7 @@ public final class MainActivity extends Activity {
             add(theme,text("True Black",17,TEXT,true));
             space(theme,5);
             add(theme,text("Czarne tło, spokojne akcenty i kompaktowy układ aktywnej serii.",13,MUTED,false));
-        } else if(settingsSection.equals("updates")) {
-            headline(content,"Aplikacja i aktualizacje");
-        LinearLayout ota=card(content);
-        smallLabel(ota,"AKTUALIZACJE APLIKACJI");
-        space(ota,7);
-        add(ota,text("FORMA "+BuildConfig.VERSION_NAME,20,TEXT,true));
-        space(ota,4);
-        add(ota,text("Sprawdzanie OTA odbywa się automatycznie przy uruchomieniu.",14,MUTED,false));
-        space(ota,12);
-        Button check=button("Sprawdź aktualizacje",true);
-        add(ota,check);
-        check.setOnClickListener(v->updater.check(true));
-        space(ota,6);
-        Button config=button("Zaawansowane ustawienia OTA",false);
-        add(ota,config);
-        config.setOnClickListener(v->updater.configure());
+
         }
     }
 
@@ -1833,25 +1828,25 @@ public final class MainActivity extends Activity {
     }
 
     private void showDetail() {
-        TextView back=text("‹  Wróć do historii",15,TEAL,true);
+        TextView back=text("‹  Historia",13,TEAL,true);
         add(content,back);
         back.setOnClickListener(v->{page="history";render();});
-        space(content,13);
+        space(content,7);
         headline(content,"Zapisane serie");
         WorkoutDb.Session selected=db.byId(detailSession);
         if(selected==null){page="history";render();return;}
         LinearLayout actions=row();
         Button edit=button("Edytuj trening",false);
         edit.setTextColor(SKY);
-        actions.addView(edit,new LinearLayout.LayoutParams(0,dp(53),1));
+        actions.addView(edit,new LinearLayout.LayoutParams(0,dp(42),1));
         edit.setOnClickListener(v->{page="edit";render();});
         Button del=button("Usuń",false);
         del.setTextColor(RED);
-        LinearLayout.LayoutParams dlp=new LinearLayout.LayoutParams(dp(91),dp(53));
+        LinearLayout.LayoutParams dlp=new LinearLayout.LayoutParams(dp(78),dp(42));
         dlp.leftMargin=dp(8);actions.addView(del,dlp);
         del.setOnClickListener(v->confirmDeleteCompleted(selected));
         add(content,actions);
-        space(content,13);
+        space(content,9);
         String notes=db.sessionNotes(detailSession);
         if(notes!=null && notes.startsWith("Import z notatek 18.11.2026")) {
             String auditState=db.auditResolution(selected.id);
@@ -1883,15 +1878,15 @@ public final class MainActivity extends Activity {
             if(!previous.equals(entry.exerciseId)) {
                 Plan.Exercise ex=db.exerciseById(entry.exerciseId);
                 current=card(content);
-                add(current,text(ex==null?entry.exerciseId:ex.name,18,TEXT,true));
-                space(current,10);
+                add(current,text(ex==null?entry.exerciseId:ex.name,16,TEXT,true));
+                space(current,5);
                 previous=entry.exerciseId;
             }
             if(current!=null) {
                 LinearLayout row=row();
-                TextView left=text("Seria "+(entry.setIndex+1),14,MUTED,false);
-                row.addView(left,new LinearLayout.LayoutParams(0,dp(35),1));
-                TextView right=text(weight(entry.weight)+" kg × "+entry.reps,16,entry.warmup?AMBER:TEAL,true);
+                TextView left=text(String.format(Locale.ROOT,"%02d",entry.setIndex+1),13,MUTED,true);
+                row.addView(left,new LinearLayout.LayoutParams(0,dp(30),1));
+                TextView right=text(weight(entry.weight)+" kg  ×  "+entry.reps,15,entry.warmup?AMBER:TEAL,true);
                 row.addView(right);
                 add(current,row);
                 if(entry.warmup||entry.rir>=0||!entry.note.isEmpty()) {
@@ -1927,14 +1922,34 @@ public final class MainActivity extends Activity {
     }
 
     private void showCompletedActions(WorkoutDb.Session session) {
-        new AlertDialog.Builder(this)
-            .setTitle(db.sessionWorkoutLabel(session))
-            .setItems(new String[]{"Zobacz serie","Edytuj trening","Usuń trening"},(d,index)->{
-                if(index==0){detailSession=session.id;page="detail";render();}
-                else if(index==1){detailSession=session.id;page="edit";render();}
-                else confirmDeleteCompleted(session);
-            })
-            .setNegativeButton("Anuluj",null).show();
+        LinearLayout sheet=col();
+        sheet.setPadding(dp(15),dp(14),dp(15),dp(14));
+        add(sheet,text(db.sessionWorkoutLabel(session),19,TEXT,true));
+        space(sheet,4);
+        add(sheet,text(date(session.startedAt),12,MUTED,false));
+        space(sheet,12);
+        AlertDialog dialog=new AlertDialog.Builder(this).setView(sheet).create();
+        addSessionMenuItem(sheet,"≡","Zobacz serie",
+            "Szczegóły zapisanego treningu",TEAL,()->{
+                dialog.dismiss();detailSession=session.id;page="detail";render();
+            });
+        space(sheet,7);
+        addSessionMenuItem(sheet,"✎","Edytuj trening",
+            "Ciężar, powtórzenia, RIR i notatki",SKY,()->{
+                dialog.dismiss();detailSession=session.id;page="edit";render();
+            });
+        space(sheet,11);
+        addSessionMenuItem(sheet,"×","Usuń trening",
+            "Wymaga potwierdzenia",RED,()->{
+                dialog.dismiss();confirmDeleteCompleted(session);
+            });
+        dialog.show();
+        Window window=dialog.getWindow();
+        if(window!=null) {
+            window.setBackgroundDrawable(rounded(CARD,15,BORDER));
+            window.setLayout(getResources().getDisplayMetrics().widthPixels-dp(44),
+                WindowManager.LayoutParams.WRAP_CONTENT);
+        }
     }
 
     private void confirmDeleteCompleted(WorkoutDb.Session session) {
@@ -2025,7 +2040,9 @@ public final class MainActivity extends Activity {
                 int repeats=Integer.parseInt(reps.getText().toString().trim());
                 if(!Double.isFinite(value)||value<0||value>2000||repeats<1||repeats>1000)
                     throw new NumberFormatException();
-                db.save(session.id,ex.id,index,value,repeats);
+                if(previous==null)db.save(session.id,ex.id,index,value,repeats);
+                else db.save(session.id,ex.id,index,value,repeats,previous.rir,
+                    previous.note,previous.warmup);
                 dialog.dismiss();
                 render();
             } catch(Exception e) {
@@ -2044,18 +2061,18 @@ public final class MainActivity extends Activity {
         back.setOnClickListener(v->completeEditing());
         space(content,11);
         headline(content,"Edytuj • "+db.sessionWorkoutLabel(session));
-        add(content,text("Zmieniaj serie, ciężary, datę i notatkę. Zmiany zapisują się lokalnie.",14,MUTED,false));
-        space(content,15);
+        add(content,text("Dotknij serii, aby poprawić ciężar i powtórzenia. Zmiany zapisują się lokalnie.",12,MUTED,false));
+        space(content,9);
         LinearLayout dateCard=card(content);
         smallLabel(dateCard,"SZCZEGÓŁY SESJI");
         space(dateCard,7);
         add(dateCard,text(new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL"))
-            .format(new Date(session.startedAt)),20,TEXT,true));
-        space(dateCard,10);
+            .format(new Date(session.startedAt)),18,TEXT,true));
+        space(dateCard,7);
         Button changeDate=button("Zmień datę treningu",false);
         add(dateCard,changeDate);
         changeDate.setOnClickListener(v->changeWorkoutDate(session));
-        space(dateCard,7);
+        space(dateCard,5);
         Button note=button(session.notes==null||session.notes.isEmpty()?"Dodaj notatkę":"Edytuj notatkę",false);
         add(dateCard,note);
         note.setOnClickListener(v->changeWorkoutNote(session));
@@ -2074,8 +2091,8 @@ public final class MainActivity extends Activity {
         }
         for(Plan.Exercise ex:historyExercises) {
             LinearLayout c=card(content);
-            add(c,text(ex.name,18,TEXT,true));
-            space(c,9);
+            add(c,text(ex.name,16,TEXT,true));
+            space(c,4);
             int count=0;
             for(WorkoutDb.Entry entry:db.sets(session.id)) {
                 if(!entry.exerciseId.equals(ex.id))continue;
@@ -2083,19 +2100,19 @@ public final class MainActivity extends Activity {
                 LinearLayout line=row();
                 TextView value=text((entry.setIndex+1)+".  "+weight(entry.weight)+" kg × "+entry.reps+
                     (entry.warmup?"  ○":""),15,entry.warmup?AMBER:TEXT,true);
-                line.addView(value,new LinearLayout.LayoutParams(0,dp(49),1));
+                line.addView(value,new LinearLayout.LayoutParams(0,dp(39),1));
                 Button edit=button("Edytuj",false);
                 edit.setTextSize(12);
-                line.addView(edit,new LinearLayout.LayoutParams(dp(78),dp(49)));
+                line.addView(edit,new LinearLayout.LayoutParams(dp(68),dp(39)));
                 edit.setOnClickListener(v->editSavedSet(session,ex,entry.setIndex,entry));
                 TextView detail=actionLabel("RIR",SKY);
                 detail.setGravity(Gravity.CENTER);
                 detail.setContentDescription("Edytuj RIR, notatkę i rozgrzewkę");
-                line.addView(detail,new LinearLayout.LayoutParams(dp(43),dp(49)));
+                line.addView(detail,new LinearLayout.LayoutParams(dp(43),dp(39)));
                 detail.setOnClickListener(v->editSetMetadata(session.id,ex,entry.setIndex,()->render()));
                 TextView remove=text("×",23,MUTED,true);
                 remove.setGravity(Gravity.CENTER);
-                line.addView(remove,new LinearLayout.LayoutParams(dp(43),dp(49)));
+                line.addView(remove,new LinearLayout.LayoutParams(dp(38),dp(39)));
                 remove.setContentDescription("Usuń serię "+(entry.setIndex+1));
                 remove.setOnClickListener(v->new AlertDialog.Builder(this)
                     .setTitle("Usunąć serię?")
@@ -2414,13 +2431,13 @@ public final class MainActivity extends Activity {
 
     private void showExerciseProgress() {
         space(content,3);
-        TextView back=actionLabel("‹  Wróć do ćwiczeń",SKY);
+        TextView back=actionLabel("‹  Progres",TEAL);
         back.setMinHeight(dp(39));
         add(content,back);
         back.setOnClickListener(v->{page="progress";render();});
         Plan.Exercise ex=db.exerciseById(selectedExercise);
         if(ex==null){page="progress";render();return;}
-        space(content,8);
+        space(content,4);
         headline(content,ex.name);
         List<WorkoutDb.Progress> list=db.progress(ex.id);
         if(list.isEmpty()) {
@@ -2438,7 +2455,7 @@ public final class MainActivity extends Activity {
         LinearLayout hero=card(content);
         smallLabel(hero,"OSTATNI WYNIK");
         space(hero,7);
-        add(hero,text(weight(newest.maxWeight)+" kg × "+newest.repsAtMax,25,TEXT,true));
+        add(hero,text(weight(newest.maxWeight)+" kg × "+newest.repsAtMax,23,TEXT,true));
         space(hero,6);
         add(hero,text("Rekord: "+weight(allTime.maxWeight)+" kg × "+allTime.repsAtMax,14,GREEN,true));
         space(hero,4);

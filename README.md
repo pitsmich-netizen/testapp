@@ -1,5 +1,12 @@
 # FORMA — dziennik treningowy na Androida
 
+## FORMA 0.8.5 — szybkie OTA i spójniejsze ekrany szczegółowe
+
+- **Aktualizacja:** ikona ↻ w prawym górnym rogu ustawień sprawdza aktualizacje; dotknięcie numeru wersji otwiera zaawansowane OTA. Usunięto osobną kategorię menu aktualizacji.
+- **Głębsze ekrany:** bardziej kompaktowe widoki zapisanych serii, edycji historii i trendu ćwiczenia; menu ukończonej sesji w tym samym stylu co menu aktywnego treningu.
+- **Bezpieczeństwo danych:** edycja ciężaru/powtórzeń zachowuje wcześniej zapisany RIR, notatkę i oznaczenie rozgrzewki.
+- **Zgodność:** ten sam pakiet i certyfikat podpisu, plan FBW 1.0, kopie zapasowe i schemat SQLite v9 bez zmian.
+
 ## FORMA 0.8.4 — czytelny timer, ustawienia i kalendarz
 
 - **Timer:** oddzielne czasy treningu/przerwy, pasek upływu przerwy, kompaktowe 60/90/120/+15 sekund, dotychczasowe powiadomienia i OTA bez zmian.
