@@ -44,7 +44,7 @@ Stały ciężar w seriach roboczych, technika i docelowy RIR ważniejsze niż au
 - Timer przerw (autostart po zapisaniu serii; 60 / 90 / 120 s, +15 s, pomiń) oraz licznik czasu sesji.
 - Eksport historii do CSV.
 - **Import notatek:** sesja Góra A z 18.11.2026, 18 serii, z oryginalnymi ciężarami i uwagą „2 linki”.
-- **OTA:** gotowe: najnowsze podpisane wydanie [FORMA 0.8.1](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.8.1), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
+- **OTA:** gotowe: poprzednie podpisane wydanie [FORMA 0.8.1](https://github.com/pitsmich-netizen/testapp/releases/tag/v0.8.1), automatyczne sprawdzanie nowszych wersji na GitHub Releases, weryfikacja SHA-256 i podpisu oraz instalacja za potwierdzeniem w Androidzie.
 
 ## Kopia treningów w Supabase (opcjonalna)
 - Bez konta FORMA działa w pełni offline.
@@ -76,3 +76,7 @@ Plan nie stanowi diagnozy ani terapii. Przy nawracającym bólu lędźwi dobiera
 ### Naprawa OTA w 0.5.1
 
 W 0.4.0 i 0.5.0 downloader nadal zapisywał APK jako `cache/forma-update.apk`, mimo że `FileProvider` udostępniał wyłącznie `cache/updates/`. Wersja 0.5.1 korzysta z jednej funkcji `updateFile()` dla pobrania i instalacji. Automatyczny test `scripts/verify_ota_paths.py` w CI i workflow publikacji chroni przed ponowną rozbieżnością. **Jednorazowo aktualizuj 0.4.0/0.5.0 do 0.5.1 ręcznie przez podpisany APK, bez odinstalowywania.**
+
+### FORMA 0.8.2 — UI treningu
+
+Bardziej czytelny dzień tygodnia na ekranie planu; pełny nagłówek treningu z wyśrodkowaną nazwą, menu ⋮ w prawym górnym rogu i dyskretnym powrotem; przyciski ± przy polu ciężaru i osobne ± przy powtórzeniach; kompaktowy przycisk ✓ do zapisu oraz RIR ustawiany przed zapisaniem, a notatka przez przytrzymanie RIR w zapisanej serii. Kopiowanie wyniku nie zajmuje miejsca w interfejsie, bo pola wstępnie uzupełniają poprzednie obciążenia i powtórzenia. Ukończone ćwiczenia automatycznie się zwijają. Aktualizacja bez migracji SQLite, zachowuje FBW 1.0 i lokalne wyniki.
