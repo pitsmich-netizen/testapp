@@ -1472,6 +1472,17 @@ public final class MainActivity extends Activity {
             state.setGravity(Gravity.CENTER);
             saved.addView(state,new LinearLayout.LayoutParams(0,dp(37),1.6f));
             add(block,saved);
+            if(previous!=null&&!current.warmup) {
+                double change=current.weight-previous.weight;
+                int repChange=current.reps-previous.reps;
+                if(Math.abs(change)>0.001 || repChange!=0) {
+                    String delta=(change>0?"+":"")+weight(change)+" kg";
+                    String repsDelta=(repChange>0?"+":"")+repChange+" powt.";
+                    int trend=change>0.001?GREEN:change< -0.001?AMBER:
+                        repChange>0?GREEN:AMBER;
+                    add(block,text("vs ostatnio: "+delta+"  ·  "+repsDelta,11,trend,false));
+                }
+            }
             block.setContentDescription("Seria "+(index+1)+", "+weight(current.weight)+
                 " kilogramów, "+current.reps+" powtórzeń. Dotknij, aby edytować.");
             block.setOnClickListener(v->{
