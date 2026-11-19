@@ -1020,53 +1020,64 @@ public final class MainActivity extends Activity {
         sessionStartedAt=(currentActive!=null&&currentActive.id==openSession)?currentActive.startedAt:0;
 
         LinearLayout timerShell=col();
-        timerShell.setBackground(rounded(CARD,17,BORDER));
-        timerShell.setPadding(dp(9),dp(6),dp(9),dp(7));
+        timerShell.setBackground(rounded(CARD,15,BORDER));
+        timerShell.setPadding(dp(13),dp(10),dp(13),dp(11));
         LinearLayout.LayoutParams shellLp=new LinearLayout.LayoutParams(-1,-2);
-        shellLp.topMargin=dp(5);shellLp.bottomMargin=dp(2);
+        shellLp.topMargin=dp(7);shellLp.bottomMargin=dp(3);
         root.addView(timerShell,shellLp);
 
         LinearLayout times=row();
         LinearLayout elapsed=col();
-        add(elapsed,text("CZAS TRENINGU",11,MUTED,true));
-        elapsedLabel=text("00:00",19,TEXT,true);
+        add(elapsed,text("CZAS TRENINGU",10,MUTED,true));
+        elapsedLabel=text("00:00",20,TEXT,true);
         add(elapsed,elapsedLabel);
-        times.addView(elapsed,new LinearLayout.LayoutParams(0,dp(41),1));
+        times.addView(elapsed,new LinearLayout.LayoutParams(0,dp(47),1));
 
         LinearLayout rest=col();
-        add(rest,text("PRZERWA",11,MUTED,true));
-        timerLabel=text("00:00",20,TEAL,true);
+        add(rest,text("PRZERWA",10,MUTED,true));
+        timerLabel=text(restUntil==0?"00:00":formatTime(RestTimer.secondsRemaining(this)),24,TEAL,true);
         add(rest,timerLabel);
-        times.addView(rest,new LinearLayout.LayoutParams(0,dp(41),1));
+        times.addView(rest,new LinearLayout.LayoutParams(0,dp(47),1));
 
-        TextView skip=text("Pomiń  ×",13,TEAL,true);
+        TextView skip=text("Pomiń  ×",12,MUTED,true);
         skip.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
-        skip.setPadding(dp(7),0,0,0);
-        times.addView(skip,new LinearLayout.LayoutParams(dp(73),dp(41)));
+        skip.setContentDescription("Pomiń aktualną przerwę");
+        times.addView(skip,new LinearLayout.LayoutParams(dp(78),dp(47)));
         skip.setOnClickListener(v->stopRest());
         add(timerShell,times);
+
+        restProgress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);
+        restProgress.setProgressBackgroundTintList(ColorStateList.valueOf(Color.rgb(41,41,41)));
+        restProgress.setProgressTintList(ColorStateList.valueOf(TEAL));
+        int secondsTotal=getSharedPreferences("forma_settings",0).getInt("rest_total",90);
+        long remaining=RestTimer.secondsRemaining(this);
+        restProgress.setMax(Math.max(1,secondsTotal));
+        restProgress.setProgress((int)Math.max(0,Math.min(secondsTotal,secondsTotal-remaining)));
+        LinearLayout.LayoutParams progressLp=new LinearLayout.LayoutParams(-1,dp(5));
+        progressLp.topMargin=dp(6);progressLp.bottomMargin=dp(9);
+        timerShell.addView(restProgress,progressLp);
 
         LinearLayout buttons=row();
         int[] seconds={60,90,120};
         for(int i=0;i<seconds.length;i++) {
             final int sec=seconds[i];
             TextView t=pill(sec+" s",false);
-            t.setTextSize(14);
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(36),1);
-            if(i>0)p.leftMargin=dp(6);
+            t.setTextSize(13);
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(35),1);
+            if(i>0)p.leftMargin=dp(7);
             buttons.addView(t,p);
             t.setOnClickListener(v->startRest(sec));
         }
         TextView plus=pill("+15 s",false);
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(36),1);
-        p.leftMargin=dp(6);
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(35),1);
+        p.leftMargin=dp(7);
         buttons.addView(plus,p);
         plus.setOnClickListener(v->{
-            long left=restUntil>System.currentTimeMillis()?
-                Math.max(0,(restUntil-System.currentTimeMillis()+999)/1000):0;
+            long left=RestTimer.secondsRemaining(this);
             startRest((int)left+15);
         });
         add(timerShell,buttons);
+
     }
 
     private void showSession() {
@@ -1717,11 +1728,13 @@ public final class MainActivity extends Activity {
         getSharedPreferences("forma_settings",0).edit().putInt("rest_total",seconds).apply();
         restUntil=RestTimer.endTime(this);
         if(timerLabel!=null) timerLabel.setText(formatTime(seconds));
+        if(restProgress!=null){restProgress.setMax(Math.max(1,seconds));restProgress.setProgress(0);}
     }
     private void stopRest() {
         RestTimer.stop(this);
         restUntil=0;
         if(timerLabel!=null) timerLabel.setText("00:00");
+        if(restProgress!=null)restProgress.setProgress(0);
     }
     private String date(long millis) {
         return DateFormat.getDateTimeInstance(DateFormat.MEDIUM,DateFormat.SHORT,Locale.forLanguageTag("pl-PL"))
