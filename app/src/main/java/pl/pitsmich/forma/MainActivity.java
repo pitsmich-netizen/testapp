@@ -324,17 +324,21 @@ public final class MainActivity extends Activity {
 
     private void showNavigation() {
         LinearLayout nav=row();
-        nav.setPadding(dp(4),dp(8),dp(4),0);
+        nav.setPadding(dp(4),dp(9),dp(4),dp(2));
+        View separator=new View(this);
+        separator.setBackgroundColor(BORDER);
+        root.addView(separator,new LinearLayout.LayoutParams(-1,dp(1)));
         String[] names={"Plan","Historia","Progres","Kalendarz"};
-        String[] icons={"▦","◷","↗","▦"};
+        String[] icons={"▦","◷","↗","▤"};
         String[] pages={"plan","history","progress","calendar"};
         for(int i=0;i<names.length;i++) {
             final String selected=pages[i];
             boolean active=page.equals(selected) || (selected.equals("history") && page.equals("detail")) || (selected.equals("progress") && (page.equals("exerciseProgress") || page.equals("weekly")));
             LinearLayout item=col();
             item.setGravity(Gravity.CENTER);
-            TextView symbol=text(icons[i],19,active?TEAL:MUTED,active);
+            TextView symbol=text(icons[i],21,active?TEAL:MUTED,active);
             symbol.setGravity(Gravity.CENTER);
+            symbol.setMinHeight(dp(28));
             add(item,symbol);
             TextView name=text(names[i],12,active?TEAL:MUTED,active);
             name.setGravity(Gravity.CENTER);
@@ -345,8 +349,11 @@ public final class MainActivity extends Activity {
             item.addView(indicator,new LinearLayout.LayoutParams(dp(active?29:14),dp(3)));
             LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(57),1);
             nav.addView(item,lp);
-            item.setContentDescription("Otwórz "+names[i]);
-            item.setOnClickListener(v->{page=selected;render();});
+            item.setContentDescription("Otwórz "+names[i]+(active?", aktywna zakładka":""));
+            item.setClickable(true);
+            item.setFocusable(true);
+            item.setForeground(getDrawable(android.R.drawable.list_selector_background));
+            item.setOnClickListener(v->{if(!page.equals(selected)){page=selected;render();}});
         }
         add(root,nav);
     }
@@ -385,7 +392,7 @@ public final class MainActivity extends Activity {
     private void showActionSheet(String title,String[] options,java.util.function.IntConsumer onSelect) {
         LinearLayout sheet=col();
         sheet.setPadding(dp(15),dp(14),dp(15),dp(14));
-        sheet.setBackground(rounded(CARD2,18,BORDER));
+        sheet.setBackground(rounded(CARD,20,BORDER));
         TextView heading=text(title,18,TEXT,true);
         heading.setPadding(dp(8),dp(4),dp(8),dp(12));
         add(sheet,heading);
@@ -395,13 +402,26 @@ public final class MainActivity extends Activity {
             TextView option=text(options[i],15,TEXT,false);
             option.setMinHeight(dp(54));
             option.setPadding(dp(13),dp(12),dp(13),dp(12));
-            add(sheet,option);
+            option.setBackground(rounded(CARD2,10,0));
+            option.setClickable(true);
+            option.setFocusable(true);
+            LinearLayout.LayoutParams optionLp=new LinearLayout.LayoutParams(-1,-2);
+            optionLp.bottomMargin=dp(7);
+            sheet.addView(option,optionLp);
             option.setOnClickListener(v->{dialog.dismiss();onSelect.accept(choice);});
         }
         dialog.show();
         Window w=dialog.getWindow();
-        if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);
-            w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);}
+        if(w!=null){
+            w.setBackgroundDrawableResource(android.R.color.transparent);
+            w.setGravity(Gravity.BOTTOM);
+            w.setLayout(getResources().getDisplayMetrics().widthPixels-dp(16),
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+            w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            WindowManager.LayoutParams attributes=w.getAttributes();
+            attributes.dimAmount=0.62f;
+            w.setAttributes(attributes);
+        }
     }
 
     private void showPlan() {
@@ -620,10 +640,12 @@ public final class MainActivity extends Activity {
         render();
     }
     private void showPlanItemOptions(int position) {
-        new AlertDialog.Builder(this)
-            .setTitle("Ćwiczenie")
-            .setItems(new String[]{"Edytuj serie i powtórzenia","Zamień ćwiczenie","Skok ciężaru i objętość","Usuń z planu"},
-                (d,choice)->{
+        showActionSheet("Ćwiczenie",new String[]{
+                "✎  Edytuj serie i powtórzenia",
+                "⇄  Zamień ćwiczenie",
+                "⚖  Skok ciężaru i objętość",
+                "×  Usuń z planu"
+            },choice->{
                     if(choice==0)editPlanParameters(position);
                     else if(choice==1)showPlanExerciseChooser(position);
                     else if(choice==2)editExerciseLoadSettings(db.workoutPlan(editingWorkout).get(position));
@@ -641,7 +663,7 @@ public final class MainActivity extends Activity {
                                 items.remove(position);db.savePlan(editingWorkout,items);render();
                             }).show();
                     }
-                }).show();
+                });
     }
 
     private void showPlanExerciseChooser(int replaceAt) {
