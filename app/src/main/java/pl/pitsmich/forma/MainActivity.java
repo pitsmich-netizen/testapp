@@ -1745,6 +1745,50 @@ public final class MainActivity extends Activity {
             }).show();
     }
 
+    private int sessionFeeling(String notes) {
+        if(notes==null)return 0;
+        java.util.regex.Matcher matcher=java.util.regex.Pattern
+            .compile("(?m)^Samopoczucie: ([1-5])/5$").matcher(notes);
+        return matcher.find()?Integer.parseInt(matcher.group(1)):0;
+    }
+    private void saveSessionFeeling(WorkoutDb.Session session,int value) {
+        String notes=db.sessionNotes(session.id);
+        if(notes==null)notes="";
+        notes=notes.replaceAll("(?m)^Samopoczucie: [1-5]/5\\s*\\n?","").trim();
+        if(value>0)notes=(notes.isEmpty()?"":notes+"\\n")+"Samopoczucie: "+value+"/5";
+        db.updateCompleted(session.id,session.startedAt,notes);
+        render();
+    }
+    private void showSessionReflection(WorkoutDb.Session session) {
+        LinearLayout reflection=card(content);
+        smallLabel(reflection,"JAK POSZEDŁ TRENING?");
+        add(reflection,text("Ocena samopoczucia (opcjonalnie)",13,MUTED,false));
+        space(reflection,9);
+        int selected=sessionFeeling(db.sessionNotes(session.id));
+        LinearLayout rating=row();
+        String[] feelings={"1","2","3","4","5"};
+        for(int i=0;i<5;i++) {
+            final int value=i+1;
+            TextView chip=text(feelings[i],16,selected==value?BG:TEXT,true);
+            chip.setGravity(Gravity.CENTER);
+            chip.setContentDescription("Samopoczucie "+value+" na 5");
+            chip.setBackground(rounded(selected==value?TEAL:CARD2,10,selected==value?0:BORDER));
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(41),1);
+            if(i>0)lp.leftMargin=dp(7);
+            rating.addView(chip,lp);
+            chip.setOnClickListener(v->saveSessionFeeling(session,value));
+        }
+        add(reflection,rating);
+        space(reflection,9);
+        TextView caption=text("1 = bardzo słabo   ·   5 = świetnie",12,MUTED,false);
+        add(reflection,caption);
+        space(reflection,10);
+        TextView note=actionLabel("✎  Dodaj / edytuj notatkę treningową  ›",TEAL);
+        note.setMinHeight(dp(41));
+        add(reflection,note);
+        note.setOnClickListener(v->changeWorkoutNote(session));
+    }
+
     private void showSessionSummary() {
         WorkoutDb.Session session=db.byId(detailSession);
         if(session==null||session.finishedAt<=0){page="history";render();return;}
@@ -1777,7 +1821,7 @@ public final class MainActivity extends Activity {
         smallLabel(compare,"PORÓWNANIE Z POPRZEDNIM TRENINGIEM");
         space(compare,9);
         if(previous==null){
-            add(compare,text("To pierwszy zapisany trening tego rodzaju.",14,TEXT,false));
+            add(compare,text("Nie znaleziono wcześniejszej porównywalnej sesji z tym samym planem i podobnymi ćwiczeniami. Historia starszych planów jest dostępna osobno.",13,MUTED,false));
         }else{
             double diff=session.volume-previous.volume;
             int setDiff=session.sets-previous.sets;
@@ -1794,13 +1838,16 @@ public final class MainActivity extends Activity {
             });
         }
 
-        Button history=button("Przejdź do historii",true);
+        showSessionReflection(session);
+        space(content,5);
+        Button done=button("Gotowe — wróć do planu",true);
+        add(content,done);
+        done.setOnClickListener(v->{page="plan";render();});
+        TextView history=actionLabel("Zobacz historię treningów  ›",TEAL);
+        history.setGravity(Gravity.CENTER);
+        history.setMinHeight(dp(45));
         add(content,history);
         history.setOnClickListener(v->{page="history";render();});
-        space(content,7);
-        Button again=button("Wróć do planu",false);
-        add(content,again);
-        again.setOnClickListener(v->{page="plan";render();});
     }
 
     private void startRest(int seconds) {
