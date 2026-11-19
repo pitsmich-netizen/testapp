@@ -58,6 +58,21 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         Progress(long date) { this.date=date; }
     }
 
+    private static final String TEST_MARKER="[FORMA:TEST]";
+    public static boolean isTestSession(Session session) {
+        return session!=null && session.notes!=null && session.notes.contains(TEST_MARKER);
+    }
+    public boolean isTestSession(long id) { return isTestSession(byId(id)); }
+    public void setTestSession(long id,boolean test) {
+        Session session=byId(id);
+        if(session==null || session.finishedAt<=0)
+            throw new IllegalArgumentException("Tylko zakończony trening może być testowy");
+        String notes=session.notes==null?"":session.notes.replace(TEST_MARKER,"").trim();
+        if(test)notes=(notes.isEmpty()?"":notes+"\n")+TEST_MARKER;
+        ContentValues update=new ContentValues();
+        update.put("notes",notes);
+        getWritableDatabase().update("sessions",update,"id=?",new String[]{Long.toString(id)});
+    }
     public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 9); }
     @Override public void onConfigure(SQLiteDatabase db) { super.onConfigure(db); db.setForeignKeyConstraintsEnabled(true); }
     @Override public void onCreate(SQLiteDatabase db) {
@@ -341,7 +356,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         java.util.Set<String> currentExercises=new java.util.HashSet<>();
         for(Entry e:sets(current.id))if(!e.warmup)currentExercises.add(e.exerciseId);
         for(Session candidate:completed()) {
-            if(candidate.workout!=current.workout||candidate.id==current.id||
+            if(isTestSession(candidate)||candidate.workout!=current.workout||candidate.id==current.id||
                 candidate.startedAt>=current.startedAt||
                 !label.equals(sessionWorkoutLabel(candidate)))continue;
             java.util.Set<String> previousExercises=new java.util.HashSet<>();
@@ -357,7 +372,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     public boolean isPersonalRecord(long session,String exercise,Entry candidate) {
         if(candidate==null||candidate.warmup)return false;
         Session own=byId(session);
-        if(own==null)return false;
+        if(own==null || isTestSession(own))return false;
         boolean previous=false;
         for(Progress p:progress(exercise)) {
             if(p.date>=own.startedAt)continue;
@@ -462,7 +477,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     private long lastExerciseSession(int workout,String exercise) {
         try(Cursor c=getReadableDatabase().rawQuery(
             "SELECT s.id FROM sessions s JOIN exercise_sets e ON e.session_id=s.id "+
-            "WHERE s.workout=? AND e.exercise_id=? AND s.finished_at IS NOT NULL "+
+            "WHERE s.workout=? AND e.exercise_id=? AND s.finished_at IS NOT NULL AND s.notes NOT LIKE '%[FORMA:TEST]%' "+
             "GROUP BY s.id ORDER BY s.started_at DESC,s.id DESC LIMIT 1",
             new String[]{Integer.toString(workout),exercise})) {
             return c.moveToFirst()?c.getLong(0):-1L;
@@ -689,12 +704,30 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     public Entry previous(String exercise,int index) {
         try(Cursor c=getReadableDatabase().rawQuery(
                 "SELECT e.weight,e.reps,e.rir,e.note,e.warmup FROM exercise_sets e JOIN sessions s ON s.id=e.session_id " +
-                "WHERE e.exercise_id=? AND e.set_index=? AND e.warmup=0 AND s.finished_at IS NOT NULL ORDER BY s.started_at DESC LIMIT 1",
+                "WHERE e.exercise_id=? AND e.set_index=? AND e.warmup=0 AND s.finished_at IS NOT NULL AND s.notes NOT LIKE '%[FORMA:TEST]%' ORDER BY s.started_at DESC LIMIT 1",
                 new String[]{exercise,Integer.toString(index)})) {
             if(!c.moveToFirst()) return null;
-            return new Entry(exercise,index,c.getDouble(0),c.getInt(1));
+            return new Entry(exercise,index,c.getDouble(0),c.getInt(1),c.getInt(2),c.getString(3),c.getInt(4)!=0);
         }
     }
+    /** Conservative per-set guidance. Never automatically changes the saved load. */
+    public String loadGuidance(Plan.Exercise exercise,int workout,int setIndex) {
+        Entry previous=previousWorkout(workout,exercise.id,setIndex);
+        if(previous==null)return "Pierwszy wynik — dobierz ciężar do zakresu powtórzeń i docelowego RIR.";
+        String load=String.format(Locale.forLanguageTag("pl-PL"),"%.2f",previous.weight).replaceAll("0+$","").replaceAll("\\.$","");
+        if(previous.rir<0)return "Ostatnio: "+load+" kg × "+previous.reps+
+            ". Bez zapisanego RIR nie proponuję automatycznego zwiększania.";
+        if(exercise.rirMin>=0 && previous.rir<exercise.rirMin)
+            return "Ostatnio RIR "+previous.rir+" — najpierw zadbaj o technikę i zapas powtórzeń.";
+        if(previous.reps<exercise.minReps)
+            return "Ostatnio poniżej zakresu ("+previous.reps+" powt.). Rozważ mniejszy ciężar.";
+        if(previous.reps<exercise.maxReps)
+            return "Utrzymaj około "+load+" kg i spróbuj zwiększyć liczbę powtórzeń.";
+        if(progressionTip(exercise)!=null && !progressionTip(exercise).startsWith("Osiągnięto"))
+            return "Gotowość do progresji: rozważ +"+weightStep(exercise.id)+" kg, zachowując RIR i technikę.";
+        return "Górny zakres osiągnięty; utrzymaj ciężar, aż wszystkie serie spełnią założenia RIR.";
+    }
+
     /** Only suggest progression after ALL planned working sets hit the rep ceiling at one weight. */
     public String progressionTip(Plan.Exercise exercise) {
         // Suggest the next small increment only when the entire planned working set
@@ -702,7 +735,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         String q="SELECT e.reps,e.weight,e.rir FROM exercise_sets e "+
             "WHERE e.exercise_id=? AND e.warmup=0 AND e.session_id=("+
             "SELECT x.id FROM sessions x JOIN exercise_sets y ON y.session_id=x.id "+
-            "WHERE y.exercise_id=? AND y.warmup=0 AND x.finished_at IS NOT NULL "+
+            "WHERE y.exercise_id=? AND y.warmup=0 AND x.finished_at IS NOT NULL AND x.notes NOT LIKE '%[FORMA:TEST]%' "+
             "ORDER BY x.started_at DESC,x.id DESC LIMIT 1) "+
             "ORDER BY e.set_index ASC LIMIT ?";
         int count=0;double constantWeight=-1;
@@ -853,7 +886,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     public List<Progress> progress(String exercise) {
         ArrayList<Progress> result=new ArrayList<>();
         String q="SELECT s.id,s.started_at,e.weight,e.reps FROM exercise_sets e JOIN sessions s ON s.id=e.session_id " +
-                "WHERE e.exercise_id=? AND e.warmup=0 AND s.finished_at IS NOT NULL ORDER BY s.started_at DESC,e.set_index ASC";
+                "WHERE e.exercise_id=? AND e.warmup=0 AND s.finished_at IS NOT NULL AND s.notes NOT LIKE '%[FORMA:TEST]%' ORDER BY s.started_at DESC,e.set_index ASC";
         try(Cursor c=getReadableDatabase().rawQuery(q,new String[]{exercise})) {
             long sessionId=-1; Progress p=null;
             while(c.moveToNext()) {

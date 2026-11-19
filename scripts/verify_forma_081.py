@@ -43,7 +43,7 @@ assert 'if(oldVersion<9) migrateFbwPlan(db)' in db
 assert 'pre_fbw_plan_items' in db and 'pre_fbw_schedule' in db
 assert 'ALTER TABLE sessions ADD COLUMN workout_label' in db
 assert 'workout_label' in backup and 'rir_min' in backup and 'rir_max' in backup
-assert 'versionCode 17' in gradle and "versionName '0.9.2'" in gradle
+assert 'versionCode 18' in gradle and "versionName '0.10.0'" in gradle
 assert 'startDragAndDrop(' in ui
 assert 'firstPending' in ui
 assert 'if(!editing && current==null)' in ui
