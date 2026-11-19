@@ -2380,11 +2380,131 @@ public final class MainActivity extends Activity {
         return hadPrevious;
     }
 
+    private String groupForExercise(String id) {
+        if(java.util.Arrays.asList("db_flat","smith_incline","chest_press","butterfly").contains(id))
+            return "Klatka";
+        if(java.util.Arrays.asList("lat_wide","lat_close","lat_one","row_cable","straight_arm").contains(id))
+            return "Plecy";
+        if(java.util.Arrays.asList("leg_press","leg_ext","leg_curl","rev_lunge").contains(id))
+            return "Nogi";
+        if(java.util.Arrays.asList("cable_lateral","db_lateral","facepull").contains(id))
+            return "Barki";
+        if(java.util.Arrays.asList("tri_push","tri_overhead").contains(id))
+            return "Triceps";
+        if(java.util.Arrays.asList("bi_cable").contains(id))
+            return "Biceps";
+        if(java.util.Arrays.asList("calf","calf_standing","calf_seated").contains(id))
+            return "Łydki";
+        if(java.util.Arrays.asList("ab_crunch","pallof").contains(id))
+            return "Core";
+        return "Inne";
+    }
+    private long weekStart(int offset) {
+        Calendar cal=Calendar.getInstance(Locale.forLanguageTag("pl-PL"));
+        cal.setFirstDayOfWeek(Calendar.MONDAY);
+        cal.set(Calendar.HOUR_OF_DAY,0);cal.set(Calendar.MINUTE,0);
+        cal.set(Calendar.SECOND,0);cal.set(Calendar.MILLISECOND,0);
+        int days=(cal.get(Calendar.DAY_OF_WEEK)+5)%7;
+        cal.add(Calendar.DAY_OF_MONTH,-days+7*offset);
+        return cal.getTimeInMillis();
+    }
+    private static final class WeekReport {
+        int sessions,workingSets;
+        double volume;
+        final java.util.LinkedHashMap<String,Integer> sets=new java.util.LinkedHashMap<>();
+        final java.util.LinkedHashMap<String,Double> volumes=new java.util.LinkedHashMap<>();
+    }
+    private WeekReport weekReport(long start,long end) {
+        WeekReport result=new WeekReport();
+        for(WorkoutDb.Session session:db.completed()) {
+            if(session.startedAt<start||session.startedAt>=end)continue;
+            result.sessions++;
+            for(WorkoutDb.Entry entry:db.sets(session.id)) {
+                if(entry.warmup)continue;
+                result.workingSets++;
+                String group=groupForExercise(entry.exerciseId);
+                double amount=entry.weight*entry.reps*db.loadMultiplier(entry.exerciseId);
+                result.volume+=amount;
+                result.sets.put(group,result.sets.containsKey(group)?result.sets.get(group)+1:1);
+                result.volumes.put(group,result.volumes.containsKey(group)?result.volumes.get(group)+amount:amount);
+            }
+        }
+        return result;
+    }
+    private void showWeeklyAnalysis() {
+        TextView back=actionLabel("‹  Progres",TEAL);
+        back.setMinHeight(dp(43));add(content,back);
+        back.setOnClickListener(v->{page="progress";render();});
+        headline(content,"Analiza tygodnia");
+        long start=weekStart(weeklyOffset), end=weekStart(weeklyOffset+1);
+        WeekReport week=weekReport(start,end);
+        WeekReport previous=weekReport(weekStart(weeklyOffset-1),start);
+        LinearLayout nav=row();
+        TextView left=actionLabel("‹  Poprzedni",TEAL);
+        nav.addView(left,new LinearLayout.LayoutParams(0,dp(44),1));
+        left.setOnClickListener(v->{weeklyOffset--;render();});
+        TextView range=text(new SimpleDateFormat("dd.MM",Locale.forLanguageTag("pl-PL")).format(new Date(start))+
+            " – "+new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL")).format(new Date(end-1)),13,TEXT,true);
+        range.setGravity(Gravity.CENTER);
+        nav.addView(range,new LinearLayout.LayoutParams(0,dp(44),1.6f));
+        TextView right=actionLabel("Następny  ›",weeklyOffset<0?TEAL:MUTED);
+        right.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        nav.addView(right,new LinearLayout.LayoutParams(0,dp(44),1));
+        right.setOnClickListener(v->{if(weeklyOffset<0){weeklyOffset++;render();}});
+        add(content,nav);
+        LinearLayout metrics=card(content);
+        smallLabel(metrics,"REALIZACJA TRENINGÓW");
+        summaryLine(metrics,"Sesje",week.sessions+" / 3");
+        summaryLine(metrics,"Serie robocze",Integer.toString(week.workingSets));
+        summaryLine(metrics,"Objętość",weight(week.volume)+" kg");
+        summaryLine(metrics,"Poprzedni tydzień",weight(previous.volume)+" kg");
+        space(metrics,7);
+        int difference=week.sessions-previous.sessions;
+        add(metrics,text((difference>=0?"+":"")+difference+
+            " sesji względem poprzedniego tygodnia",12,MUTED,false));
+        LinearLayout part=card(content);
+        smallLabel(part,"PARTIE — SERIE I OBJĘTOŚĆ");
+        add(part,text("Serie przypisano do głównej partii ćwiczenia; nie liczymy serii wielostawowych kilka razy.",12,MUTED,false));
+        space(part,10);
+        String[] order={"Klatka","Plecy","Nogi","Barki","Biceps","Triceps","Łydki","Core","Inne"};
+        int max=1;
+        for(int value:week.sets.values())max=Math.max(max,value);
+        boolean any=false;
+        for(String group:order) {
+            Integer count=week.sets.get(group);
+            if(count==null||count==0)continue;
+            any=true;
+            LinearLayout line=row();
+            TextView name=text(group,14,TEXT,true);
+            line.addView(name,new LinearLayout.LayoutParams(0,dp(32),1));
+            TextView value=text(count+" serii  ·  "+weight(week.volumes.get(group))+" kg",12,TEAL,false);
+            line.addView(value);
+            add(part,line);
+            ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);
+            bar.setMax(max);bar.setProgress(count);
+            bar.setProgressTintList(ColorStateList.valueOf(TEAL));
+            bar.setProgressBackgroundTintList(ColorStateList.valueOf(BORDER));
+            add(part,bar);
+            space(part,4);
+        }
+        if(!any)add(part,text("Brak zapisanych serii roboczych w wybranym tygodniu.",14,MUTED,false));
+        space(content,6);
+        add(content,text("Objętość = kg × powtórzenia × mnożnik sprzętu. Własne ćwiczenia bez przypisanej partii widnieją jako „Inne”.",12,MUTED,false));
+    }
+
     private void showProgress() {
         space(content,4);
         headline(content,"Progres");
         add(content,text("Wyniki według dnia treningowego",13,MUTED,false));
-        space(content,12);
+        space(content,7);
+        LinearLayout weekLink=card(content);
+        LinearLayout weekRow=row();
+        TextView weekTitle=text("Analiza tygodnia  ·  partie mięśniowe",14,TEXT,true);
+        weekRow.addView(weekTitle,new LinearLayout.LayoutParams(0,dp(40),1));
+        add(weekRow,text("›",22,TEAL,true));
+        add(weekLink,weekRow);
+        clickCard(weekLink,()->{weeklyOffset=0;page="weekly";render();});
+        space(content,6);
         LinearLayout selector=row();
         for(int day=0;day<3;day++) {
             final int selected=day;
