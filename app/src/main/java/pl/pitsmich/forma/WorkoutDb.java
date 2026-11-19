@@ -334,8 +334,24 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         return total;
     }
     public Session previousCompletedSameWorkout(Session current) {
-        for(Session s:completed())
-            if(s.workout==current.workout && s.id!=current.id && s.startedAt<current.startedAt)return s;
+        // The plan migrated from GÓRA A/NOGI/GÓRA B to FBW A/B/C in 0.8.1.
+        // Workout integer IDs remained the same. A comparable session must retain
+        // the SAME saved plan label and a reasonably similar exercise selection.
+        String label=sessionWorkoutLabel(current);
+        java.util.Set<String> currentExercises=new java.util.HashSet<>();
+        for(Entry e:sets(current.id))if(!e.warmup)currentExercises.add(e.exerciseId);
+        for(Session candidate:completed()) {
+            if(candidate.workout!=current.workout||candidate.id==current.id||
+                candidate.startedAt>=current.startedAt||
+                !label.equals(sessionWorkoutLabel(candidate)))continue;
+            java.util.Set<String> previousExercises=new java.util.HashSet<>();
+            for(Entry e:sets(candidate.id))if(!e.warmup)previousExercises.add(e.exerciseId);
+            if(currentExercises.isEmpty()||previousExercises.isEmpty())continue;
+            int common=0;
+            for(String id:currentExercises)if(previousExercises.contains(id))common++;
+            if(common*2>=Math.max(currentExercises.size(),previousExercises.size()))
+                return candidate;
+        }
         return null;
     }
     public boolean isPersonalRecord(long session,String exercise,Entry candidate) {
