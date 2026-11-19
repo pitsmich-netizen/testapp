@@ -85,6 +85,7 @@ public final class MainActivity extends Activity {
     private int calendarMonth=Calendar.getInstance().get(Calendar.MONTH);
     private int calendarYear=Calendar.getInstance().get(Calendar.YEAR);
     private String settingsSection="";
+    private final java.util.HashSet<String> collapsedDetailExercises=new java.util.HashSet<>();
     private int weeklyOffset=0;
     private ProgressBar restProgress;
 
@@ -1918,25 +1919,39 @@ public final class MainActivity extends Activity {
     }
 
     private void showDetail() {
-        TextView back=text("‹  Historia",13,TEAL,true);
+        TextView back=actionLabel("‹  Historia",TEAL);
+        back.setMinHeight(dp(38));
         add(content,back);
         back.setOnClickListener(v->{page="history";render();});
-        space(content,7);
-        headline(content,"Zapisane serie");
         WorkoutDb.Session selected=db.byId(detailSession);
         if(selected==null){page="history";render();return;}
-        LinearLayout actions=row();
-        Button edit=button("Edytuj trening",false);
-        edit.setTextColor(SKY);
-        actions.addView(edit,new LinearLayout.LayoutParams(0,dp(42),1));
-        edit.setOnClickListener(v->{page="edit";render();});
-        Button del=button("Usuń",false);
-        del.setTextColor(RED);
-        LinearLayout.LayoutParams dlp=new LinearLayout.LayoutParams(dp(78),dp(42));
-        dlp.leftMargin=dp(8);actions.addView(del,dlp);
-        del.setOnClickListener(v->confirmDeleteCompleted(selected));
-        add(content,actions);
+        space(content,6);
+        LinearLayout title=row();
+        TextView name=text(db.sessionWorkoutLabel(selected),23,TEXT,true);
+        title.addView(name,new LinearLayout.LayoutParams(0,dp(46),1));
+        TextView more=text("⋮",26,TEAL,true);
+        more.setGravity(Gravity.CENTER);
+        more.setContentDescription("Opcje treningu: edytuj, usuń lub zobacz serie");
+        title.addView(more,new LinearLayout.LayoutParams(dp(49),dp(46)));
+        more.setOnClickListener(v->showCompletedActions(selected));
+        add(content,title);
+        add(content,text(new SimpleDateFormat("dd.MM.yyyy  ·  HH:mm",
+            Locale.forLanguageTag("pl-PL")).format(new Date(selected.startedAt)),13,MUTED,false));
         space(content,9);
+        LinearLayout stats=card(content);
+        smallLabel(stats,"PODSUMOWANIE SESJI");
+        LinearLayout summary=row();
+        String[] values={Integer.toString(selected.sets),
+            formatTime(db.durationMillis(selected)/1000),weight(selected.volume)+" kg"};
+        String[] names={"SERIE","CZAS","OBJĘTOŚĆ"};
+        for(int i=0;i<3;i++){
+            LinearLayout cell=col();
+            add(cell,text(values[i],18,TEXT,true));
+            add(cell,text(names[i],10,MUTED,true));
+            summary.addView(cell,new LinearLayout.LayoutParams(0,-2,1));
+        }
+        space(stats,8);add(stats,summary);
+        space(content,2);
         String notes=db.sessionNotes(detailSession);
         if(notes!=null && notes.startsWith("Import z notatek 18.11.2026")) {
             String auditState=db.auditResolution(selected.id);
@@ -1968,11 +1983,23 @@ public final class MainActivity extends Activity {
             if(!previous.equals(entry.exerciseId)) {
                 Plan.Exercise ex=db.exerciseById(entry.exerciseId);
                 current=card(content);
-                add(current,text(ex==null?entry.exerciseId:ex.name,16,TEXT,true));
-                space(current,5);
+                final String exerciseId=entry.exerciseId;
+                LinearLayout header=row();
+                TextView label=text(ex==null?entry.exerciseId:ex.name,16,TEXT,true);
+                header.addView(label,new LinearLayout.LayoutParams(0,dp(38),1));
+                TextView arrow=text(collapsedDetailExercises.contains(exerciseId)?"⌄":"⌃",19,MUTED,true);
+                arrow.setGravity(Gravity.CENTER);
+                header.addView(arrow,new LinearLayout.LayoutParams(dp(36),dp(38)));
+                add(current,header);
+                header.setContentDescription("Rozwiń lub zwiń serie ćwiczenia");
+                header.setOnClickListener(v->{
+                    if(!collapsedDetailExercises.add(exerciseId))
+                        collapsedDetailExercises.remove(exerciseId);
+                    render();
+                });
                 previous=entry.exerciseId;
             }
-            if(current!=null) {
+            if(current!=null&&!collapsedDetailExercises.contains(entry.exerciseId)) {
                 LinearLayout row=row();
                 TextView left=text(String.format(Locale.ROOT,"%02d",entry.setIndex+1),13,MUTED,true);
                 row.addView(left,new LinearLayout.LayoutParams(0,dp(30),1));
