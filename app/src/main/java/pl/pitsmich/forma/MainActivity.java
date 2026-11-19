@@ -1755,7 +1755,7 @@ public final class MainActivity extends Activity {
         String notes=db.sessionNotes(session.id);
         if(notes==null)notes="";
         notes=notes.replaceAll("(?m)^Samopoczucie: [1-5]/5\\s*\\n?","").trim();
-        if(value>0)notes=(notes.isEmpty()?"":notes+"\\n")+"Samopoczucie: "+value+"/5";
+        if(value>0)notes=(notes.isEmpty()?"":notes+"\n")+"Samopoczucie: "+value+"/5";
         db.updateCompleted(session.id,session.startedAt,notes);
         render();
     }
