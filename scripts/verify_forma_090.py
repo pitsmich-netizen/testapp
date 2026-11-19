@@ -10,7 +10,7 @@ gradle=(root/"app/build.gradle").read_text(encoding="utf8")
 assert "versionCode 15" in gradle and "versionName '0.9.0'" in gradle
 assert 'super(context, "forma_workouts.db", null, 9);' in db, "Retain database v9 and existing history."
 assert "private void showWeeklyAnalysis()" in app and 'page.equals("weekly")' in app
-assert 'week.sessions++' in app and 'if(entry.warmup)continue' in app
+assert 'result.sessions++' in app and 'if(entry.warmup)continue' in app
 assert 'db.loadMultiplier(entry.exerciseId)' in app
 assert 'private String groupForExercise(' in app
 assert 'String[] order={"Klatka","Plecy","Nogi","Barki","Biceps","Triceps","Łydki","Core","Inne"}' in app
