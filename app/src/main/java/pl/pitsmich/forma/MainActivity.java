@@ -748,13 +748,25 @@ public final class MainActivity extends Activity {
     }
 
     private void showSettings() {
-        space(content,8);
-        headline(content,"Ustawienia");
-        add(content,text("Dane, konto i aktualizacje",15,MUTED,false));
-        space(content,17);
-        smallLabel(content,"KONTO I DANE");
-        space(content,9);
-
+        space(content,6);
+        if(settingsSection.isEmpty()) {
+            headline(content,"Ustawienia");
+            add(content,text("Wybierz kategorię",13,MUTED,false));
+            space(content,13);
+            settingsEntry("♙","Konto i synchronizacja","Supabase, logowanie i stan chmury","cloud");
+            settingsEntry("◷","Trening i timer","Przerwy, dźwięki i automatyczne przejście","timer");
+            settingsEntry("◐","Wygląd aplikacji","Preferencje wyświetlania","appearance");
+            settingsEntry("▣","Kopie zapasowe","Eksport CSV, JSON i przywracanie","backup");
+            settingsEntry("⌁","Aplikacja i aktualizacje","Wersja i aktualizacje OTA","updates");
+            return;
+        }
+        TextView back=actionLabel("‹  Wszystkie ustawienia",TEAL);
+        back.setMinHeight(dp(40));
+        add(content,back);
+        back.setOnClickListener(v->{settingsSection="";render();});
+        space(content,6);
+        if(settingsSection.equals("cloud")) {
+            headline(content,"Konto i synchronizacja");
         LinearLayout cloudCard=card(content);
         smallLabel(cloudCard,"KOPIA W CHMURZE");
         space(cloudCard,8);
@@ -776,6 +788,8 @@ public final class MainActivity extends Activity {
                 .setPositiveButton("Wyloguj",(d,w)->{cloud.signOut();render();}).show());
         }
 
+        } else if(settingsSection.equals("backup")) {
+            headline(content,"Kopie zapasowe");
         LinearLayout backup=card(content);
         smallLabel(backup,"EKSPORT DANYCH");
         space(backup,7);
@@ -798,9 +812,8 @@ public final class MainActivity extends Activity {
         space(backup,5);
         add(backup,text("Kopia JSON zawiera historię, notatki, RIR i plany. Nie zawiera haseł ani tokenów logowania.",12,MUTED,false));
 
-        space(content,8);
-        smallLabel(content,"ODPOCZYNEK MIĘDZY SERIAMI");
-        space(content,9);
+        } else if(settingsSection.equals("timer")) {
+            headline(content,"Trening i timer");
         LinearLayout timerSettings=card(content);
         smallLabel(timerSettings,"TIMER W TLE");
         space(timerSettings,6);
@@ -837,34 +850,27 @@ public final class MainActivity extends Activity {
                 }
             });
         }
-        space(timerSettings,7);
-        boolean sound=getSharedPreferences("forma_settings",0).getBoolean("timer_sound",true);
-        Button soundToggle=button("Dźwięk końca przerwy: "+(sound?"WŁ.":"WYŁ."),false);
-        soundToggle.setTextColor(sound?GREEN:AMBER);
-        add(timerSettings,soundToggle);
-        soundToggle.setOnClickListener(v->{
-            getSharedPreferences("forma_settings",0).edit().putBoolean("timer_sound",!sound).apply();
-            render();
-        });
+        space(timerSettings,10);
+        addSettingsToggle(timerSettings,"Dźwięk końca przerwy","timer_sound",true,
+            "Standardowe powiadomienie Androida");
         space(timerSettings,6);
-        add(timerSettings,text("Dźwięk to standardowy sygnał powiadomienia Androida. "+
-            "Można go zmienić lub wyciszyć w ustawieniach kanału powiadomień.",12,MUTED,false));
-        space(timerSettings,7);
-        boolean auto=getSharedPreferences("forma_settings",0).getBoolean("auto_next",true);
-        Button next=button("Auto-przejście do następnego ćwiczenia: "+(auto?"WŁ.":"WYŁ."),false);
-        add(timerSettings,next);
-        next.setOnClickListener(v->{
-            getSharedPreferences("forma_settings",0).edit().putBoolean("auto_next",!auto).apply();
-            render();
-        });
+        addSettingsToggle(timerSettings,"Automatyczne następne ćwiczenie","auto_next",true,
+            "Po zakończeniu zaplanowanych serii");
 
-        space(content,8);
-        smallLabel(content,"APLIKACJA");
-        space(content,9);
+        } else if(settingsSection.equals("appearance")) {
+            headline(content,"Wygląd aplikacji");
+            LinearLayout theme=card(content);
+            smallLabel(theme,"CIEMNY INTERFEJS");
+            space(theme,6);
+            add(theme,text("True Black",17,TEXT,true));
+            space(theme,5);
+            add(theme,text("Czarne tło, spokojne akcenty i kompaktowy układ aktywnej serii.",13,MUTED,false));
+        } else if(settingsSection.equals("updates")) {
+            headline(content,"Aplikacja i aktualizacje");
         LinearLayout ota=card(content);
         smallLabel(ota,"AKTUALIZACJE APLIKACJI");
         space(ota,7);
-        add(ota,text("FORMA 0.8.1",20,TEXT,true));
+        add(ota,text("FORMA "+BuildConfig.VERSION_NAME,20,TEXT,true));
         space(ota,4);
         add(ota,text("Sprawdzanie OTA odbywa się automatycznie przy uruchomieniu.",14,MUTED,false));
         space(ota,12);
@@ -875,7 +881,48 @@ public final class MainActivity extends Activity {
         Button config=button("Zaawansowane ustawienia OTA",false);
         add(ota,config);
         config.setOnClickListener(v->updater.configure());
+        }
+    }
 
+    private void settingsEntry(String symbol,String title,String description,String section) {
+        LinearLayout item=row();
+        item.setPadding(dp(13),dp(12),dp(12),dp(12));
+        item.setBackground(rounded(CARD,13,BORDER));
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
+        lp.bottomMargin=dp(9);
+        content.addView(item,lp);
+        TextView icon=text(symbol,23,TEAL,true);
+        icon.setGravity(Gravity.CENTER);
+        item.addView(icon,new LinearLayout.LayoutParams(dp(40),dp(48)));
+        LinearLayout words=col();
+        LinearLayout.LayoutParams wp=new LinearLayout.LayoutParams(0,-2,1);
+        wp.leftMargin=dp(8);
+        item.addView(words,wp);
+        add(words,text(title,16,TEXT,true));
+        space(words,3);
+        add(words,text(description,12,MUTED,false));
+        TextView arrow=text("›",23,MUTED,false);
+        arrow.setGravity(Gravity.CENTER);
+        item.addView(arrow,new LinearLayout.LayoutParams(dp(24),dp(45)));
+        item.setContentDescription(title+". "+description);
+        item.setOnClickListener(v->{settingsSection=section;render();});
+    }
+
+    private void addSettingsToggle(LinearLayout target,String title,String key,
+                                   boolean defaultValue,String description) {
+        LinearLayout entry=row();
+        LinearLayout labels=col();
+        entry.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
+        add(labels,text(title,15,TEXT,true));
+        add(labels,text(description,12,MUTED,false));
+        Switch toggle=new Switch(this);
+        toggle.setChecked(getSharedPreferences("forma_settings",0).getBoolean(key,defaultValue));
+        toggle.setThumbTintList(ColorStateList.valueOf(TEAL));
+        toggle.setContentDescription(title);
+        toggle.setOnCheckedChangeListener((button,checked)->
+            getSharedPreferences("forma_settings",0).edit().putBoolean(key,checked).apply());
+        entry.addView(toggle,new LinearLayout.LayoutParams(dp(63),dp(51)));
+        add(target,entry);
     }
 
     private void showCloudLogin() {
