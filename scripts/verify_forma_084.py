@@ -6,7 +6,7 @@ main=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text()
 gradle=(root/"app/build.gradle").read_text()
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text()
 timer=(root/"app/src/main/java/pl/pitsmich/forma/RestTimer.java").read_text()
-assert "versionCode 15" in gradle and "versionName '0.9.0'" in gradle
+assert "versionCode 16" in gradle and "versionName '0.9.1'" in gradle
 assert "buildFeatures { buildConfig true }" in gradle
 assert "BuildConfig.VERSION_NAME" in main
 assert 'text("FORMA 0.8.1"' not in main

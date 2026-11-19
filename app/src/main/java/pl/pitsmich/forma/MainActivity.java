@@ -319,7 +319,7 @@ public final class MainActivity extends Activity {
         else if(page.equals("weekly")) showWeeklyAnalysis();
         else showSettings();
 
-        if(!page.equals("session") && !page.equals("detail") && !page.equals("edit") && !page.equals("exerciseProgress") && !page.equals("planEditor") && !page.equals("summary") && !page.equals("weekly")) showNavigation();
+        if(!page.equals("session") && !page.equals("edit") && !page.equals("planEditor") && !page.equals("summary")) showNavigation();
     }
 
     private void showNavigation() {
@@ -330,7 +330,7 @@ public final class MainActivity extends Activity {
         String[] pages={"plan","history","progress","calendar"};
         for(int i=0;i<names.length;i++) {
             final String selected=pages[i];
-            boolean active=page.equals(selected);
+            boolean active=page.equals(selected) || (selected.equals("history") && page.equals("detail")) || (selected.equals("progress") && (page.equals("exerciseProgress") || page.equals("weekly")));
             LinearLayout item=col();
             item.setGravity(Gravity.CENTER);
             TextView symbol=text(icons[i],19,active?TEAL:MUTED,active);
@@ -382,6 +382,28 @@ public final class MainActivity extends Activity {
         r.addView(v,new LinearLayout.LayoutParams(-2,dp(33)));
         add(target,r);
     }
+    private void showActionSheet(String title,String[] options,java.util.function.IntConsumer onSelect) {
+        LinearLayout sheet=col();
+        sheet.setPadding(dp(15),dp(14),dp(15),dp(14));
+        sheet.setBackground(rounded(CARD2,18,BORDER));
+        TextView heading=text(title,18,TEXT,true);
+        heading.setPadding(dp(8),dp(4),dp(8),dp(12));
+        add(sheet,heading);
+        AlertDialog dialog=new AlertDialog.Builder(this).setView(sheet).create();
+        for(int i=0;i<options.length;i++) {
+            final int choice=i;
+            TextView option=text(options[i],15,TEXT,false);
+            option.setMinHeight(dp(54));
+            option.setPadding(dp(13),dp(12),dp(13),dp(12));
+            add(sheet,option);
+            option.setOnClickListener(v->{dialog.dismiss();onSelect.accept(choice);});
+        }
+        dialog.show();
+        Window w=dialog.getWindow();
+        if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);
+            w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);}
+    }
+
     private void showPlan() {
         space(content,4);
         headline(content,"Twój plan");
@@ -424,11 +446,10 @@ public final class MainActivity extends Activity {
             menu.setTextSize(23);menu.setGravity(Gravity.CENTER);
             menu.setContentDescription("Ustaw dzień, nazwę lub edytuj plan");
             first.addView(menu,new LinearLayout.LayoutParams(dp(44),dp(46)));
-            menu.setOnClickListener(v->new AlertDialog.Builder(this)
-                .setTitle(scheduled.title)
-                .setItems(new String[]{"Zmień dzień lub nazwę","Edytuj ćwiczenia"},(d,choice)->{
+            menu.setOnClickListener(v->showActionSheet(scheduled.title,
+                new String[]{"✎  Zmień dzień lub nazwę","☷  Edytuj ćwiczenia"},choice->{
                     if(choice==0)editScheduleDay(workout);else openPlanEditor(workout);
-                }).show());
+                }));
 
             TextView drag=actionLabel("⠿",MUTED);
             drag.setTextSize(24);drag.setGravity(Gravity.CENTER);
@@ -1822,7 +1843,7 @@ public final class MainActivity extends Activity {
         smallLabel(compare,"PORÓWNANIE Z POPRZEDNIM TRENINGIEM");
         space(compare,9);
         if(previous==null){
-            add(compare,text("Nie znaleziono wcześniejszej porównywalnej sesji z tym samym planem i podobnymi ćwiczeniami. Historia starszych planów jest dostępna osobno.",13,MUTED,false));
+            add(compare,text("Brak wcześniejszej sesji z porównywalnym układem planu. Wyniki poszczególnych ćwiczeń porównujemy niezależnie od nazwy treningu.",13,MUTED,false));
         }else{
             double diff=session.volume-previous.volume;
             int setDiff=session.sets-previous.sets;
@@ -1839,6 +1860,44 @@ public final class MainActivity extends Activity {
             });
         }
 
+        // Porównanie ćwiczeń opiera się na trwałych identyfikatorach, a nie nazwie planu.
+        LinearLayout exerciseCompare=card(content);
+        smallLabel(exerciseCompare,"ZMIANY W ĆWICZENIACH");
+        int improvements=0,stable=0,decreases=0,comparable=0;
+        java.util.HashSet<String> observed=new java.util.HashSet<>();
+        for(WorkoutDb.Entry entry:db.sets(session.id)){
+            if(entry.warmup || !observed.add(entry.exerciseId))continue;
+            WorkoutDb.Entry bestCurrent=null;
+            for(WorkoutDb.Entry candidate:db.sets(session.id)){
+                if(candidate.warmup || !candidate.exerciseId.equals(entry.exerciseId))continue;
+                if(bestCurrent==null || candidate.weight>bestCurrent.weight ||
+                    (candidate.weight==bestCurrent.weight && candidate.reps>bestCurrent.reps))
+                    bestCurrent=candidate;
+            }
+            WorkoutDb.Entry bestBefore=null;
+            for(WorkoutDb.Session old:db.completed()){
+                if(old.id==session.id || old.startedAt>=session.startedAt)continue;
+                for(WorkoutDb.Entry candidate:db.sets(old.id)){
+                    if(candidate.warmup || !candidate.exerciseId.equals(entry.exerciseId))continue;
+                    if(bestBefore==null || candidate.weight>bestBefore.weight ||
+                        (candidate.weight==bestBefore.weight && candidate.reps>bestBefore.reps))
+                        bestBefore=candidate;
+                }
+                if(bestBefore!=null)break;
+            }
+            if(bestCurrent==null || bestBefore==null)continue;
+            comparable++;
+            int status=Double.compare(bestCurrent.weight,bestBefore.weight);
+            if(status==0)status=Integer.compare(bestCurrent.reps,bestBefore.reps);
+            if(status>0)improvements++;else if(status<0)decreases++;else stable++;
+        }
+        if(comparable==0)add(exerciseCompare,text("Pierwsze wyniki tych ćwiczeń — porównanie pojawi się po kolejnej sesji.",13,MUTED,false));
+        else{
+            summaryLine(exerciseCompare,"Lepszy wynik",improvements+" ćw.");
+            summaryLine(exerciseCompare,"Bez zmian",stable+" ćw.");
+            summaryLine(exerciseCompare,"Niższy wynik",decreases+" ćw.");
+            add(exerciseCompare,text("Porównanie najlepszej serii (ciężar, następnie powtórzenia) z poprzednim wykonaniem ćwiczenia.",11,MUTED,false));
+        }
         showSessionReflection(session);
         space(content,5);
         Button done=button("Gotowe — wróć do planu",true);
@@ -1937,7 +1996,20 @@ public final class MainActivity extends Activity {
         add(content,title);
         add(content,text(new SimpleDateFormat("dd.MM.yyyy  ·  HH:mm",
             Locale.forLanguageTag("pl-PL")).format(new Date(selected.startedAt)),13,MUTED,false));
-        space(content,9);
+        space(content,5);
+        LinearLayout allControls=row();
+        TextView collapse=actionLabel("Zwiń wszystkie",TEAL);
+        collapse.setMinHeight(dp(42));
+        allControls.addView(collapse,new LinearLayout.LayoutParams(0,dp(42),1));
+        TextView expand=actionLabel("Rozwiń wszystkie",TEAL);
+        expand.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        allControls.addView(expand,new LinearLayout.LayoutParams(0,dp(42),1));
+        collapse.setOnClickListener(v->{
+            for(WorkoutDb.Entry e:db.sets(detailSession))collapsedDetailExercises.add(e.exerciseId);
+            render();
+        });
+        expand.setOnClickListener(v->{collapsedDetailExercises.clear();render();});
+        add(content,allControls);
         LinearLayout stats=card(content);
         smallLabel(stats,"PODSUMOWANIE SESJI");
         LinearLayout summary=row();
@@ -1955,22 +2027,29 @@ public final class MainActivity extends Activity {
         String notes=db.sessionNotes(detailSession);
         if(notes!=null && notes.startsWith("Import z notatek 18.11.2026")) {
             String auditState=db.auditResolution(selected.id);
-            LinearLayout audit=card(content);
             boolean confirmed="confirmed".equals(auditState);
             boolean dismissed="dismissed".equals(auditState);
-            smallLabel(audit,confirmed?"✓  IMPORT ZATWIERDZONY":
-                dismissed?"OSTRZEŻENIE ODRZUCONE":"AUDYT IMPORTU");
-            space(audit,6);
-            add(audit,text("Pierwsze notatki: 18 serii  •  W historii: "+selected.sets,14,
-                confirmed?GREEN:selected.sets==18?TEAL:AMBER,true));
-            space(audit,8);
-            Button check=button(confirmed||dismissed?"Otwórz ponownie porównanie":"Porównaj / zatwierdź / edytuj",false);
-            add(audit,check);
-            check.setOnClickListener(v->showAuditActions(selected));
+            LinearLayout audit=card(content);
+            TextView auditLink=actionLabel(confirmed?"✓ Import zatwierdzony  ·  Szczegóły ›":
+                dismissed?"Import — ostrzeżenie odrzucone  ›":"⚠ Sprawdź poprawność importu  ›",
+                confirmed?GREEN:dismissed?MUTED:AMBER);
+            auditLink.setMinHeight(dp(34));
+            add(audit,auditLink);
+            auditLink.setOnClickListener(v->showAuditActions(selected));
         }
         if(notes!=null&&!notes.isEmpty()) {
             LinearLayout c=card(content);
-            add(c,text(notes,14,MUTED,false));
+            TextView noteToggle=actionLabel("Notatka treningowa  ›",TEAL);
+            noteToggle.setMinHeight(dp(35));
+            add(c,noteToggle);
+            TextView body=text(notes,13,MUTED,false);
+            body.setVisibility(View.GONE);
+            add(c,body);
+            noteToggle.setOnClickListener(v->{
+                boolean show=body.getVisibility()!=View.VISIBLE;
+                body.setVisibility(show?View.VISIBLE:View.GONE);
+                noteToggle.setText(show?"Notatka treningowa  ⌃":"Notatka treningowa  ›");
+            });
         }
         List<WorkoutDb.Entry> entries=db.sets(detailSession);
         if(entries.isEmpty()) {
@@ -2581,12 +2660,22 @@ public final class MainActivity extends Activity {
         headline(content,"Progres");
         add(content,text("Wyniki według dnia treningowego",13,MUTED,false));
         space(content,7);
+        WeekReport currentWeek=weekReport(weekStart(0),weekStart(1));
         LinearLayout weekLink=card(content);
+        smallLabel(weekLink,"TEN TYDZIEŃ");
+        space(weekLink,8);
         LinearLayout weekRow=row();
-        TextView weekTitle=text("Analiza tygodnia  ·  partie mięśniowe",14,TEXT,true);
-        weekRow.addView(weekTitle,new LinearLayout.LayoutParams(0,dp(40),1));
-        add(weekRow,text("›",22,TEAL,true));
+        String[] weeklyValues={currentWeek.sessions+" / 3",String.valueOf(currentWeek.workingSets),weight(currentWeek.volume)+" kg"};
+        String[] weeklyLabels={"TRENINGI","SERIE","OBJĘTOŚĆ"};
+        for(int i=0;i<3;i++){
+            LinearLayout cell=col();
+            add(cell,text(weeklyValues[i],i==2?17:21,TEXT,true));
+            add(cell,text(weeklyLabels[i],10,MUTED,true));
+            weekRow.addView(cell,new LinearLayout.LayoutParams(0,-2,1));
+        }
         add(weekLink,weekRow);
+        space(weekLink,10);
+        add(weekLink,text("Analiza tygodnia i partii mięśniowych  ›",13,TEAL,true));
         clickCard(weekLink,()->{weeklyOffset=0;page="weekly";render();});
         space(content,6);
         LinearLayout selector=row();
@@ -2658,8 +2747,17 @@ public final class MainActivity extends Activity {
                 title.setMaxLines(3);
                 title.setMinHeight(dp(49));
                 add(tile,title);
-                space(tile,7);
+                space(tile,5);
                 add(tile,text(best==null?"—":weight(best.weight)+" kg",21,best==null?MUTED:dayColor(selectedProgressWorkout),true));
+                List<WorkoutDb.Progress> exerciseHistory=db.progress(ex.id);
+                if(exerciseHistory.size()>1){
+                    WorkoutDb.Progress recent=exerciseHistory.get(0);
+                    WorkoutDb.Progress prior=exerciseHistory.get(1);
+                    double delta=recent.maxWeight-prior.maxWeight;
+                    String direction=delta>0.001?"↑ +":delta< -0.001?"↓ ":"→ ";
+                    String changeLabel=Math.abs(delta)<0.001?"bez zmian":direction+weight(delta)+" kg";
+                    add(tile,text(changeLabel,11,delta>0.001?GREEN:delta< -0.001?AMBER:MUTED,true));
+                }
                 LinearLayout bottom=row();
                 TextView reps=actionLabel(best==null?"Brak serii":("× "+best.reps+" powt."),MUTED);
                 bottom.addView(reps,new LinearLayout.LayoutParams(0,dp(28),1));
@@ -2726,6 +2824,17 @@ public final class MainActivity extends Activity {
         add(hero,text(weight(newest.maxWeight)+" kg × "+newest.repsAtMax,23,TEXT,true));
         space(hero,6);
         add(hero,text("Rekord: "+weight(allTime.maxWeight)+" kg × "+allTime.repsAtMax,14,GREEN,true));
+        space(hero,5);
+        double estimatedMax=0;
+        double recordVolume=0;
+        for(WorkoutDb.Progress p:list){
+            if(p.repsAtMax>0 && p.repsAtMax<=12)
+                estimatedMax=Math.max(estimatedMax,p.maxWeight*(1.0+p.repsAtMax/30.0));
+            recordVolume=Math.max(recordVolume,exerciseVolumeAt(ex.id,p.date));
+        }
+        if(estimatedMax>0)
+            add(hero,text("Szacowane 1RM: "+weight(estimatedMax)+" kg  ·  wzór Epleya (orientacyjnie)",12,MUTED,false));
+        add(hero,text("Najwyższa objętość sesji: "+weight(recordVolume)+" kg",12,MUTED,false));
         space(hero,4);
         add(hero,text(new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL")).format(new Date(newest.date)),12,MUTED,false));
 
