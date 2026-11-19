@@ -2639,6 +2639,27 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private double exerciseVolumeAt(String exercise,long startedAt) {
+        double total=0;
+        for(WorkoutDb.Session session:db.completed()) {
+            if(session.startedAt!=startedAt)continue;
+            for(WorkoutDb.Entry e:db.sets(session.id)) {
+                if(e.warmup||!e.exerciseId.equals(exercise))continue;
+                total+=e.weight*e.reps*db.loadMultiplier(exercise);
+            }
+        }
+        return total;
+    }
+    private double trendValue(WorkoutDb.Progress progress,String exercise,int metric) {
+        if(metric==1)return progress.totalReps;
+        if(metric==2)return exerciseVolumeAt(exercise,progress.date);
+        return progress.maxWeight;
+    }
+    private String trendValueLabel(double value,int metric) {
+        return metric==1?Integer.toString((int)value)+" powt.":
+            weight(value)+" kg";
+    }
+
     private void showExerciseProgress() {
         space(content,3);
         TextView back=actionLabel("‹  Progres",TEAL);
@@ -2671,31 +2692,56 @@ public final class MainActivity extends Activity {
         space(hero,4);
         add(hero,text(new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL")).format(new Date(newest.date)),12,MUTED,false));
 
-        int count=Math.min(6,list.size());
+        int count=Math.min(8,list.size());
         if(count>=2) {
             LinearLayout chart=card(content);
-            smallLabel(chart,"TREND OSTATNICH "+count+" SESJI");
-            space(chart,9);
+            smallLabel(chart,"TREND WYNIKÓW — "+count+" OSTATNICH SESJI");
+            space(chart,10);
+            String[] kinds={"Ciężar","Powtórzenia","Objętość"};
+            int metric=getSharedPreferences("forma_settings",0).getInt("trend_metric",0);
+            if(metric<0||metric>2)metric=0;
+            LinearLayout selector=row();
+            for(int i=0;i<kinds.length;i++) {
+                final int chosen=i;
+                TextView tab=text(kinds[i],12,metric==i?BG:MUTED,true);
+                tab.setGravity(Gravity.CENTER);
+                tab.setBackground(rounded(metric==i?TEAL:CARD2,9,metric==i?0:BORDER));
+                LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(37),1);
+                if(i>0)lp.leftMargin=dp(5);
+                selector.addView(tab,lp);
+                tab.setOnClickListener(v->{
+                    getSharedPreferences("forma_settings",0).edit().putInt("trend_metric",chosen).apply();
+                    render();
+                });
+            }
+            add(chart,selector);
+            space(chart,11);
             double max=0;
-            for(int i=0;i<count;i++)max=Math.max(max,list.get(i).maxWeight);
+            for(int i=0;i<count;i++)max=Math.max(max,trendValue(list.get(i),ex.id,metric));
             for(int i=count-1;i>=0;i--) {
                 WorkoutDb.Progress p=list.get(i);
                 LinearLayout line=row();
-                TextView date=text(new SimpleDateFormat("dd.MM",Locale.forLanguageTag("pl-PL")).format(new Date(p.date)),12,MUTED,false);
-                line.addView(date,new LinearLayout.LayoutParams(dp(46),dp(26)));
+                TextView date=text(new SimpleDateFormat("dd.MM",Locale.forLanguageTag("pl-PL"))
+                    .format(new Date(p.date)),12,MUTED,false);
+                line.addView(date,new LinearLayout.LayoutParams(dp(46),dp(30)));
                 LinearLayout bar=row();
-                LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(10),1);
+                LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(11),1);
                 line.addView(bar,bp);
-                double fraction=max>0?Math.max(0.04,p.maxWeight/max):0.04;
+                double value=trendValue(p,ex.id,metric);
+                double fraction=max>0?Math.max(0.04,value/max):0.04;
                 View segment=new View(this);
                 segment.setBackground(rounded(TEAL,4,0));
-                bar.addView(segment,new LinearLayout.LayoutParams(0,dp(9),(float)fraction));
-                bar.addView(new View(this),new LinearLayout.LayoutParams(0,dp(9),(float)(1-fraction)));
-                TextView value=text(weight(p.maxWeight)+" kg",12,TEXT,true);
-                value.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
-                line.addView(value,new LinearLayout.LayoutParams(dp(70),dp(26)));
+                bar.addView(segment,new LinearLayout.LayoutParams(0,dp(10),(float)fraction));
+                bar.addView(new View(this),new LinearLayout.LayoutParams(0,dp(10),(float)(1-fraction)));
+                TextView amount=text(trendValueLabel(value,metric),12,TEXT,true);
+                amount.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+                line.addView(amount,new LinearLayout.LayoutParams(dp(91),dp(30)));
                 add(chart,line);
             }
+            space(chart,6);
+            add(chart,text(metric==2?"Objętość to suma ciężar × powtórzenia × mnożnik dla serii roboczych.":
+                metric==1?"Łączna liczba powtórzeń w seriach roboczych.":
+                "Najwyższy ciężar w serii roboczej danej sesji.",12,MUTED,false));
         }
 
         add(content,text("Ostatnie sesje",18,TEXT,true));
