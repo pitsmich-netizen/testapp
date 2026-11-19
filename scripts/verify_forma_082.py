@@ -5,10 +5,10 @@ root=Path(__file__).resolve().parent.parent
 main=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text()
 gradle=(root/"app/build.gradle").read_text()
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text()
-assert "versionCode 12" in gradle
-assert "versionName '0.8.3'" in gradle
+assert "versionCode 13" in gradle
+assert "versionName '0.8.4'" in gradle
 assert 'super(context, "forma_workouts.db", null, 9);' in db
-assert 'TextView version=text("0.8.3"' in main
+assert 'TextView version=text(BuildConfig.VERSION_NAME' in main
 assert 'if(!page.equals("session")) {' in main, "No global gear on workout screen"
 assert 'title.setGravity(Gravity.CENTER);' in main, "Workout title centered"
 assert 'controls.setOnClickListener(v->showSessionActions())' in main

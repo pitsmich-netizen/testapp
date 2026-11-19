@@ -44,6 +44,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Switch;
 import android.widget.Toast;
 
 import java.io.OutputStream;
@@ -83,6 +84,8 @@ public final class MainActivity extends Activity {
     private WorkoutDb.Entry undoPrevious;
     private int calendarMonth=Calendar.getInstance().get(Calendar.MONTH);
     private int calendarYear=Calendar.getInstance().get(Calendar.YEAR);
+    private String settingsSection="";
+    private ProgressBar restProgress;
 
     private WorkoutDb db;
     private Updater updater;
@@ -110,6 +113,13 @@ public final class MainActivity extends Activity {
             restUntil=RestTimer.endTime(MainActivity.this);
             if(timerLabel!=null)
                 timerLabel.setText(restUntil==0?"00:00":formatTime(RestTimer.secondsRemaining(MainActivity.this)));
+            if(restProgress!=null) {
+                long remaining=RestTimer.secondsRemaining(MainActivity.this);
+                int total=getSharedPreferences("forma_settings",0).getInt("rest_total",90);
+                restProgress.setMax(Math.max(1,total));
+                restProgress.setProgress((int)Math.max(0,Math.min(total,total-remaining)));
+                restProgress.setProgressTintList(ColorStateList.valueOf(remaining>0?TEAL:BORDER));
+            }
             if(elapsedLabel!=null && sessionStartedAt>0) {
                 WorkoutDb.Session active=db.active();
                 if(active!=null) elapsedLabel.setText(formatTime(db.durationMillis(active)/1000));
@@ -140,6 +150,7 @@ public final class MainActivity extends Activity {
             editingSetIndex=state.getInt("editingSetIndex",-1);
             calendarMonth=state.getInt("calendarMonth",calendarMonth);
             calendarYear=state.getInt("calendarYear",calendarYear);
+            settingsSection=state.getString("settingsSection","");
         }
         render();
         handler.post(ticker);
@@ -158,6 +169,7 @@ public final class MainActivity extends Activity {
         state.putInt("editingSetIndex",editingSetIndex);
         state.putInt("calendarMonth",calendarMonth);
         state.putInt("calendarYear",calendarYear);
+        state.putString("settingsSection",settingsSection);
         super.onSaveInstanceState(state);
     }
     @Override protected void onResume() {
@@ -224,7 +236,7 @@ public final class MainActivity extends Activity {
     }
 
     private void render() {
-        timerLabel=null; sessionCount=null; elapsedLabel=null; sessionProgress=null;
+        timerLabel=null; sessionCount=null; elapsedLabel=null; sessionProgress=null; restProgress=null;
         expandedBody=null; expandedChevron=null; expandedCard=null; contentScroll=null;
         root=col();
         root.setBackgroundColor(BG);
@@ -240,14 +252,18 @@ public final class MainActivity extends Activity {
         TextView logo=text("FORMA",20,TEAL,true);
         logo.setLetterSpacing(0.10f);
         brand.addView(logo,new LinearLayout.LayoutParams(0,dp(39),1));
-        TextView version=text("0.8.3",12,MUTED,true);
+        TextView version=text(BuildConfig.VERSION_NAME,12,MUTED,true);
         version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         brand.addView(version,new LinearLayout.LayoutParams(dp(54),dp(44)));
         TextView gear=text(page.equals("settings")?"‹":"⚙",26,TEAL,true);
         gear.setGravity(Gravity.CENTER);
         gear.setContentDescription(page.equals("settings")?"Wróć do planu":"Ustawienia aplikacji");
         brand.addView(gear,new LinearLayout.LayoutParams(dp(47),dp(44)));
-        gear.setOnClickListener(v->{page=page.equals("settings")?"plan":"settings";render();});
+        gear.setOnClickListener(v->{
+            if(page.equals("settings")&&!settingsSection.isEmpty())settingsSection="";
+            else page=page.equals("settings")?"plan":"settings";
+            render();
+        });
         if(!page.equals("session")) {
             add(root,brand);
             space(root,5);
@@ -732,13 +748,25 @@ public final class MainActivity extends Activity {
     }
 
     private void showSettings() {
-        space(content,8);
-        headline(content,"Ustawienia");
-        add(content,text("Dane, konto i aktualizacje",15,MUTED,false));
-        space(content,17);
-        smallLabel(content,"KONTO I DANE");
-        space(content,9);
-
+        space(content,6);
+        if(settingsSection.isEmpty()) {
+            headline(content,"Ustawienia");
+            add(content,text("Wybierz kategorię",13,MUTED,false));
+            space(content,13);
+            settingsEntry("♙","Konto i synchronizacja","Supabase, logowanie i stan chmury","cloud");
+            settingsEntry("◷","Trening i timer","Przerwy, dźwięki i automatyczne przejście","timer");
+            settingsEntry("◐","Wygląd aplikacji","Preferencje wyświetlania","appearance");
+            settingsEntry("▣","Kopie zapasowe","Eksport CSV, JSON i przywracanie","backup");
+            settingsEntry("⌁","Aplikacja i aktualizacje","Wersja i aktualizacje OTA","updates");
+            return;
+        }
+        TextView back=actionLabel("‹  Wszystkie ustawienia",TEAL);
+        back.setMinHeight(dp(40));
+        add(content,back);
+        back.setOnClickListener(v->{settingsSection="";render();});
+        space(content,6);
+        if(settingsSection.equals("cloud")) {
+            headline(content,"Konto i synchronizacja");
         LinearLayout cloudCard=card(content);
         smallLabel(cloudCard,"KOPIA W CHMURZE");
         space(cloudCard,8);
@@ -760,6 +788,8 @@ public final class MainActivity extends Activity {
                 .setPositiveButton("Wyloguj",(d,w)->{cloud.signOut();render();}).show());
         }
 
+        } else if(settingsSection.equals("backup")) {
+            headline(content,"Kopie zapasowe");
         LinearLayout backup=card(content);
         smallLabel(backup,"EKSPORT DANYCH");
         space(backup,7);
@@ -782,9 +812,8 @@ public final class MainActivity extends Activity {
         space(backup,5);
         add(backup,text("Kopia JSON zawiera historię, notatki, RIR i plany. Nie zawiera haseł ani tokenów logowania.",12,MUTED,false));
 
-        space(content,8);
-        smallLabel(content,"ODPOCZYNEK MIĘDZY SERIAMI");
-        space(content,9);
+        } else if(settingsSection.equals("timer")) {
+            headline(content,"Trening i timer");
         LinearLayout timerSettings=card(content);
         smallLabel(timerSettings,"TIMER W TLE");
         space(timerSettings,6);
@@ -821,34 +850,27 @@ public final class MainActivity extends Activity {
                 }
             });
         }
-        space(timerSettings,7);
-        boolean sound=getSharedPreferences("forma_settings",0).getBoolean("timer_sound",true);
-        Button soundToggle=button("Dźwięk końca przerwy: "+(sound?"WŁ.":"WYŁ."),false);
-        soundToggle.setTextColor(sound?GREEN:AMBER);
-        add(timerSettings,soundToggle);
-        soundToggle.setOnClickListener(v->{
-            getSharedPreferences("forma_settings",0).edit().putBoolean("timer_sound",!sound).apply();
-            render();
-        });
+        space(timerSettings,10);
+        addSettingsToggle(timerSettings,"Dźwięk końca przerwy","timer_sound",true,
+            "Standardowe powiadomienie Androida");
         space(timerSettings,6);
-        add(timerSettings,text("Dźwięk to standardowy sygnał powiadomienia Androida. "+
-            "Można go zmienić lub wyciszyć w ustawieniach kanału powiadomień.",12,MUTED,false));
-        space(timerSettings,7);
-        boolean auto=getSharedPreferences("forma_settings",0).getBoolean("auto_next",true);
-        Button next=button("Auto-przejście do następnego ćwiczenia: "+(auto?"WŁ.":"WYŁ."),false);
-        add(timerSettings,next);
-        next.setOnClickListener(v->{
-            getSharedPreferences("forma_settings",0).edit().putBoolean("auto_next",!auto).apply();
-            render();
-        });
+        addSettingsToggle(timerSettings,"Automatyczne następne ćwiczenie","auto_next",true,
+            "Po zakończeniu zaplanowanych serii");
 
-        space(content,8);
-        smallLabel(content,"APLIKACJA");
-        space(content,9);
+        } else if(settingsSection.equals("appearance")) {
+            headline(content,"Wygląd aplikacji");
+            LinearLayout theme=card(content);
+            smallLabel(theme,"CIEMNY INTERFEJS");
+            space(theme,6);
+            add(theme,text("True Black",17,TEXT,true));
+            space(theme,5);
+            add(theme,text("Czarne tło, spokojne akcenty i kompaktowy układ aktywnej serii.",13,MUTED,false));
+        } else if(settingsSection.equals("updates")) {
+            headline(content,"Aplikacja i aktualizacje");
         LinearLayout ota=card(content);
         smallLabel(ota,"AKTUALIZACJE APLIKACJI");
         space(ota,7);
-        add(ota,text("FORMA 0.8.1",20,TEXT,true));
+        add(ota,text("FORMA "+BuildConfig.VERSION_NAME,20,TEXT,true));
         space(ota,4);
         add(ota,text("Sprawdzanie OTA odbywa się automatycznie przy uruchomieniu.",14,MUTED,false));
         space(ota,12);
@@ -859,7 +881,48 @@ public final class MainActivity extends Activity {
         Button config=button("Zaawansowane ustawienia OTA",false);
         add(ota,config);
         config.setOnClickListener(v->updater.configure());
+        }
+    }
 
+    private void settingsEntry(String symbol,String title,String description,String section) {
+        LinearLayout item=row();
+        item.setPadding(dp(13),dp(12),dp(12),dp(12));
+        item.setBackground(rounded(CARD,13,BORDER));
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
+        lp.bottomMargin=dp(9);
+        content.addView(item,lp);
+        TextView icon=text(symbol,23,TEAL,true);
+        icon.setGravity(Gravity.CENTER);
+        item.addView(icon,new LinearLayout.LayoutParams(dp(40),dp(48)));
+        LinearLayout words=col();
+        LinearLayout.LayoutParams wp=new LinearLayout.LayoutParams(0,-2,1);
+        wp.leftMargin=dp(8);
+        item.addView(words,wp);
+        add(words,text(title,16,TEXT,true));
+        space(words,3);
+        add(words,text(description,12,MUTED,false));
+        TextView arrow=text("›",23,MUTED,false);
+        arrow.setGravity(Gravity.CENTER);
+        item.addView(arrow,new LinearLayout.LayoutParams(dp(24),dp(45)));
+        item.setContentDescription(title+". "+description);
+        item.setOnClickListener(v->{settingsSection=section;render();});
+    }
+
+    private void addSettingsToggle(LinearLayout target,String title,String key,
+                                   boolean defaultValue,String description) {
+        LinearLayout entry=row();
+        LinearLayout labels=col();
+        entry.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
+        add(labels,text(title,15,TEXT,true));
+        add(labels,text(description,12,MUTED,false));
+        Switch toggle=new Switch(this);
+        toggle.setChecked(getSharedPreferences("forma_settings",0).getBoolean(key,defaultValue));
+        toggle.setThumbTintList(ColorStateList.valueOf(TEAL));
+        toggle.setContentDescription(title);
+        toggle.setOnCheckedChangeListener((button,checked)->
+            getSharedPreferences("forma_settings",0).edit().putBoolean(key,checked).apply());
+        entry.addView(toggle,new LinearLayout.LayoutParams(dp(63),dp(51)));
+        add(target,entry);
     }
 
     private void showCloudLogin() {
@@ -1004,53 +1067,64 @@ public final class MainActivity extends Activity {
         sessionStartedAt=(currentActive!=null&&currentActive.id==openSession)?currentActive.startedAt:0;
 
         LinearLayout timerShell=col();
-        timerShell.setBackground(rounded(CARD,17,BORDER));
-        timerShell.setPadding(dp(9),dp(6),dp(9),dp(7));
+        timerShell.setBackground(rounded(CARD,15,BORDER));
+        timerShell.setPadding(dp(13),dp(10),dp(13),dp(11));
         LinearLayout.LayoutParams shellLp=new LinearLayout.LayoutParams(-1,-2);
-        shellLp.topMargin=dp(5);shellLp.bottomMargin=dp(2);
+        shellLp.topMargin=dp(7);shellLp.bottomMargin=dp(3);
         root.addView(timerShell,shellLp);
 
         LinearLayout times=row();
         LinearLayout elapsed=col();
-        add(elapsed,text("CZAS TRENINGU",11,MUTED,true));
-        elapsedLabel=text("00:00",19,TEXT,true);
+        add(elapsed,text("CZAS TRENINGU",10,MUTED,true));
+        elapsedLabel=text("00:00",20,TEXT,true);
         add(elapsed,elapsedLabel);
-        times.addView(elapsed,new LinearLayout.LayoutParams(0,dp(41),1));
+        times.addView(elapsed,new LinearLayout.LayoutParams(0,dp(47),1));
 
         LinearLayout rest=col();
-        add(rest,text("PRZERWA",11,MUTED,true));
-        timerLabel=text("00:00",20,TEAL,true);
+        add(rest,text("PRZERWA",10,MUTED,true));
+        timerLabel=text(restUntil==0?"00:00":formatTime(RestTimer.secondsRemaining(this)),24,TEAL,true);
         add(rest,timerLabel);
-        times.addView(rest,new LinearLayout.LayoutParams(0,dp(41),1));
+        times.addView(rest,new LinearLayout.LayoutParams(0,dp(47),1));
 
-        TextView skip=text("Pomiń  ×",13,TEAL,true);
+        TextView skip=text("Pomiń  ×",12,MUTED,true);
         skip.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
-        skip.setPadding(dp(7),0,0,0);
-        times.addView(skip,new LinearLayout.LayoutParams(dp(73),dp(41)));
+        skip.setContentDescription("Pomiń aktualną przerwę");
+        times.addView(skip,new LinearLayout.LayoutParams(dp(78),dp(47)));
         skip.setOnClickListener(v->stopRest());
         add(timerShell,times);
+
+        restProgress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);
+        restProgress.setProgressBackgroundTintList(ColorStateList.valueOf(Color.rgb(41,41,41)));
+        restProgress.setProgressTintList(ColorStateList.valueOf(TEAL));
+        int secondsTotal=getSharedPreferences("forma_settings",0).getInt("rest_total",90);
+        long remaining=RestTimer.secondsRemaining(this);
+        restProgress.setMax(Math.max(1,secondsTotal));
+        restProgress.setProgress((int)Math.max(0,Math.min(secondsTotal,secondsTotal-remaining)));
+        LinearLayout.LayoutParams progressLp=new LinearLayout.LayoutParams(-1,dp(5));
+        progressLp.topMargin=dp(6);progressLp.bottomMargin=dp(9);
+        timerShell.addView(restProgress,progressLp);
 
         LinearLayout buttons=row();
         int[] seconds={60,90,120};
         for(int i=0;i<seconds.length;i++) {
             final int sec=seconds[i];
             TextView t=pill(sec+" s",false);
-            t.setTextSize(14);
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(36),1);
-            if(i>0)p.leftMargin=dp(6);
+            t.setTextSize(13);
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(35),1);
+            if(i>0)p.leftMargin=dp(7);
             buttons.addView(t,p);
             t.setOnClickListener(v->startRest(sec));
         }
         TextView plus=pill("+15 s",false);
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(36),1);
-        p.leftMargin=dp(6);
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(35),1);
+        p.leftMargin=dp(7);
         buttons.addView(plus,p);
         plus.setOnClickListener(v->{
-            long left=restUntil>System.currentTimeMillis()?
-                Math.max(0,(restUntil-System.currentTimeMillis()+999)/1000):0;
+            long left=RestTimer.secondsRemaining(this);
             startRest((int)left+15);
         });
         add(timerShell,buttons);
+
     }
 
     private void showSession() {
@@ -1698,13 +1772,16 @@ public final class MainActivity extends Activity {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},6071);
         }
         RestTimer.start(this,seconds);
+        getSharedPreferences("forma_settings",0).edit().putInt("rest_total",seconds).apply();
         restUntil=RestTimer.endTime(this);
         if(timerLabel!=null) timerLabel.setText(formatTime(seconds));
+        if(restProgress!=null){restProgress.setMax(Math.max(1,seconds));restProgress.setProgress(0);}
     }
     private void stopRest() {
         RestTimer.stop(this);
         restUntil=0;
         if(timerLabel!=null) timerLabel.setText("00:00");
+        if(restProgress!=null)restProgress.setProgress(0);
     }
     private String date(long millis) {
         return DateFormat.getDateTimeInstance(DateFormat.MEDIUM,DateFormat.SHORT,Locale.forLanguageTag("pl-PL"))
@@ -2117,42 +2194,65 @@ public final class MainActivity extends Activity {
         for(int col=0;col<7;col++) {
             TextView heading=text(daysOfWeek[col],12,MUTED,true);
             heading.setGravity(Gravity.CENTER);
-            GridLayout.LayoutParams lp=new GridLayout.LayoutParams(GridLayout.spec(0),GridLayout.spec(col,1f));
+            GridLayout.LayoutParams lp=new GridLayout.LayoutParams(
+                GridLayout.spec(0),GridLayout.spec(col,1f));
             lp.width=0;lp.height=dp(29);
             grid.addView(heading,lp);
         }
         int offset=(start.get(Calendar.DAY_OF_WEEK)+5)%7;
         int length=start.getActualMaximum(Calendar.DAY_OF_MONTH);
         int slots=((offset+length+6)/7)*7;
+        java.util.HashMap<Integer,Integer> scheduleWeekdays=new java.util.HashMap<>();
+        for(WorkoutDb.ScheduleDay scheduled:db.schedule())
+            scheduleWeekdays.put(scheduled.weekday,scheduled.workout);
         for(int n=0;n<slots;n++) {
             final int day=n-offset+1;
             int rowIndex=1+n/7;
             int column=n%7;
             boolean inRange=day>=1&&day<=length;
             java.util.ArrayList<WorkoutDb.Session> workouts=inRange?days.get(day):null;
+            int weekday=column+1;
+            Integer scheduledWorkout=scheduleWeekdays.get(weekday);
             LinearLayout cell=col();
             cell.setGravity(Gravity.CENTER);
-            int accent=workouts==null?BORDER:dayColor(workouts.get(0).workout);
-            if(workouts!=null)cell.setBackground(rounded(CARD2,10,accent));
+            if(workouts!=null)cell.setBackground(rounded(CARD2,9,TEAL));
             if(inRange) {
-                TextView date=text(Integer.toString(day),14,workouts==null?TEXT:accent,workouts!=null);
+                TextView date=text(Integer.toString(day),14,workouts==null?TEXT:TEAL,workouts!=null);
                 date.setGravity(Gravity.CENTER);
                 add(cell,date);
                 if(workouts!=null) {
-                    TextView dot=text(workouts.size()>1?"●●":"●",10,accent,true);
+                    TextView dot=text(workouts.size()>1?"●●":"●",9,TEAL,true);
                     dot.setGravity(Gravity.CENTER);
                     add(cell,dot);
+                    cell.setContentDescription(day+"."+(calendarMonth+1)+
+                        " — wykonano "+workouts.size()+" treningów");
                     cell.setOnClickListener(v->openCalendarDay(day,workouts));
+                } else if(scheduledWorkout!=null) {
+                    TextView dot=text("●",8,MUTED,true);
+                    dot.setGravity(Gravity.CENTER);
+                    add(cell,dot);
+                    cell.setContentDescription(day+"."+(calendarMonth+1)+
+                        " — zaplanowano "+db.workoutLabel(scheduledWorkout));
+                    cell.setOnClickListener(v->showPlannedCalendarDay(day,scheduledWorkout));
+                } else {
+                    cell.setContentDescription(day+"."+(calendarMonth+1)+", brak treningu");
                 }
             }
             GridLayout.LayoutParams lp=new GridLayout.LayoutParams(
                 GridLayout.spec(rowIndex),GridLayout.spec(column,1f));
-            lp.width=0;lp.height=dp(48);
-            lp.setMargins(dp(2),dp(2),dp(2),dp(2));
+            lp.width=0;lp.height=dp(42);
+            lp.setMargins(dp(1),dp(1),dp(1),dp(1));
             grid.addView(cell,lp);
         }
         add(calendarCard,grid);
-        space(content,8);
+        space(calendarCard,8);
+        LinearLayout legend=row();
+        TextView performed=text("●  Wykonany",12,TEAL,false);
+        legend.addView(performed);
+        TextView planned=text("      ●  Zaplanowany",12,MUTED,false);
+        legend.addView(planned);
+        add(calendarCard,legend);
+        space(content,5);
         add(content,text("Podsumowanie miesiąca",18,TEXT,true));
         space(content,7);
         LinearLayout stats=card(content);
@@ -2172,6 +2272,16 @@ public final class MainActivity extends Activity {
         add(cadence,text(thisWeek+" treningi w ostatnich 7 dniach",19,TEXT,true));
         space(cadence,5);
         add(cadence,text("Cel orientacyjny: 3 sesje na tydzień. Dzień na kalendarzu otwiera zapisane treningi.",13,MUTED,false));
+    }
+
+    private void showPlannedCalendarDay(int day,int workout) {
+        new AlertDialog.Builder(this)
+            .setTitle(day+"."+(calendarMonth+1)+"."+calendarYear)
+            .setMessage("Zaplanowano: "+db.workoutLabel(workout)+
+                ". Rozpoczęcie uruchomi trening z aktualną datą i godziną.")
+            .setNegativeButton("Zamknij",null)
+            .setPositiveButton("Rozpocznij teraz",(dialog,which)->startWorkout(workout))
+            .show();
     }
 
     private void openCalendarDay(int day,java.util.ArrayList<WorkoutDb.Session> sessions) {

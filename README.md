@@ -1,5 +1,13 @@
 # FORMA — dziennik treningowy na Androida
 
+## FORMA 0.8.4 — czytelny timer, ustawienia i kalendarz
+
+- **Timer:** oddzielne czasy treningu/przerwy, pasek upływu przerwy, kompaktowe 60/90/120/+15 sekund, dotychczasowe powiadomienia i OTA bez zmian.
+- **Ustawienia:** osobne kategorie konta, treningu i timera, wyglądu, kopii zapasowych i aktualizacji. Dźwięk i automatyczne przejście do następnego ćwiczenia to przełączniki.
+- **Numer wersji:** nagłówek i ustawienia czytają numer z konfiguracji Androida (bez starych napisów wpisanych na sztywno).
+- **Kalendarz:** niższe wiersze tygodnia, rozróżnienie wykonanych i zaplanowanych treningów według aktualnego harmonogramu. Kliknięcie planowanego terminu pozwala rozpocząć trening **teraz**, bez zmiany daty w historii.
+- **Dane:** FBW 1.0, historia, backup JSON i schemat SQLite 9 niezmienione; podpis i mechanizm OTA zachowane.
+
 ## FORMA 0.8.3 — kompaktowy ekran aktywnej serii
 
 - Ciężar i powtórzenia ze sterowaniem −/pole/+ w jednym wierszu razem z ✓ oraz RIR.
