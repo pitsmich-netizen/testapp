@@ -707,7 +707,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
                 "WHERE e.exercise_id=? AND e.set_index=? AND e.warmup=0 AND s.finished_at IS NOT NULL AND s.notes NOT LIKE '%[FORMA:TEST]%' ORDER BY s.started_at DESC LIMIT 1",
                 new String[]{exercise,Integer.toString(index)})) {
             if(!c.moveToFirst()) return null;
-            return new Entry(exercise,index,c.getDouble(0),c.getInt(1));
+            return new Entry(exercise,index,c.getDouble(0),c.getInt(1),c.getInt(2),c.getString(3),c.getInt(4)!=0);
         }
     }
     /** Conservative per-set guidance. Never automatically changes the saved load. */
