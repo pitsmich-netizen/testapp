@@ -240,7 +240,7 @@ public final class MainActivity extends Activity {
         TextView logo=text("FORMA",20,TEAL,true);
         logo.setLetterSpacing(0.10f);
         brand.addView(logo,new LinearLayout.LayoutParams(0,dp(39),1));
-        TextView version=text("0.8.1",12,MUTED,true);
+        TextView version=text("0.8.2",12,MUTED,true);
         version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         brand.addView(version,new LinearLayout.LayoutParams(dp(54),dp(44)));
         TextView gear=text(page.equals("settings")?"‹":"⚙",26,TEAL,true);
@@ -248,8 +248,10 @@ public final class MainActivity extends Activity {
         gear.setContentDescription(page.equals("settings")?"Wróć do planu":"Ustawienia aplikacji");
         brand.addView(gear,new LinearLayout.LayoutParams(dp(47),dp(44)));
         gear.setOnClickListener(v->{page=page.equals("settings")?"plan":"settings";render();});
-        add(root,brand);
-        space(root,5);
+        if(!page.equals("session")) {
+            add(root,brand);
+            space(root,5);
+        }
 
         if(page.equals("session")) {
             WorkoutDb.Session active=db.active();
@@ -371,7 +373,9 @@ public final class MainActivity extends Activity {
             LinearLayout card=card(content);
             LinearLayout first=row();
 
-            TextView day=actionLabel(weekdayName(scheduled.weekday).toUpperCase(Locale.forLanguageTag("pl-PL")),MUTED);
+            TextView day=actionLabel(weekdayName(scheduled.weekday).toUpperCase(Locale.forLanguageTag("pl-PL")),Color.rgb(193,193,193));
+            day.setTextSize(17);
+            day.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
             day.setGravity(Gravity.CENTER_VERTICAL);
             first.addView(day,new LinearLayout.LayoutParams(0,dp(40),1));
             day.setOnClickListener(v->editScheduleDay(workout));
@@ -955,28 +959,34 @@ public final class MainActivity extends Activity {
         plannedSets=0;
         for(Plan.Exercise e:db.workoutPlan(openWorkout)) plannedSets+=db.expectedSets(openWorkout,e);
 
+        // The workout header replaces the global brand toolbar: centered day title,
+        // unobtrusive back affordance, and the session menu in the upper right.
         LinearLayout top=row();
-        TextView back=text("‹  PLAN",15,TEAL,true);
-        back.setPadding(dp(1),0,dp(12),0);
+        TextView back=text("‹",26,MUTED,false);
+        back.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
+        back.setContentDescription("Wróć do planu");
+        top.addView(back,new LinearLayout.LayoutParams(dp(51),dp(42)));
         back.setOnClickListener(v->{page="plan";render();});
-        top.addView(back,new LinearLayout.LayoutParams(dp(88),dp(44)));
-        TextView title=text(db.workoutLabel(openWorkout),18,TEXT,true);
-        title.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
-        top.addView(title,new LinearLayout.LayoutParams(0,dp(44),1));
-        TextView controls=text("⋮",29,TEAL,true);
+        TextView title=text(db.workoutLabel(openWorkout),21,TEXT,true);
+        title.setGravity(Gravity.CENTER);
+        title.setSingleLine(true);
+        title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        top.addView(title,new LinearLayout.LayoutParams(0,dp(42),1));
+        TextView controls=text("⋮",26,MUTED,true);
         controls.setGravity(Gravity.CENTER);
         controls.setContentDescription("Opcje treningu: wstrzymaj, zakończ lub anuluj");
-        top.addView(controls,new LinearLayout.LayoutParams(dp(43),dp(44)));
+        top.addView(controls,new LinearLayout.LayoutParams(dp(51),dp(42)));
         controls.setOnClickListener(v->showSessionActions());
         add(root,top);
+        space(root,2);
 
         LinearLayout count=row();
-        TextView small=text("POSTĘP • SERIE ROBOCZE",11,MUTED,true);
+        TextView small=text("SERIE ROBOCZE",11,MUTED,true);
         count.addView(small,new LinearLayout.LayoutParams(0,dp(29),1));
         sessionCount=text("0 / "+plannedSets+" serii",14,TEAL,true);
         sessionCount.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         count.addView(sessionCount);
-        TextView undo=actionLabel("  ↶ COFNIJ",canUndoSet&&undoSession==openSession?AMBER:MUTED);
+        TextView undo=actionLabel("↶ Cofnij",canUndoSet&&undoSession==openSession?AMBER:MUTED);
         undo.setGravity(Gravity.CENTER);
         undo.setContentDescription("Cofnij ostatnio zapisaną serię");
         count.addView(undo,new LinearLayout.LayoutParams(dp(83),dp(34)));
@@ -995,9 +1005,9 @@ public final class MainActivity extends Activity {
 
         LinearLayout timerShell=col();
         timerShell.setBackground(rounded(CARD,17,BORDER));
-        timerShell.setPadding(dp(10),dp(7),dp(10),dp(8));
+        timerShell.setPadding(dp(9),dp(6),dp(9),dp(7));
         LinearLayout.LayoutParams shellLp=new LinearLayout.LayoutParams(-1,-2);
-        shellLp.topMargin=dp(7);shellLp.bottomMargin=dp(4);
+        shellLp.topMargin=dp(5);shellLp.bottomMargin=dp(2);
         root.addView(timerShell,shellLp);
 
         LinearLayout times=row();
@@ -1073,13 +1083,18 @@ public final class MainActivity extends Activity {
             LinearLayout.LayoutParams tb=new LinearLayout.LayoutParams(0,-2,1);
             tb.leftMargin=dp(12);
             header.addView(titleBox,tb);
-            TextView title=text(ex.name,16,TEXT,true);
+            TextView title=text(ex.name,17,TEXT,true);
             title.setMaxLines(3);
             add(titleBox,title);
             space(titleBox,4);
             int complete=db.countExerciseSets(openSession,ex.id);
             int target=db.expectedSets(openWorkout,ex);
             boolean finished=complete>=target;
+            if(finished && expandedExerciseId.equals(ex.id)
+                && !editingSetExercise.equals(ex.id)) {
+                // Finished exercises collapse automatically but remain editable on tap.
+                expandedExerciseId="";
+            }
             TextView done=text((finished?"✓ ":"")+complete+"/"+target+" serii",13,finished?GREEN:TEAL,true);
             add(titleBox,done);
 
@@ -1122,7 +1137,7 @@ public final class MainActivity extends Activity {
                 desc.setVisibility(show?View.VISIBLE:View.GONE);
                 help.setText(show?"▴  Ukryj wskazówki":"ⓘ  Wskazówki techniczne");
             });
-            space(body,5);
+            space(body,2);
             LinearLayout labels=row();
             String[] headings={"SERIA","CIĘŻAR","POWT.","STATUS"};
             float[] widths={1.0f,1.6f,1.5f,1.6f};
@@ -1299,73 +1314,94 @@ public final class MainActivity extends Activity {
         }
 
         LinearLayout title=row();
-        TextView titleText=text("AKTUALNA SERIA "+(index+1),11,MUTED,true);
-        title.addView(titleText,new LinearLayout.LayoutParams(0,dp(26),1));
+        TextView titleText=text("SERIA "+(index+1),12,MUTED,true);
+        title.addView(titleText,new LinearLayout.LayoutParams(0,dp(24),1));
         TextView hint=text(previous==null?"Nowa seria":
-            "Poprzednio: "+weight(previous.weight)+" kg × "+previous.reps,11,MUTED,false);
+            "Poprz.: "+weight(previous.weight)+" kg × "+previous.reps,11,MUTED,false);
         title.addView(hint);
         add(block,title);
 
-        LinearLayout fields=row();
-        TextView number=text(String.format(Locale.ROOT,"%02d",index+1),14,MUTED,true);
-        number.setGravity(Gravity.CENTER);
-        fields.addView(number,new LinearLayout.LayoutParams(0,dp(45),1));
+        // Two balanced steppers: buttons flank the editable weight/rep fields.
+        LinearLayout steppers=row();
+        LinearLayout weightBox=row();
+        TextView minus=actionLabel("−",AMBER);
+        minus.setTextSize(22);minus.setGravity(Gravity.CENTER);
+        minus.setContentDescription("Zmniejsz ciężar o "+weight(db.weightStep(ex.id))+" kg");
+        minus.setBackground(rounded(Color.rgb(35,32,27),8,Color.rgb(65,57,47)));
+        weightBox.addView(minus,new LinearLayout.LayoutParams(dp(37),dp(43)));
         EditText kg=field(current!=null?weight(current.weight):
             previous!=null?weight(previous.weight):"","kg",true);
-        kg.setTextSize(17);kg.setPadding(dp(2),dp(4),dp(2),dp(4));
+        kg.setTextSize(17);kg.setPadding(dp(1),dp(3),dp(1),dp(3));
         kg.setContentDescription("Ciężar w kilogramach, seria "+(index+1));
-        fields.addView(kg,new LinearLayout.LayoutParams(0,dp(45),1.6f));
-        EditText reps=field(current!=null?Integer.toString(current.reps):
-            previous!=null?Integer.toString(previous.reps):"","powt.",false);
-        reps.setTextSize(17);reps.setPadding(dp(2),dp(4),dp(2),dp(4));
-        reps.setContentDescription("Powtórzenia, seria "+(index+1));
-        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,dp(45),1.5f);
-        rp.leftMargin=dp(5);
-        fields.addView(reps,rp);
-        Button save=button(current==null?"Zapisz":"Zmień",true);
-        save.setTextSize(12);
-        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,dp(45),1.6f);
-        sp.leftMargin=dp(5);
-        fields.addView(save,sp);
-        add(block,fields);
-
-        LinearLayout tools=row();
+        weightBox.addView(kg,new LinearLayout.LayoutParams(0,dp(43),1));
+        TextView plus=actionLabel("+",GREEN);
+        plus.setTextSize(22);plus.setGravity(Gravity.CENTER);
+        plus.setContentDescription("Zwiększ ciężar o "+weight(db.weightStep(ex.id))+" kg");
+        plus.setBackground(rounded(Color.rgb(29,39,33),8,Color.rgb(48,71,58)));
+        weightBox.addView(plus,new LinearLayout.LayoutParams(dp(37),dp(43)));
+        LinearLayout.LayoutParams weightLp=new LinearLayout.LayoutParams(0,dp(43),1.1f);
+        weightLp.rightMargin=dp(9);
+        steppers.addView(weightBox,weightLp);
         final double increment=db.weightStep(ex.id);
-        String amount=weight(increment);
-        TextView minus=actionLabel("−"+amount,AMBER);
-        minus.setBackground(rounded(Color.rgb(43,35,26),8,Color.rgb(110,83,55)));
-        minus.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams minusLp=new LinearLayout.LayoutParams(0,dp(36),1);
-        minusLp.rightMargin=dp(5);
-        tools.addView(minus,minusLp);
-        TextView plus=actionLabel("+"+amount,GREEN);
-        plus.setGravity(Gravity.CENTER);
-        plus.setBackground(rounded(Color.rgb(28,43,35),8,Color.rgb(58,103,79)));
-        tools.addView(plus,new LinearLayout.LayoutParams(0,dp(36),1));
         minus.setOnClickListener(v->changeWeight(kg,-increment));
         plus.setOnClickListener(v->changeWeight(kg,increment));
-        TextView copy=actionLabel("↺ Kopiuj",SKY);
-        copy.setGravity(Gravity.CENTER);
-        tools.addView(copy,new LinearLayout.LayoutParams(0,dp(36),1.15f));
-        copy.setOnClickListener(v->{
-            WorkoutDb.Entry from=db.get(openSession,ex.id,index-1);
-            if(from==null)from=db.previousWorkout(openWorkout,ex.id,index);
-            if(from==null){
-                Toast.makeText(this,"Brak poprzedniej serii",Toast.LENGTH_SHORT).show();
-            }else{
-                kg.setText(weight(from.weight));
-                reps.setText(Integer.toString(from.reps));
-            }
+
+        LinearLayout repsBox=row();
+        TextView repMinus=actionLabel("−",MUTED);
+        repMinus.setTextSize(22);repMinus.setGravity(Gravity.CENTER);
+        repMinus.setContentDescription("Odejmij jedno powtórzenie");
+        repMinus.setBackground(rounded(CARD,8,BORDER));
+        repsBox.addView(repMinus,new LinearLayout.LayoutParams(dp(37),dp(43)));
+        EditText reps=field(current!=null?Integer.toString(current.reps):
+            previous!=null?Integer.toString(previous.reps):"","powt.",false);
+        reps.setTextSize(17);reps.setPadding(dp(1),dp(3),dp(1),dp(3));
+        reps.setContentDescription("Powtórzenia, seria "+(index+1));
+        repsBox.addView(reps,new LinearLayout.LayoutParams(0,dp(43),1));
+        TextView repPlus=actionLabel("+",MUTED);
+        repPlus.setTextSize(22);repPlus.setGravity(Gravity.CENTER);
+        repPlus.setContentDescription("Dodaj jedno powtórzenie");
+        repPlus.setBackground(rounded(CARD,8,BORDER));
+        repsBox.addView(repPlus,new LinearLayout.LayoutParams(dp(37),dp(43)));
+        steppers.addView(repsBox,new LinearLayout.LayoutParams(0,dp(43),1));
+        repMinus.setOnClickListener(v->changeReps(reps,-1));
+        repPlus.setOnClickListener(v->changeReps(reps,1));
+        add(block,steppers);
+
+        LinearLayout actions=row();
+        TextView loadLabel=text("KG",10,MUTED,true);
+        loadLabel.setGravity(Gravity.CENTER);
+        actions.addView(loadLabel,new LinearLayout.LayoutParams(0,dp(36),1));
+        TextView repLabel=text("POWTÓRZENIA",10,MUTED,true);
+        repLabel.setGravity(Gravity.CENTER);
+        actions.addView(repLabel,new LinearLayout.LayoutParams(0,dp(36),1));
+        Button save=button("✓",true);
+        save.setTextSize(23);
+        save.setContentDescription(current==null?"Zapisz serię":"Zapisz zmianę serii");
+        LinearLayout.LayoutParams saveLp=new LinearLayout.LayoutParams(dp(68),dp(41));
+        saveLp.rightMargin=dp(7);
+        actions.addView(save,saveLp);
+        final int[] rirDraft={current==null?-1:current.rir};
+        TextView rir=actionLabel(rirDraft[0]<0?"RIR":"RIR "+rirDraft[0],MUTED);
+        rir.setTextSize(12);rir.setGravity(Gravity.CENTER);
+        rir.setBackground(rounded(CARD2,8,BORDER));
+        rir.setContentDescription("Ustaw RIR serii. Dotknij, aby wybrać; przytrzymaj, aby edytować notatkę.");
+        actions.addView(rir,new LinearLayout.LayoutParams(dp(69),dp(41)));
+        rir.setOnClickListener(v->{
+            final String[] choices={"Bez RIR","RIR 0","RIR 1","RIR 2","RIR 3","RIR 4"};
+            new AlertDialog.Builder(this).setTitle("Zapas powtórzeń")
+                .setSingleChoiceItems(choices,rirDraft[0]+1,(d,selected)->{
+                    rirDraft[0]=selected-1;
+                    rir.setText(rirDraft[0]<0?"RIR":"RIR "+rirDraft[0]);
+                    d.dismiss();
+                }).setNegativeButton("Anuluj",null).show();
         });
-        TextView note=actionLabel("RIR / not.",MUTED);
-        note.setGravity(Gravity.CENTER);
-        tools.addView(note,new LinearLayout.LayoutParams(0,dp(36),1.05f));
-        note.setOnClickListener(v->{
+        rir.setOnLongClickListener(v->{
             if(db.get(openSession,ex.id,index)==null)
-                Toast.makeText(this,"Najpierw zapisz serię",Toast.LENGTH_SHORT).show();
+                Toast.makeText(this,"Zapisz serię, aby dodać notatkę",Toast.LENGTH_SHORT).show();
             else editSetMetadata(openSession,ex,index,()->render());
+            return true;
         });
-        add(block,tools);
+        add(block,actions);
 
         save.setOnClickListener(v->{
             try {
@@ -1376,7 +1412,10 @@ public final class MainActivity extends Activity {
                 WorkoutDb.Entry previousEntry=db.get(openSession,ex.id,index);
                 undoPrevious=previousEntry;undoSession=openSession;
                 undoExercise=ex.id;undoIndex=index;canUndoSet=true;
-                db.save(openSession,ex.id,index,w,repsValue);
+                WorkoutDb.Entry existing=db.get(openSession,ex.id,index);
+                db.save(openSession,ex.id,index,w,repsValue,rirDraft[0],
+                    existing==null?"":existing.note,existing!=null&&existing.warmup);
+                save.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM);
                 WorkoutDb.Entry saved=db.get(openSession,ex.id,index);
                 boolean pr=db.isPersonalRecord(openSession,ex.id,saved);
                 editingSetExercise="";editingSetIndex=-1;
@@ -1401,6 +1440,13 @@ public final class MainActivity extends Activity {
             ScrollView scroll=contentScroll;LinearLayout card=expandedCard;
             scroll.post(()->scroll.smoothScrollTo(0,Math.max(0,card.getTop()-dp(6))));
         }
+    }
+
+    private void changeReps(EditText field,int delta) {
+        int value=0;
+        try { value=Integer.parseInt(field.getText().toString().trim()); }
+        catch(NumberFormatException ignored) { }
+        field.setText(Integer.toString(Math.max(1,Math.min(1000,value+delta))));
     }
 
     private void changeWeight(EditText field,double change) {
