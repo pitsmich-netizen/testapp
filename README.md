@@ -1,5 +1,13 @@
 # FORMA — dziennik treningowy na Androida
 
+## FORMA 0.8.3 — kompaktowy ekran aktywnej serii
+
+- Ciężar i powtórzenia ze sterowaniem −/pole/+ w jednym wierszu razem z ✓ oraz RIR.
+- Mniejsze odstępy, bez dodatkowych podpisów pod formularzem.
+- Opcje sesji w trzech oddzielnych, czytelnych kafelkach (wstrzymaj, zakończ, usuń); usunięcie nadal wymaga potwierdzenia.
+- **Bez zmiany schematu SQLite**: FBW 1.0 i historia nie są resetowane, OTA zachowane.
+- [Pobierz podpisaną FORMA 0.8.3](https://github.com/pitsmich-netizen/testapp/releases/download/v0.8.3/forma-v0.8.3.apk).
+
 ## FORMA 0.8.1 / FBW 1.0
 
 Najnowszy plan: **FBW A / FBW B / FBW C**, poniedziałek / środa / piątek, po **9 ćwiczeń i 19 serii roboczych dziennie**, łącznie **57 serii tygodniowo**. Sesje orientacyjnie 60–75 minut, zależnie od czasu przerw i liczby ćwiczeń jednostronnych.
