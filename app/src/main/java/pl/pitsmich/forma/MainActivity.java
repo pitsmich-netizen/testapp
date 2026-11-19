@@ -319,7 +319,7 @@ public final class MainActivity extends Activity {
         else if(page.equals("weekly")) showWeeklyAnalysis();
         else showSettings();
 
-        if(!page.equals("session") && !page.equals("detail") && !page.equals("edit") && !page.equals("exerciseProgress") && !page.equals("planEditor") && !page.equals("summary") && !page.equals("weekly")) showNavigation();
+        if(!page.equals("session") && !page.equals("edit") && !page.equals("planEditor") && !page.equals("summary")) showNavigation();
     }
 
     private void showNavigation() {
@@ -330,7 +330,7 @@ public final class MainActivity extends Activity {
         String[] pages={"plan","history","progress","calendar"};
         for(int i=0;i<names.length;i++) {
             final String selected=pages[i];
-            boolean active=page.equals(selected);
+            boolean active=page.equals(selected) || (selected.equals("history") && page.equals("detail")) || (selected.equals("progress") && (page.equals("exerciseProgress") || page.equals("weekly")));
             LinearLayout item=col();
             item.setGravity(Gravity.CENTER);
             TextView symbol=text(icons[i],19,active?TEAL:MUTED,active);
@@ -382,6 +382,28 @@ public final class MainActivity extends Activity {
         r.addView(v,new LinearLayout.LayoutParams(-2,dp(33)));
         add(target,r);
     }
+    private void showActionSheet(String title,String[] options,java.util.function.IntConsumer onSelect) {
+        LinearLayout sheet=col();
+        sheet.setPadding(dp(15),dp(14),dp(15),dp(14));
+        sheet.setBackground(rounded(CARD2,18,BORDER));
+        TextView heading=text(title,18,TEXT,true);
+        heading.setPadding(dp(8),dp(4),dp(8),dp(12));
+        add(sheet,heading);
+        AlertDialog dialog=new AlertDialog.Builder(this).setView(sheet).create();
+        for(int i=0;i<options.length;i++) {
+            final int choice=i;
+            TextView option=text(options[i],15,TEXT,false);
+            option.setMinHeight(dp(54));
+            option.setPadding(dp(13),dp(12),dp(13),dp(12));
+            add(sheet,option);
+            option.setOnClickListener(v->{dialog.dismiss();onSelect.accept(choice);});
+        }
+        dialog.show();
+        Window w=dialog.getWindow();
+        if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);
+            w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT);}
+    }
+
     private void showPlan() {
         space(content,4);
         headline(content,"Twój plan");
@@ -424,11 +446,10 @@ public final class MainActivity extends Activity {
             menu.setTextSize(23);menu.setGravity(Gravity.CENTER);
             menu.setContentDescription("Ustaw dzień, nazwę lub edytuj plan");
             first.addView(menu,new LinearLayout.LayoutParams(dp(44),dp(46)));
-            menu.setOnClickListener(v->new AlertDialog.Builder(this)
-                .setTitle(scheduled.title)
-                .setItems(new String[]{"Zmień dzień lub nazwę","Edytuj ćwiczenia"},(d,choice)->{
+            menu.setOnClickListener(v->showActionSheet(scheduled.title,
+                new String[]{"✎  Zmień dzień lub nazwę","☷  Edytuj ćwiczenia"},choice->{
                     if(choice==0)editScheduleDay(workout);else openPlanEditor(workout);
-                }).show());
+                }));
 
             TextView drag=actionLabel("⠿",MUTED);
             drag.setTextSize(24);drag.setGravity(Gravity.CENTER);
@@ -1938,6 +1959,19 @@ public final class MainActivity extends Activity {
         add(content,text(new SimpleDateFormat("dd.MM.yyyy  ·  HH:mm",
             Locale.forLanguageTag("pl-PL")).format(new Date(selected.startedAt)),13,MUTED,false));
         space(content,9);
+        LinearLayout allControls=row();
+        TextView collapse=actionLabel("Zwiń wszystkie",TEAL);
+        collapse.setMinHeight(dp(42));
+        allControls.addView(collapse,new LinearLayout.LayoutParams(0,dp(42),1));
+        TextView expand=actionLabel("Rozwiń wszystkie",TEAL);
+        expand.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        allControls.addView(expand,new LinearLayout.LayoutParams(0,dp(42),1));
+        collapse.setOnClickListener(v->{
+            for(WorkoutDb.Entry e:db.sets(detailSession))collapsedDetailExercises.add(e.exerciseId);
+            render();
+        });
+        expand.setOnClickListener(v->{collapsedDetailExercises.clear();render();});
+        add(content,allControls);
         LinearLayout stats=card(content);
         smallLabel(stats,"PODSUMOWANIE SESJI");
         LinearLayout summary=row();
@@ -2581,12 +2615,22 @@ public final class MainActivity extends Activity {
         headline(content,"Progres");
         add(content,text("Wyniki według dnia treningowego",13,MUTED,false));
         space(content,7);
+        WeekReport currentWeek=weekReport(weekStart(0),weekStart(1));
         LinearLayout weekLink=card(content);
+        smallLabel(weekLink,"TEN TYDZIEŃ");
+        space(weekLink,8);
         LinearLayout weekRow=row();
-        TextView weekTitle=text("Analiza tygodnia  ·  partie mięśniowe",14,TEXT,true);
-        weekRow.addView(weekTitle,new LinearLayout.LayoutParams(0,dp(40),1));
-        add(weekRow,text("›",22,TEAL,true));
+        String[] weeklyValues={currentWeek.sessions+" / 3",String.valueOf(currentWeek.workingSets),weight(currentWeek.volume)+" kg"};
+        String[] weeklyLabels={"TRENINGI","SERIE","OBJĘTOŚĆ"};
+        for(int i=0;i<3;i++){
+            LinearLayout cell=col();
+            add(cell,text(weeklyValues[i],i==2?17:21,TEXT,true));
+            add(cell,text(weeklyLabels[i],10,MUTED,true));
+            weekRow.addView(cell,new LinearLayout.LayoutParams(0,-2,1));
+        }
         add(weekLink,weekRow);
+        space(weekLink,10);
+        add(weekLink,text("Analiza tygodnia i partii mięśniowych  ›",13,TEAL,true));
         clickCard(weekLink,()->{weeklyOffset=0;page="weekly";render();});
         space(content,6);
         LinearLayout selector=row();
@@ -2658,8 +2702,17 @@ public final class MainActivity extends Activity {
                 title.setMaxLines(3);
                 title.setMinHeight(dp(49));
                 add(tile,title);
-                space(tile,7);
+                space(tile,5);
                 add(tile,text(best==null?"—":weight(best.weight)+" kg",21,best==null?MUTED:dayColor(selectedProgressWorkout),true));
+                List<WorkoutDb.Progress> exerciseHistory=db.progress(ex.id);
+                if(exerciseHistory.size()>1){
+                    WorkoutDb.Progress recent=exerciseHistory.get(0);
+                    WorkoutDb.Progress prior=exerciseHistory.get(1);
+                    double delta=recent.maxWeight-prior.maxWeight;
+                    String direction=delta>0.001?"↑ +":delta< -0.001?"↓ ":"→ ";
+                    String changeLabel=Math.abs(delta)<0.001?"bez zmian":direction+weight(delta)+" kg";
+                    add(tile,text(changeLabel,11,delta>0.001?GREEN:delta< -0.001?AMBER:MUTED,true));
+                }
                 LinearLayout bottom=row();
                 TextView reps=actionLabel(best==null?"Brak serii":("× "+best.reps+" powt."),MUTED);
                 bottom.addView(reps,new LinearLayout.LayoutParams(0,dp(28),1));
