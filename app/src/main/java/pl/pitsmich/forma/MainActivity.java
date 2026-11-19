@@ -1513,15 +1513,61 @@ public final class MainActivity extends Activity {
     }
 
     private void showSessionActions() {
-        String[] options={"Wstrzymaj trening","Zakończ i zapisz","Anuluj i usuń trening"};
-        new AlertDialog.Builder(this)
-            .setTitle("Opcje treningu")
-            .setItems(options,(dialog,which)->{
-                if(which==0)pauseWorkout();
-                else if(which==1)finishWorkout();
-                else cancelWorkout();
-            })
-            .setNegativeButton("Wróć",null).show();
+        // Consistent with the compact dark app UI, rather than Android's
+        // platform-default plain list. Destructive action still requires confirmation.
+        LinearLayout sheet=col();
+        sheet.setPadding(dp(18),dp(14),dp(18),dp(12));
+        add(sheet,text("Opcje treningu",19,TEXT,true));
+        space(sheet,4);
+        add(sheet,text(db.workoutLabel(openWorkout)+"  •  wybierz działanie",12,MUTED,false));
+        space(sheet,13);
+        AlertDialog dialog=new AlertDialog.Builder(this)
+            .setView(sheet).create();
+        addSessionMenuItem(sheet,"Ⅱ","Wstrzymaj trening",
+            "Wróć do planu i kontynuuj później",MUTED,()->{
+                dialog.dismiss();pauseWorkout();
+            });
+        space(sheet,7);
+        addSessionMenuItem(sheet,"✓","Zakończ i zapisz",
+            "Zapisz wykonane serie w historii",GREEN,()->{
+                dialog.dismiss();finishWorkout();
+            });
+        space(sheet,12);
+        addSessionMenuItem(sheet,"×","Anuluj i usuń trening",
+            "Wymaga dodatkowego potwierdzenia",RED,()->{
+                dialog.dismiss();cancelWorkout();
+            });
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.show();
+        Window window=dialog.getWindow();
+        if(window!=null) {
+            window.setBackgroundDrawable(rounded(CARD,16,BORDER));
+            window.setLayout(
+                getResources().getDisplayMetrics().widthPixels-dp(44),
+                WindowManager.LayoutParams.WRAP_CONTENT);
+        }
+    }
+
+    private void addSessionMenuItem(LinearLayout target,String glyph,String title,
+                                    String subtitle,int accent,Runnable action) {
+        LinearLayout item=row();
+        item.setPadding(dp(12),dp(9),dp(12),dp(9));
+        item.setBackground(rounded(CARD2,10,BORDER));
+        TextView sign=text(glyph,23,accent,true);
+        sign.setGravity(Gravity.CENTER);
+        item.addView(sign,new LinearLayout.LayoutParams(dp(39),dp(47)));
+        LinearLayout description=col();
+        LinearLayout.LayoutParams details=new LinearLayout.LayoutParams(0,-2,1);
+        details.leftMargin=dp(8);
+        item.addView(description,details);
+        add(description,text(title,15,accent==RED?RED:TEXT,true));
+        space(description,3);
+        add(description,text(subtitle,12,MUTED,false));
+        item.setMinimumHeight(dp(65));
+        item.setClickable(true);
+        item.setContentDescription(title+". "+subtitle);
+        item.setOnClickListener(v->action.run());
+        add(target,item);
     }
     private void pauseWorkout() {
         if(openSession<0)return;
