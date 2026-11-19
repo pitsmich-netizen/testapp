@@ -1188,22 +1188,37 @@ public final class MainActivity extends Activity {
 
         LinearLayout buttons=row();
         int[] seconds={60,90,120};
+        TextView[] timerChoices=new TextView[seconds.length];
         for(int i=0;i<seconds.length;i++) {
             final int sec=seconds[i];
-            TextView t=pill(sec+" s",false);
+            TextView t=pill(sec+" s",remaining>0 && secondsTotal==sec);
+            timerChoices[i]=t;
             t.setTextSize(13);
+            t.setContentDescription("Rozpocznij przerwę "+sec+" sekund");
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(35),1);
             if(i>0)p.leftMargin=dp(7);
             buttons.addView(t,p);
-            t.setOnClickListener(v->startRest(sec));
+            t.setOnClickListener(v->{
+                startRest(sec);
+                for(int j=0;j<seconds.length;j++){
+                    boolean selected=seconds[j]==sec;
+                    timerChoices[j].setTextColor(selected?BG:MUTED);
+                    timerChoices[j].setBackground(rounded(selected?TEAL:CARD,14,selected?0:BORDER));
+                }
+            });
         }
         TextView plus=pill("+15 s",false);
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(35),1);
         p.leftMargin=dp(7);
         buttons.addView(plus,p);
+        plus.setContentDescription("Wydłuż przerwę o 15 sekund");
         plus.setOnClickListener(v->{
             long left=RestTimer.secondsRemaining(this);
             startRest((int)left+15);
+            for(TextView choice:timerChoices){
+                choice.setTextColor(MUTED);
+                choice.setBackground(rounded(CARD,14,BORDER));
+            }
         });
         add(timerShell,buttons);
 
@@ -1698,8 +1713,9 @@ public final class MainActivity extends Activity {
         Window window=dialog.getWindow();
         if(window!=null) {
             window.setBackgroundDrawable(rounded(CARD,16,BORDER));
+            window.setGravity(Gravity.BOTTOM);
             window.setLayout(
-                getResources().getDisplayMetrics().widthPixels-dp(44),
+                getResources().getDisplayMetrics().widthPixels-dp(16),
                 WindowManager.LayoutParams.WRAP_CONTENT);
         }
     }
@@ -1824,7 +1840,10 @@ public final class MainActivity extends Activity {
         }
         add(reflection,rating);
         space(reflection,9);
-        TextView caption=text("1 = bardzo słabo   ·   5 = świetnie",12,MUTED,false);
+        String[] meanings={"","bardzo słabo","słabo","przeciętnie","dobrze","świetnie"};
+        TextView caption=text(selected>0?
+            "Twoja ocena: "+selected+"/5 — "+meanings[selected]:
+            "1 = bardzo słabo   ·   5 = świetnie",12,selected>0?TEAL:MUTED,false);
         add(reflection,caption);
         space(reflection,10);
         TextView note=actionLabel("✎  Dodaj / edytuj notatkę treningową  ›",TEAL);
