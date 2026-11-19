@@ -2129,7 +2129,7 @@ public final class MainActivity extends Activity {
             .setNegativeButton("Anuluj",null)
             .setPositiveButton("Zapisz",(d,w)->{
                 String userNote=note.getText().toString().trim();
-                if(feeling>0)userNote+=(userNote.isEmpty()?"":"\\n")+"Samopoczucie: "+feeling+"/5";
+                if(feeling>0)userNote+=(userNote.isEmpty()?"":"\n")+"Samopoczucie: "+feeling+"/5";
                 db.updateCompleted(session.id,session.startedAt,userNote);
                 render();
             }).show();
