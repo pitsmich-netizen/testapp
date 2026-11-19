@@ -44,6 +44,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Switch;
 import android.widget.Toast;
 
 import java.io.OutputStream;
@@ -83,6 +84,8 @@ public final class MainActivity extends Activity {
     private WorkoutDb.Entry undoPrevious;
     private int calendarMonth=Calendar.getInstance().get(Calendar.MONTH);
     private int calendarYear=Calendar.getInstance().get(Calendar.YEAR);
+    private String settingsSection="";
+    private ProgressBar restProgress;
 
     private WorkoutDb db;
     private Updater updater;
@@ -110,6 +113,13 @@ public final class MainActivity extends Activity {
             restUntil=RestTimer.endTime(MainActivity.this);
             if(timerLabel!=null)
                 timerLabel.setText(restUntil==0?"00:00":formatTime(RestTimer.secondsRemaining(MainActivity.this)));
+            if(restProgress!=null) {
+                long remaining=RestTimer.secondsRemaining(MainActivity.this);
+                int total=getSharedPreferences("forma_settings",0).getInt("rest_total",90);
+                restProgress.setMax(Math.max(1,total));
+                restProgress.setProgress((int)Math.max(0,Math.min(total,total-remaining)));
+                restProgress.setProgressTintList(ColorStateList.valueOf(remaining>0?TEAL:BORDER));
+            }
             if(elapsedLabel!=null && sessionStartedAt>0) {
                 WorkoutDb.Session active=db.active();
                 if(active!=null) elapsedLabel.setText(formatTime(db.durationMillis(active)/1000));
@@ -140,6 +150,7 @@ public final class MainActivity extends Activity {
             editingSetIndex=state.getInt("editingSetIndex",-1);
             calendarMonth=state.getInt("calendarMonth",calendarMonth);
             calendarYear=state.getInt("calendarYear",calendarYear);
+            settingsSection=state.getString("settingsSection","");
         }
         render();
         handler.post(ticker);
@@ -158,6 +169,7 @@ public final class MainActivity extends Activity {
         state.putInt("editingSetIndex",editingSetIndex);
         state.putInt("calendarMonth",calendarMonth);
         state.putInt("calendarYear",calendarYear);
+        state.putString("settingsSection",settingsSection);
         super.onSaveInstanceState(state);
     }
     @Override protected void onResume() {
@@ -224,7 +236,7 @@ public final class MainActivity extends Activity {
     }
 
     private void render() {
-        timerLabel=null; sessionCount=null; elapsedLabel=null; sessionProgress=null;
+        timerLabel=null; sessionCount=null; elapsedLabel=null; sessionProgress=null; restProgress=null;
         expandedBody=null; expandedChevron=null; expandedCard=null; contentScroll=null;
         root=col();
         root.setBackgroundColor(BG);
@@ -240,14 +252,18 @@ public final class MainActivity extends Activity {
         TextView logo=text("FORMA",20,TEAL,true);
         logo.setLetterSpacing(0.10f);
         brand.addView(logo,new LinearLayout.LayoutParams(0,dp(39),1));
-        TextView version=text("0.8.3",12,MUTED,true);
+        TextView version=text(BuildConfig.VERSION_NAME,12,MUTED,true);
         version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         brand.addView(version,new LinearLayout.LayoutParams(dp(54),dp(44)));
         TextView gear=text(page.equals("settings")?"‹":"⚙",26,TEAL,true);
         gear.setGravity(Gravity.CENTER);
         gear.setContentDescription(page.equals("settings")?"Wróć do planu":"Ustawienia aplikacji");
         brand.addView(gear,new LinearLayout.LayoutParams(dp(47),dp(44)));
-        gear.setOnClickListener(v->{page=page.equals("settings")?"plan":"settings";render();});
+        gear.setOnClickListener(v->{
+            if(page.equals("settings")&&!settingsSection.isEmpty())settingsSection="";
+            else page=page.equals("settings")?"plan":"settings";
+            render();
+        });
         if(!page.equals("session")) {
             add(root,brand);
             space(root,5);
@@ -1698,6 +1714,7 @@ public final class MainActivity extends Activity {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},6071);
         }
         RestTimer.start(this,seconds);
+        getSharedPreferences("forma_settings",0).edit().putInt("rest_total",seconds).apply();
         restUntil=RestTimer.endTime(this);
         if(timerLabel!=null) timerLabel.setText(formatTime(seconds));
     }
