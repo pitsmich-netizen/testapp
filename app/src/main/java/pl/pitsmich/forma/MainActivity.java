@@ -240,7 +240,7 @@ public final class MainActivity extends Activity {
         TextView logo=text("FORMA",20,TEAL,true);
         logo.setLetterSpacing(0.10f);
         brand.addView(logo,new LinearLayout.LayoutParams(0,dp(39),1));
-        TextView version=text("0.8.1",12,MUTED,true);
+        TextView version=text("0.8.2",12,MUTED,true);
         version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         brand.addView(version,new LinearLayout.LayoutParams(dp(54),dp(44)));
         TextView gear=text(page.equals("settings")?"‹":"⚙",26,TEAL,true);
@@ -248,8 +248,10 @@ public final class MainActivity extends Activity {
         gear.setContentDescription(page.equals("settings")?"Wróć do planu":"Ustawienia aplikacji");
         brand.addView(gear,new LinearLayout.LayoutParams(dp(47),dp(44)));
         gear.setOnClickListener(v->{page=page.equals("settings")?"plan":"settings";render();});
-        add(root,brand);
-        space(root,5);
+        if(!page.equals("session")) {
+            add(root,brand);
+            space(root,5);
+        }
 
         if(page.equals("session")) {
             WorkoutDb.Session active=db.active();
@@ -371,7 +373,9 @@ public final class MainActivity extends Activity {
             LinearLayout card=card(content);
             LinearLayout first=row();
 
-            TextView day=actionLabel(weekdayName(scheduled.weekday).toUpperCase(Locale.forLanguageTag("pl-PL")),MUTED);
+            TextView day=actionLabel(weekdayName(scheduled.weekday).toUpperCase(Locale.forLanguageTag("pl-PL")),Color.rgb(193,193,193));
+            day.setTextSize(17);
+            day.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
             day.setGravity(Gravity.CENTER_VERTICAL);
             first.addView(day,new LinearLayout.LayoutParams(0,dp(40),1));
             day.setOnClickListener(v->editScheduleDay(workout));
@@ -955,28 +959,34 @@ public final class MainActivity extends Activity {
         plannedSets=0;
         for(Plan.Exercise e:db.workoutPlan(openWorkout)) plannedSets+=db.expectedSets(openWorkout,e);
 
+        // The workout header replaces the global brand toolbar: centered day title,
+        // unobtrusive back affordance, and the session menu in the upper right.
         LinearLayout top=row();
-        TextView back=text("‹  PLAN",15,TEAL,true);
-        back.setPadding(dp(1),0,dp(12),0);
+        TextView back=text("‹",26,MUTED,false);
+        back.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
+        back.setContentDescription("Wróć do planu");
+        top.addView(back,new LinearLayout.LayoutParams(dp(51),dp(42)));
         back.setOnClickListener(v->{page="plan";render();});
-        top.addView(back,new LinearLayout.LayoutParams(dp(88),dp(44)));
-        TextView title=text(db.workoutLabel(openWorkout),18,TEXT,true);
-        title.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
-        top.addView(title,new LinearLayout.LayoutParams(0,dp(44),1));
-        TextView controls=text("⋮",29,TEAL,true);
+        TextView title=text(db.workoutLabel(openWorkout),21,TEXT,true);
+        title.setGravity(Gravity.CENTER);
+        title.setSingleLine(true);
+        title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        top.addView(title,new LinearLayout.LayoutParams(0,dp(42),1));
+        TextView controls=text("⋮",26,MUTED,true);
         controls.setGravity(Gravity.CENTER);
         controls.setContentDescription("Opcje treningu: wstrzymaj, zakończ lub anuluj");
-        top.addView(controls,new LinearLayout.LayoutParams(dp(43),dp(44)));
+        top.addView(controls,new LinearLayout.LayoutParams(dp(51),dp(42)));
         controls.setOnClickListener(v->showSessionActions());
         add(root,top);
+        space(root,2);
 
         LinearLayout count=row();
-        TextView small=text("POSTĘP • SERIE ROBOCZE",11,MUTED,true);
+        TextView small=text("SERIE ROBOCZE",11,MUTED,true);
         count.addView(small,new LinearLayout.LayoutParams(0,dp(29),1));
         sessionCount=text("0 / "+plannedSets+" serii",14,TEAL,true);
         sessionCount.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         count.addView(sessionCount);
-        TextView undo=actionLabel("  ↶ COFNIJ",canUndoSet&&undoSession==openSession?AMBER:MUTED);
+        TextView undo=actionLabel("↶ Cofnij",canUndoSet&&undoSession==openSession?AMBER:MUTED);
         undo.setGravity(Gravity.CENTER);
         undo.setContentDescription("Cofnij ostatnio zapisaną serię");
         count.addView(undo,new LinearLayout.LayoutParams(dp(83),dp(34)));
@@ -995,9 +1005,9 @@ public final class MainActivity extends Activity {
 
         LinearLayout timerShell=col();
         timerShell.setBackground(rounded(CARD,17,BORDER));
-        timerShell.setPadding(dp(10),dp(7),dp(10),dp(8));
+        timerShell.setPadding(dp(9),dp(6),dp(9),dp(7));
         LinearLayout.LayoutParams shellLp=new LinearLayout.LayoutParams(-1,-2);
-        shellLp.topMargin=dp(7);shellLp.bottomMargin=dp(4);
+        shellLp.topMargin=dp(5);shellLp.bottomMargin=dp(2);
         root.addView(timerShell,shellLp);
 
         LinearLayout times=row();
@@ -1073,13 +1083,18 @@ public final class MainActivity extends Activity {
             LinearLayout.LayoutParams tb=new LinearLayout.LayoutParams(0,-2,1);
             tb.leftMargin=dp(12);
             header.addView(titleBox,tb);
-            TextView title=text(ex.name,16,TEXT,true);
+            TextView title=text(ex.name,17,TEXT,true);
             title.setMaxLines(3);
             add(titleBox,title);
             space(titleBox,4);
             int complete=db.countExerciseSets(openSession,ex.id);
             int target=db.expectedSets(openWorkout,ex);
             boolean finished=complete>=target;
+            if(finished && expandedExerciseId.equals(ex.id)
+                && !editingSetExercise.equals(ex.id)) {
+                // Finished exercises collapse automatically but remain editable on tap.
+                expandedExerciseId="";
+            }
             TextView done=text((finished?"✓ ":"")+complete+"/"+target+" serii",13,finished?GREEN:TEAL,true);
             add(titleBox,done);
 
@@ -1122,7 +1137,7 @@ public final class MainActivity extends Activity {
                 desc.setVisibility(show?View.VISIBLE:View.GONE);
                 help.setText(show?"▴  Ukryj wskazówki":"ⓘ  Wskazówki techniczne");
             });
-            space(body,5);
+            space(body,2);
             LinearLayout labels=row();
             String[] headings={"SERIA","CIĘŻAR","POWT.","STATUS"};
             float[] widths={1.0f,1.6f,1.5f,1.6f};
