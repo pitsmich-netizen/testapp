@@ -27,6 +27,8 @@ jobs:
         run: python3 scripts/verify_forma_081.py
       - name: Validate v0.8.2 compact workout controls
         run: python3 scripts/verify_forma_082.py
+      - name: Validate v0.8.3 compact inline edit and actions
+        run: python3 scripts/verify_forma_083.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
