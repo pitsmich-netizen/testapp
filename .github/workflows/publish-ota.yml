@@ -8,8 +8,12 @@ on:
         required: false
         default: 'Ulepszenia dziennika treningowego.'
   push:
+    branches:
+      - main
     tags:
       - 'v*'
+    paths:
+      - '.release-requests/forma-0.9.2.txt'
 
 permissions:
   contents: write

@@ -16,7 +16,7 @@ timer=read("app/src/main/java/pl/pitsmich/forma/RestTimer.java")
 gradle=read("app/build.gradle")
 
 assert 'super(context, "forma_workouts.db", null, 9);' in db
-assert "versionCode 16" in gradle and "versionName '0.9.1'" in gradle
+assert "versionCode 17" in gradle and "versionName '0.9.2'" in gradle
 assert "if(oldVersion<6)" in db and "if(oldVersion<7)" in db
 assert "audit_resolution" in db and "plan_items" in db
 for column in ("rir", "note", "warmup"):
