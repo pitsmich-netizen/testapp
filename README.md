@@ -6,6 +6,7 @@
 - **Głębsze ekrany:** bardziej kompaktowe widoki zapisanych serii, edycji historii i trendu ćwiczenia; menu ukończonej sesji w tym samym stylu co menu aktywnego treningu.
 - **Bezpieczeństwo danych:** edycja ciężaru/powtórzeń zachowuje wcześniej zapisany RIR, notatkę i oznaczenie rozgrzewki.
 - **Zgodność:** ten sam pakiet i certyfikat podpisu, plan FBW 1.0, kopie zapasowe i schemat SQLite v9 bez zmian.
+- [Pobierz podpisany instalator FORMA 0.8.5](https://github.com/pitsmich-netizen/testapp/releases/download/v0.8.5/forma-v0.8.5.apk).
 
 ## FORMA 0.8.4 — czytelny timer, ustawienia i kalendarz
 
