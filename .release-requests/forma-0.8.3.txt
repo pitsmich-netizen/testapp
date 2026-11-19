@@ -1,0 +1,1 @@
+Release FORMA v0.8.3 (versionCode 12) signed with existing keystore, same package. Single-line weight + reps stepper controls, inline ✓ and RIR, adjusted spacing, refreshed workout menu and confirmed deletion. No SQLite schema migration; retain FBW 1.0, history, rest timer and OTA. Publish forma-v0.8.3.apk and latest.json to GitHub Releases.
