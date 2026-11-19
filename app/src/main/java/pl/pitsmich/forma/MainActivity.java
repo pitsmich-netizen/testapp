@@ -1491,6 +1491,11 @@ public final class MainActivity extends Activity {
             "Poprz.: "+weight(previous.weight)+" kg × "+previous.reps,11,MUTED,false);
         title.addView(hint);
         add(block,title);
+        if(current==null){
+            TextView guidance=text("ⓘ  "+db.loadGuidance(ex,openWorkout,index),11,MUTED,false);
+            guidance.setPadding(dp(2),dp(3),dp(2),dp(6));
+            add(block,guidance);
+        }
 
         // One horizontal control strip. Flexible stepper groups share remaining width
         // after the fixed-size save and RIR actions; this avoids row overflow.
@@ -1879,7 +1884,7 @@ public final class MainActivity extends Activity {
         add(key,text("Objętość uwzględnia sposób podawania ciężaru dla każdego ćwiczenia. "+
             "Rozgrzewki nie są wliczane.",12,MUTED,false));
 
-        WorkoutDb.Session previous=db.previousCompletedSameWorkout(session);
+        WorkoutDb.Session previous=WorkoutDb.isTestSession(session)?null:db.previousCompletedSameWorkout(session);
         LinearLayout compare=card(content);
         smallLabel(compare,"PORÓWNANIE Z POPRZEDNIM TRENINGIEM");
         space(compare,9);
@@ -1917,7 +1922,7 @@ public final class MainActivity extends Activity {
             }
             WorkoutDb.Entry bestBefore=null;
             for(WorkoutDb.Session old:db.completed()){
-                if(old.id==session.id || old.startedAt>=session.startedAt)continue;
+                if(WorkoutDb.isTestSession(old)||old.id==session.id || old.startedAt>=session.startedAt)continue;
                 for(WorkoutDb.Entry candidate:db.sets(old.id)){
                     if(candidate.warmup || !candidate.exerciseId.equals(entry.exerciseId))continue;
                     if(bestBefore==null || candidate.weight>bestBefore.weight ||
@@ -1932,7 +1937,9 @@ public final class MainActivity extends Activity {
             if(status==0)status=Integer.compare(bestCurrent.reps,bestBefore.reps);
             if(status>0)improvements++;else if(status<0)decreases++;else stable++;
         }
-        if(comparable==0)add(exerciseCompare,text("Pierwsze wyniki tych ćwiczeń — porównanie pojawi się po kolejnej sesji.",13,MUTED,false));
+        if(WorkoutDb.isTestSession(session))
+            add(exerciseCompare,text("Sesja testowa: nie wpływa na statystyki ani podpowiedzi.",13,AMBER,false));
+        else if(comparable==0)add(exerciseCompare,text("Pierwsze wyniki tych ćwiczeń — porównanie pojawi się po kolejnej sesji.",13,MUTED,false));
         else{
             summaryLine(exerciseCompare,"Lepszy wynik",improvements+" ćw.");
             summaryLine(exerciseCompare,"Bez zmian",stable+" ćw.");
@@ -2006,6 +2013,8 @@ public final class MainActivity extends Activity {
             String duration=imported?"bez czasu":formatTime(db.durationMillis(session)/1000);
             String info=session.sets+" serii  •  "+duration+"  •  "+weight(session.volume)+" kg obj.";
             add(c,text(info,13,MUTED,false));
+            if(WorkoutDb.isTestSession(session))
+                add(c,text("TESTOWY  ·  poza statystykami i sugestiami",11,AMBER,true));
             String auditState=db.auditResolution(session.id);
             if(imported && session.sets!=18 && "pending".equals(auditState)) {
                 space(c,3);
@@ -2037,6 +2046,8 @@ public final class MainActivity extends Activity {
         add(content,title);
         add(content,text(new SimpleDateFormat("dd.MM.yyyy  ·  HH:mm",
             Locale.forLanguageTag("pl-PL")).format(new Date(selected.startedAt)),13,MUTED,false));
+        if(WorkoutDb.isTestSession(selected))
+            add(content,text("DANE TESTOWE  ·  bez wpływu na rekordy i analizę",12,AMBER,true));
         space(content,5);
         LinearLayout allControls=row();
         TextView collapse=actionLabel("Zwiń wszystkie",TEAL);
@@ -2175,6 +2186,14 @@ public final class MainActivity extends Activity {
             "Ciężar, powtórzenia, RIR i notatki",SKY,()->{
                 dialog.dismiss();detailSession=session.id;page="edit";render();
             });
+        space(sheet,7);
+        boolean test=WorkoutDb.isTestSession(session);
+        addSessionMenuItem(sheet,"◈",test?"Oznacz jako prawdziwy":"Oznacz jako testowy",
+            test?"Przywróć do statystyk i sugestii":"Zachowaj wpis, ale pomiń w progresie",AMBER,()->{
+                dialog.dismiss();
+                db.setTestSession(session.id,!test);
+                render();
+            });
         space(sheet,11);
         addSessionMenuItem(sheet,"×","Usuń trening",
             "Wymaga potwierdzenia",RED,()->{
@@ -2231,7 +2250,8 @@ public final class MainActivity extends Activity {
         EditText note=new EditText(this);
         String original=session.notes==null?"":session.notes;
         int feeling=sessionFeeling(original);
-        note.setText(original.replaceAll("(?m)^Samopoczucie: [1-5]/5\\s*\\n?","").trim());
+        note.setText(original.replaceAll("(?m)^Samopoczucie: [1-5]/5\\s*\\n?","")
+            .replace("[FORMA:TEST]","").trim());
         note.setTextSize(16);
         note.setTextColor(TEXT);
         note.setHint("Notatka do treningu");
@@ -2250,6 +2270,8 @@ public final class MainActivity extends Activity {
             .setPositiveButton("Zapisz",(d,w)->{
                 String userNote=note.getText().toString().trim();
                 if(feeling>0)userNote+=(userNote.isEmpty()?"":"\n")+"Samopoczucie: "+feeling+"/5";
+                if(WorkoutDb.isTestSession(session))
+                    userNote+=(userNote.isEmpty()?"":"\n")+"[FORMA:TEST]";
                 db.updateCompleted(session.id,session.startedAt,userNote);
                 render();
             }).show();
@@ -2621,7 +2643,7 @@ public final class MainActivity extends Activity {
     private WeekReport weekReport(long start,long end) {
         WeekReport result=new WeekReport();
         for(WorkoutDb.Session session:db.completed()) {
-            if(session.startedAt<start||session.startedAt>=end)continue;
+            if(WorkoutDb.isTestSession(session)||session.startedAt<start||session.startedAt>=end)continue;
             result.sessions++;
             for(WorkoutDb.Entry entry:db.sets(session.id)) {
                 if(entry.warmup)continue;
@@ -2737,7 +2759,7 @@ public final class MainActivity extends Activity {
 
         WorkoutDb.Session latest=null;
         for(WorkoutDb.Session item:db.completed()) {
-            if(item.workout==selectedProgressWorkout){latest=item;break;}
+            if(!WorkoutDb.isTestSession(item)&&item.workout==selectedProgressWorkout){latest=item;break;}
         }
         if(latest!=null) {
             LinearLayout summary=card(content);
@@ -2818,7 +2840,7 @@ public final class MainActivity extends Activity {
     private double exerciseVolumeAt(String exercise,long startedAt) {
         double total=0;
         for(WorkoutDb.Session session:db.completed()) {
-            if(session.startedAt!=startedAt)continue;
+            if(WorkoutDb.isTestSession(session)||session.startedAt!=startedAt)continue;
             for(WorkoutDb.Entry e:db.sets(session.id)) {
                 if(e.warmup||!e.exerciseId.equals(exercise))continue;
                 total+=e.weight*e.reps*db.loadMultiplier(exercise);
