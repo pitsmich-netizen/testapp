@@ -2194,42 +2194,65 @@ public final class MainActivity extends Activity {
         for(int col=0;col<7;col++) {
             TextView heading=text(daysOfWeek[col],12,MUTED,true);
             heading.setGravity(Gravity.CENTER);
-            GridLayout.LayoutParams lp=new GridLayout.LayoutParams(GridLayout.spec(0),GridLayout.spec(col,1f));
+            GridLayout.LayoutParams lp=new GridLayout.LayoutParams(
+                GridLayout.spec(0),GridLayout.spec(col,1f));
             lp.width=0;lp.height=dp(29);
             grid.addView(heading,lp);
         }
         int offset=(start.get(Calendar.DAY_OF_WEEK)+5)%7;
         int length=start.getActualMaximum(Calendar.DAY_OF_MONTH);
         int slots=((offset+length+6)/7)*7;
+        java.util.HashMap<Integer,Integer> scheduleWeekdays=new java.util.HashMap<>();
+        for(WorkoutDb.ScheduleDay scheduled:db.schedule())
+            scheduleWeekdays.put(scheduled.weekday,scheduled.workout);
         for(int n=0;n<slots;n++) {
             final int day=n-offset+1;
             int rowIndex=1+n/7;
             int column=n%7;
             boolean inRange=day>=1&&day<=length;
             java.util.ArrayList<WorkoutDb.Session> workouts=inRange?days.get(day):null;
+            int weekday=column+1;
+            Integer scheduledWorkout=scheduleWeekdays.get(weekday);
             LinearLayout cell=col();
             cell.setGravity(Gravity.CENTER);
-            int accent=workouts==null?BORDER:dayColor(workouts.get(0).workout);
-            if(workouts!=null)cell.setBackground(rounded(CARD2,10,accent));
+            if(workouts!=null)cell.setBackground(rounded(CARD2,9,TEAL));
             if(inRange) {
-                TextView date=text(Integer.toString(day),14,workouts==null?TEXT:accent,workouts!=null);
+                TextView date=text(Integer.toString(day),14,workouts==null?TEXT:TEAL,workouts!=null);
                 date.setGravity(Gravity.CENTER);
                 add(cell,date);
                 if(workouts!=null) {
-                    TextView dot=text(workouts.size()>1?"●●":"●",10,accent,true);
+                    TextView dot=text(workouts.size()>1?"●●":"●",9,TEAL,true);
                     dot.setGravity(Gravity.CENTER);
                     add(cell,dot);
+                    cell.setContentDescription(day+"."+(calendarMonth+1)+
+                        " — wykonano "+workouts.size()+" treningów");
                     cell.setOnClickListener(v->openCalendarDay(day,workouts));
+                } else if(scheduledWorkout!=null) {
+                    TextView dot=text("●",8,MUTED,true);
+                    dot.setGravity(Gravity.CENTER);
+                    add(cell,dot);
+                    cell.setContentDescription(day+"."+(calendarMonth+1)+
+                        " — zaplanowano "+db.workoutLabel(scheduledWorkout));
+                    cell.setOnClickListener(v->showPlannedCalendarDay(day,scheduledWorkout));
+                } else {
+                    cell.setContentDescription(day+"."+(calendarMonth+1)+", brak treningu");
                 }
             }
             GridLayout.LayoutParams lp=new GridLayout.LayoutParams(
                 GridLayout.spec(rowIndex),GridLayout.spec(column,1f));
-            lp.width=0;lp.height=dp(48);
-            lp.setMargins(dp(2),dp(2),dp(2),dp(2));
+            lp.width=0;lp.height=dp(42);
+            lp.setMargins(dp(1),dp(1),dp(1),dp(1));
             grid.addView(cell,lp);
         }
         add(calendarCard,grid);
-        space(content,8);
+        space(calendarCard,8);
+        LinearLayout legend=row();
+        TextView performed=text("●  Wykonany",12,TEAL,false);
+        legend.addView(performed);
+        TextView planned=text("      ●  Zaplanowany",12,MUTED,false);
+        legend.addView(planned);
+        add(calendarCard,legend);
+        space(content,5);
         add(content,text("Podsumowanie miesiąca",18,TEXT,true));
         space(content,7);
         LinearLayout stats=card(content);
@@ -2249,6 +2272,16 @@ public final class MainActivity extends Activity {
         add(cadence,text(thisWeek+" treningi w ostatnich 7 dniach",19,TEXT,true));
         space(cadence,5);
         add(cadence,text("Cel orientacyjny: 3 sesje na tydzień. Dzień na kalendarzu otwiera zapisane treningi.",13,MUTED,false));
+    }
+
+    private void showPlannedCalendarDay(int day,int workout) {
+        new AlertDialog.Builder(this)
+            .setTitle(day+"."+(calendarMonth+1)+"."+calendarYear)
+            .setMessage("Zaplanowano: "+db.workoutLabel(workout)+
+                ". Rozpoczęcie uruchomi trening z aktualną datą i godziną.")
+            .setNegativeButton("Zamknij",null)
+            .setPositiveButton("Rozpocznij teraz",(dialog,which)->startWorkout(workout))
+            .show();
     }
 
     private void openCalendarDay(int day,java.util.ArrayList<WorkoutDb.Session> sessions) {
