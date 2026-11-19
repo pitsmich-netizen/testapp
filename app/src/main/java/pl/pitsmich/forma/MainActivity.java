@@ -256,6 +256,10 @@ public final class MainActivity extends Activity {
         version.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         brand.addView(version,new LinearLayout.LayoutParams(dp(54),dp(44)));
         if(page.equals("settings")) {
+            version.setContentDescription("Wersja "+BuildConfig.VERSION_NAME+". Zaawansowane ustawienia OTA");
+            version.setOnClickListener(v->updater.configure());
+        }
+        if(page.equals("settings")) {
             TextView update=text("↻",29,TEAL,true);
             update.setGravity(Gravity.CENTER);
             update.setContentDescription("Sprawdź aktualizacje OTA");
@@ -758,14 +762,13 @@ public final class MainActivity extends Activity {
         space(content,6);
         if(settingsSection.isEmpty()) {
             headline(content,"Ustawienia");
-            add(content,text("Wybierz kategorię",13,MUTED,false));
+            add(content,text("Aktualizacje ↻ w prawym górnym rogu; dotknij wersji, aby otworzyć zaawansowane OTA.",12,MUTED,false));
             space(content,13);
             settingsEntry("♙","Konto i synchronizacja","Supabase, logowanie i stan chmury","cloud");
             settingsEntry("◷","Trening i timer","Przerwy, dźwięki i automatyczne przejście","timer");
             settingsEntry("◐","Wygląd aplikacji","Preferencje wyświetlania","appearance");
             settingsEntry("▣","Kopie zapasowe","Eksport CSV, JSON i przywracanie","backup");
-            settingsEntry("⌁","Informacje i OTA","Wersja i ustawienia zaawansowane","updates");
-            return;
+             return;
         }
         TextView back=actionLabel("‹  Wszystkie ustawienia",TEAL);
         back.setMinHeight(dp(40));
@@ -872,18 +875,7 @@ public final class MainActivity extends Activity {
             add(theme,text("True Black",17,TEXT,true));
             space(theme,5);
             add(theme,text("Czarne tło, spokojne akcenty i kompaktowy układ aktywnej serii.",13,MUTED,false));
-        } else if(settingsSection.equals("updates")) {
-            headline(content,"Informacje i OTA");
-        LinearLayout ota=card(content);
-        smallLabel(ota,"AKTUALIZACJE APLIKACJI");
-        space(ota,7);
-        add(ota,text("FORMA "+BuildConfig.VERSION_NAME,20,TEXT,true));
-        space(ota,4);
-        add(ota,text("Sprawdź aktualizacje przyciskiem ↻ w prawym górnym rogu ustawień. Sprawdzanie automatyczne działa przy uruchomieniu.",14,MUTED,false));
-        space(ota,10);
-        Button config=button("Zaawansowane ustawienia OTA",false);
-        add(ota,config);
-        config.setOnClickListener(v->updater.configure());
+
         }
     }
 
@@ -2028,7 +2020,9 @@ public final class MainActivity extends Activity {
                 int repeats=Integer.parseInt(reps.getText().toString().trim());
                 if(!Double.isFinite(value)||value<0||value>2000||repeats<1||repeats>1000)
                     throw new NumberFormatException();
-                db.save(session.id,ex.id,index,value,repeats);
+                if(previous==null)db.save(session.id,ex.id,index,value,repeats);
+                else db.save(session.id,ex.id,index,value,repeats,previous.rir,
+                    previous.note,previous.warmup);
                 dialog.dismiss();
                 render();
             } catch(Exception e) {
