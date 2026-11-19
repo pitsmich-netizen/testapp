@@ -1,0 +1,5 @@
+FORMA 0.10.0
+versionCode: 18
+Inteligentny trening: porównanie serii, sugestie na podstawie RIR, oznaczanie sesji testowych (bez usuwania historii), filtrowanie danych testowych ze statystyk.
+Kompilacja testowa GitHub Actions #44521172725 — success.
+Zachować bazę v9, package ID i istniejący klucz podpisu.
