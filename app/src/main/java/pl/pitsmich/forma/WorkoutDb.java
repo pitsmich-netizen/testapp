@@ -697,24 +697,36 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     }
     /** Only suggest progression after ALL planned working sets hit the rep ceiling at one weight. */
     public String progressionTip(Plan.Exercise exercise) {
-        String q="SELECT COUNT(*),MIN(reps),MIN(weight),MAX(weight) FROM (" +
-            "SELECT e.reps,e.weight FROM exercise_sets e WHERE e.exercise_id=? AND e.warmup=0 " +
-            "AND e.session_id=(SELECT x.id FROM sessions x JOIN exercise_sets y ON y.session_id=x.id " +
-            "WHERE y.exercise_id=? AND y.warmup=0 AND x.finished_at IS NOT NULL " +
-            "ORDER BY x.started_at DESC,x.id DESC LIMIT 1) ORDER BY e.set_index ASC LIMIT ?)";
-        try(Cursor c=getReadableDatabase().rawQuery(q,new String[]{
-                exercise.id,exercise.id,Integer.toString(exercise.sets)})) {
-            if(!c.moveToFirst() || c.getInt(0)<exercise.sets ||
-                c.isNull(2) || c.getInt(1)<exercise.maxReps ||
-                Math.abs(c.getDouble(2)-c.getDouble(3))>0.001) return null;
-            double weight=c.getDouble(2);
-            double step=weightStep(exercise.id);
-            return "Komplet serii po "+exercise.maxReps+" powt. przy "+
-                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",weight)+
-                " kg. Następnym razem spróbuj "+
-                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",weight+step)+
-                " kg, jeśli technika i dostępne obciążenia na to pozwalają.";
+        // Suggest the next small increment only when the entire planned working set
+        // block reached its rep target at a constant load, with enough reps in reserve.
+        String q="SELECT e.reps,e.weight,e.rir FROM exercise_sets e "+
+            "WHERE e.exercise_id=? AND e.warmup=0 AND e.session_id=("+
+            "SELECT x.id FROM sessions x JOIN exercise_sets y ON y.session_id=x.id "+
+            "WHERE y.exercise_id=? AND y.warmup=0 AND x.finished_at IS NOT NULL "+
+            "ORDER BY x.started_at DESC,x.id DESC LIMIT 1) "+
+            "ORDER BY e.set_index ASC LIMIT ?";
+        int count=0;double constantWeight=-1;
+        boolean unknownRir=false,insufficientRir=false;
+        try(Cursor c=getReadableDatabase().rawQuery(q,
+            new String[]{exercise.id,exercise.id,Integer.toString(exercise.sets)})) {
+            while(c.moveToNext()) {
+                count++;
+                int reps=c.getInt(0),rir=c.getInt(2);
+                double loaded=c.getDouble(1);
+                if(count==1)constantWeight=loaded;
+                if(reps<exercise.maxReps||Math.abs(loaded-constantWeight)>0.001)return null;
+                if(rir<0)unknownRir=true;
+                else if(exercise.rirMin>=0&&rir<exercise.rirMin)insufficientRir=true;
+            }
         }
+        if(count<exercise.sets||insufficientRir)return null;
+        if(unknownRir)return "Osiągnięto górny zakres we wszystkich seriach. "+
+            "Przed zwiększeniem ciężaru sprawdź, czy zachowałeś docelowy RIR i technikę.";
+        return "Wszystkie serie po "+exercise.maxReps+" powtórzeń przy "+
+            String.format(Locale.forLanguageTag("pl-PL"),"%.1f",constantWeight)+
+            " kg z odpowiednim RIR. Następnym razem spróbuj "+
+            String.format(Locale.forLanguageTag("pl-PL"),"%.1f",constantWeight+weightStep(exercise.id))+
+            " kg, jeśli technika i dostępne obciążenia na to pozwalają.";
     }
 
     public int countExerciseSets(long session,String exercise) {
