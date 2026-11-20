@@ -47,7 +47,7 @@ assert 'versionCode 19' in gradle and "versionName '0.10.1'" in gradle
 assert 'startDragAndDrop(' in ui
 assert 'firstPending' in ui
 assert 'if(!editing && current==null)' in ui
-assert 'descriptionExpanded?' in ui
+assert 'ExerciseGuides.forId(ex.id,ex.description)' in ui
 assert 'private static final int TEAL=Color.rgb(120,196,177);' in ui
 # Probe non-destructive migration SQL for a populated v8 DB.
 conn=sqlite3.connect(":memory:")
