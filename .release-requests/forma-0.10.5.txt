@@ -1,0 +1,5 @@
+FORMA 0.10.5
+versionCode 23
+Podczas przerwy natywne powiadomienie Android z odliczaniem sekund (także na ekranie blokady gdy użytkownik zezwoli). Dotknięcie wraca do aktywnego treningu. Bez akcji, bez foreground service. Istniejący dźwięk lub wibracja po zakończeniu pozostaje.
+Baza SQLite v10 i historia bez zmian.
+CI PR #25 run 44780710152 — success.
