@@ -74,7 +74,6 @@ public final class MainActivity extends Activity {
     private static final int RESTORE_REQUEST=1903;
     private int editingWorkout=Plan.UPPER_A;
     private String editingSetExercise="";
-    private boolean descriptionExpanded=false;
 
     private int editingSetIndex=-1;
     private boolean canUndoSet=false;
@@ -1296,17 +1295,23 @@ public final class MainActivity extends Activity {
                 add(body,suggestion);
             }
             space(body,3);
-            TextView help=actionLabel(descriptionExpanded?"▴  Ukryj wskazówki":"ⓘ  Wskazówki techniczne",MUTED);
-            help.setMinHeight(dp(30));
+            TextView help=actionLabel("ⓘ  Szybka instrukcja techniki  ⌄",TEAL);
+            help.setMinHeight(dp(40));
+            help.setContentDescription("Rozwiń instrukcję techniki ćwiczenia "+ex.name);
             add(body,help);
-            TextView desc=text(ex.description,12,MUTED,false);
-            desc.setMaxLines(4);
-            desc.setVisibility(descriptionExpanded?View.VISIBLE:View.GONE);
-            add(body,desc);
+            LinearLayout guide=col();
+            guide.setPadding(dp(12),dp(12),dp(12),dp(12));
+            guide.setBackground(rounded(CARD2,11,BORDER));
+            TextView desc=text(ExerciseGuides.forId(ex.id,ex.description),13,TEXT,false);
+            desc.setLineSpacing(dp(4),1.08f);
+            add(guide,desc);
+            guide.setVisibility(View.GONE);
+            add(body,guide);
             help.setOnClickListener(v->{
-                boolean show=desc.getVisibility()!=View.VISIBLE;
-                desc.setVisibility(show?View.VISIBLE:View.GONE);
-                help.setText(show?"▴  Ukryj wskazówki":"ⓘ  Wskazówki techniczne");
+                boolean show=guide.getVisibility()!=View.VISIBLE;
+                guide.setVisibility(show?View.VISIBLE:View.GONE);
+                help.setText(show?"▴  Ukryj instrukcję":"ⓘ  Szybka instrukcja techniki  ⌄");
+                help.setContentDescription((show?"Zwiń":"Rozwiń")+" instrukcję techniki ćwiczenia "+ex.name);
             });
             space(body,0);
             LinearLayout labels=row();

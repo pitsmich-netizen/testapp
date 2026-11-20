@@ -5,7 +5,7 @@ root=Path(__file__).resolve().parents[1]
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
 ui=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
-assert "versionCode 18" in gradle and "versionName '0.10.0'" in gradle
+assert "versionCode 19" in gradle and "versionName '0.10.1'" in gradle
 assert 'super(context, "forma_workouts.db", null, 9);' in db
 assert 'private static final String TEST_MARKER="[FORMA:TEST]"' in db
 assert "public void setTestSession(long id,boolean test)" in db
