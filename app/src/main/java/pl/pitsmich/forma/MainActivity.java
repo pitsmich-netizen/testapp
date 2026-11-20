@@ -495,6 +495,8 @@ public final class MainActivity extends Activity {
                 if(active.pausedAt>0) db.resume(active.id);
                 openSession=active.id;openWorkout=active.workout;
                 expandedExerciseId="";page="session";render();
+                syncWorkoutNotification();
+                askWorkoutNotificationPermission();
             });
         }
         space(content,6);
