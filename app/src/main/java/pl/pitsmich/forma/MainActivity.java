@@ -313,6 +313,7 @@ public final class MainActivity extends Activity {
         else if(page.equals("exerciseProgress")) showExerciseProgress();
         else if(page.equals("edit")) showCompletedEditor();
         else if(page.equals("planEditor")) showPlanEditor();
+        else if(page.equals("planPreview")) showPlanPreview();
         else if(page.equals("calendar")) showCalendar();
         else if(page.equals("summary")) showSessionSummary();
         else if(page.equals("weekly")) showWeeklyAnalysis();
@@ -490,7 +491,20 @@ public final class MainActivity extends Activity {
                 " serii",12,MUTED,false);
             details.setMaxLines(2);
             add(card,details);
-            clickCard(card,()->startWorkout(workout));
+            space(card,12);
+            LinearLayout actions=row();
+            TextView preview=pill("☷  Podgląd",false);
+            preview.setContentDescription("Zobacz ćwiczenia "+scheduled.title+" bez rozpoczynania treningu");
+            LinearLayout.LayoutParams previewLp=new LinearLayout.LayoutParams(0,dp(48),1);
+            previewLp.rightMargin=dp(8);
+            actions.addView(preview,previewLp);
+            preview.setOnClickListener(v->openPlanPreview(workout));
+            TextView start=pill("▶  Start treningu",true);
+            start.setContentDescription("Rozpocznij trening "+scheduled.title);
+            actions.addView(start,new LinearLayout.LayoutParams(0,dp(48),1.3f));
+            start.setOnClickListener(v->startWorkout(workout));
+            add(card,actions);
+            card.setOnClickListener(null);
             card.setOnDragListener((v,event)->{
                 if(event.getAction()==DragEvent.ACTION_DRAG_STARTED)
                     return event.getClipDescription()!=null &&
@@ -519,6 +533,50 @@ public final class MainActivity extends Activity {
             });
         }
 
+    }
+
+    private void openPlanPreview(int workout){
+        editingWorkout=workout;
+        page="planPreview";
+        render();
+    }
+
+    private void showPlanPreview(){
+        TextView back=actionLabel("‹  Twój plan",TEAL);
+        back.setMinHeight(dp(42));
+        add(content,back);
+        back.setOnClickListener(v->{page="plan";render();});
+        space(content,4);
+        headline(content,db.workoutLabel(editingWorkout));
+        add(content,text("Podgląd — nie uruchamia treningu, timera ani zapisu serii.",13,MUTED,false));
+        space(content,12);
+        int number=0;
+        for(Plan.Exercise ex:db.workoutPlan(editingWorkout)){
+            number++;
+            LinearLayout exercise=card(content);
+            add(exercise,text(String.format(Locale.ROOT,"%02d  %s",number,ex.name),16,TEXT,true));
+            space(exercise,5);
+            add(exercise,text(db.expectedSets(editingWorkout,ex)+" × "+ex.minReps+"–"+ex.maxReps+
+                "  •  "+ex.restSeconds+" s przerwy"+
+                (ex.rirMin>=0?"  •  RIR "+ex.rirMin:""),12,TEAL,false));
+            TextView toggle=actionLabel("ⓘ  Technika i ustawienie  ⌄",TEAL);
+            toggle.setMinHeight(dp(40));
+            add(exercise,toggle);
+            TextView guide=text(ExerciseGuides.forId(ex.id,ex.description),13,TEXT,false);
+            guide.setPadding(dp(10),dp(9),dp(10),dp(9));
+            guide.setBackground(rounded(CARD2,10,BORDER));
+            guide.setLineSpacing(dp(4),1.08f);
+            guide.setVisibility(View.GONE);
+            add(exercise,guide);
+            toggle.setOnClickListener(v->{
+                boolean expanded=guide.getVisibility()==View.GONE;
+                guide.setVisibility(expanded?View.VISIBLE:View.GONE);
+                toggle.setText(expanded?"▴  Ukryj wskazówki":"ⓘ  Technika i ustawienie  ⌄");
+            });
+        }
+        Button start=button("▶  Start treningu",true);
+        add(content,start);
+        start.setOnClickListener(v->startWorkout(editingWorkout));
     }
 
     private static String weekdayName(int weekday){
