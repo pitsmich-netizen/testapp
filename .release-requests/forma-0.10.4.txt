@@ -1,0 +1,7 @@
+FORMA 0.10.4
+versionCode: 22
+Dodano opcjonalne komentarze do ćwiczeń przy nazwie w aktywnym treningu oraz w Historii. Można zapisać np. używaną maszynę, uchwyt i ustawienie. Osobne dane per sesja/exercise.
+Migracja SQLite 9 → 10 tworzy tylko nową tabelę exercise_comments, bez usuwania serii i historii.
+Kopie lokalne schema 3 zachowują notatki, import nadal obsługuje schema 1/2.
+CI PR #24: GitHub Actions 44772534062 — success.
+Zachować package ID i obecny klucz podpisu.
