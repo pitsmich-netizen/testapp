@@ -12,8 +12,6 @@ import android.content.Intent;
 import android.content.ClipData;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
-import android.graphics.Bitmap;
-import android.widget.ImageView;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.graphics.Typeface;
@@ -159,8 +157,25 @@ public final class MainActivity extends Activity {
         if(RestTimer.ACTION_OPEN_SESSION.equals(getIntent()==null?null:getIntent().getAction()))
             openSessionFromNotification();
         render();
+        syncWorkoutNotification();
         handler.post(ticker);
         updater.check(false);
+    }
+
+    private void syncWorkoutNotification() {
+        WorkoutDb.Session active=db.active();
+        if(active!=null && active.pausedAt==0){
+            try {WorkoutStatusService.start(this);}
+            catch(RuntimeException ignored){
+                Toast.makeText(this,"Android zablokował powiadomienie treningu",Toast.LENGTH_SHORT).show();
+            }
+        } else WorkoutStatusService.stop(this);
+    }
+
+    private void askWorkoutNotificationPermission() {
+        if(Build.VERSION.SDK_INT>=33&&!RestTimer.canNotify(this)){
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},6071);
+        }
     }
 
     private void openSessionFromNotification() {
@@ -184,8 +199,10 @@ public final class MainActivity extends Activity {
 
     @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults) {
         super.onRequestPermissionsResult(requestCode,permissions,grantResults);
-        if(requestCode==6071 && RestTimer.canNotify(this))
+        if(requestCode==6071 && RestTimer.canNotify(this)){
             RestTimer.reschedule(this);
+            syncWorkoutNotification();
+        }
     }
 
     @Override protected void onSaveInstanceState(Bundle state) {
@@ -209,6 +226,8 @@ public final class MainActivity extends Activity {
         super.onResume();
         if(updater!=null) updater.afterPermissionReturn();
         RestTimer.reschedule(this);
+        // Only a foreground Activity can safely start an ongoing user-initiated FGS.
+        syncWorkoutNotification();
     }
     @Override protected void onDestroy() {
         handler.removeCallbacks(ticker);
@@ -476,6 +495,8 @@ public final class MainActivity extends Activity {
                 if(active.pausedAt>0) db.resume(active.id);
                 openSession=active.id;openWorkout=active.workout;
                 expandedExerciseId="";page="session";render();
+                syncWorkoutNotification();
+                askWorkoutNotificationPermission();
             });
         }
         space(content,6);
@@ -572,23 +593,30 @@ public final class MainActivity extends Activity {
     }
 
     private void appendExerciseIllustration(LinearLayout parent,String exerciseId) {
-        Bitmap bitmap=ExerciseIllustrations.forId(this,exerciseId);
-        if(bitmap==null)return;
-        space(parent,8);
-        TextView label=text("POZYCJA STARTOWA  /  KOŃCOWA",10,TEAL,true);
+        if(!ExerciseDiagramView.supports(exerciseId))return;
+        space(parent,10);
+        TextView label=text("SCHEMAT RUCHU  ·  START / KONIEC",11,TEAL,true);
         add(parent,label);
-        ImageView image=new ImageView(this);
-        image.setImageBitmap(bitmap);
-        image.setAdjustViewBounds(true);
-        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        image.setContentDescription("Ilustracja ćwiczenia — pozycja początkowa i końcowa");
-        image.setBackground(rounded(CARD,10,BORDER));
+        ExerciseDiagramView diagram=new ExerciseDiagramView(this,exerciseId);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
-        lp.topMargin=dp(5);
-        parent.addView(image,lp);
-        TextView disclaimer=text("Schemat poglądowy. Szczegóły ustawienia znajdziesz poniżej.",11,MUTED,false);
-        disclaimer.setPadding(dp(0),dp(4),dp(0),dp(3));
-        add(parent,disclaimer);
+        lp.topMargin=dp(6);
+        parent.addView(diagram,lp);
+        TextView enlarge=actionLabel("⛶  Powiększ schemat",TEAL);
+        enlarge.setMinHeight(dp(40));
+        add(parent,enlarge);
+        enlarge.setOnClickListener(v->{
+            ExerciseDiagramView big=new ExerciseDiagramView(this,exerciseId);
+            LinearLayout wrapper=col();
+            wrapper.setPadding(dp(10),dp(4),dp(10),dp(4));
+            add(wrapper,big);
+            new AlertDialog.Builder(this)
+                .setTitle("Schemat techniki")
+                .setView(wrapper)
+                .setPositiveButton("Zamknij",null)
+                .show();
+        });
+        add(parent,text("Schemat orientacyjny, nie zastępuje wskazówek technicznych.",
+            11,MUTED,false));
     }
 
     private void showPlanPreview(){
@@ -993,7 +1021,7 @@ public final class MainActivity extends Activity {
         LinearLayout timerSettings=card(content);
         smallLabel(timerSettings,"TIMER W TLE");
         space(timerSettings,6);
-        add(timerSettings,text("Powiadomienie i wibracja po zakończeniu przerwy, także po zablokowaniu ekranu.",14,MUTED,false));
+        add(timerSettings,text("Ciche, stałe powiadomienie aktywnego treningu. Podczas przerwy wyświetla pozostały czas; na końcu przerwy dźwięk lub wibracja.",14,MUTED,false));
         space(timerSettings,8);
         add(timerSettings,text(RestTimer.canNotify(this)?"Powiadomienia: dostępne":"Powiadomienia: wymagają zezwolenia",13,RestTimer.canNotify(this)?GREEN:AMBER,true));
         space(timerSettings,5);
@@ -1169,6 +1197,8 @@ public final class MainActivity extends Activity {
                 .setPositiveButton("Wznów",(d,w)->{
                     if(active.pausedAt>0)db.resume(active.id);
                     openSession=active.id;openWorkout=active.workout;page="session";render();
+                    syncWorkoutNotification();
+                    askWorkoutNotificationPermission();
                 })
                 .setNegativeButton("Anuluj",null).show();
             return;
@@ -1179,6 +1209,8 @@ public final class MainActivity extends Activity {
         canUndoSet=false;editingSetExercise="";editingSetIndex=-1;
         expandedExerciseId="";
         page="session";render();
+        syncWorkoutNotification();
+        askWorkoutNotificationPermission();
     }
 
     private EditText field(String value,String hint,boolean decimal) {
@@ -1931,6 +1963,7 @@ public final class MainActivity extends Activity {
     private void pauseWorkout() {
         if(openSession<0)return;
         db.pause(openSession);
+        WorkoutStatusService.stop(this);
         stopRest();
         expandedExerciseId="";
         openSession=-1;
@@ -1947,6 +1980,7 @@ public final class MainActivity extends Activity {
             .setNegativeButton("Zostaw trening",null)
             .setPositiveButton("Usuń trening",(d,w)->{
                 db.deleteSession(id);
+                WorkoutStatusService.stop(this);
                 stopRest();
                 openSession=-1;
                 expandedExerciseId="";
@@ -1966,6 +2000,7 @@ public final class MainActivity extends Activity {
                 .setNegativeButton("Wróć do treningu",null)
                 .setPositiveButton("Usuń pustą sesję",(d,w)->{
                     db.deleteSession(id);
+                    WorkoutStatusService.stop(this);
                     stopRest();
                     openSession=-1;
                     expandedExerciseId="";
@@ -1981,6 +2016,7 @@ public final class MainActivity extends Activity {
             .setNegativeButton("Wróć",null)
             .setPositiveButton("Zakończ",(d,w)->{
                 db.finish(id);
+                WorkoutStatusService.stop(this);
                 stopRest();
                 openSession=-1;
                 canUndoSet=false;
