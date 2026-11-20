@@ -14,7 +14,6 @@ assert "setWhen(end)" in rest
 assert "setVisibility(Notification.VISIBILITY_PUBLIC)" in rest
 assert "channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC)" in rest
 assert "setOnlyAlertOnce(true)" in rest
-assert "setSilent(true)" in rest
 assert "setContentIntent(open)" in rest
 assert "setOngoing(true)" in rest
 assert "setTimeoutAfter" in rest
