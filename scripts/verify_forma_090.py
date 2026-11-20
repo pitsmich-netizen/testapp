@@ -7,7 +7,7 @@ app=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(enc
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
 theme=(root/"app/src/main/res/values/styles.xml").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
-assert re.search(r"versionCode (1[5-9]|[2-9][0-9])", gradle) and "versionName '0.10.2'" in gradle
+assert re.search(r"versionCode (1[5-9]|[2-9][0-9])", gradle) and "versionName '0.10.3'" in gradle
 assert 'super(context, "forma_workouts.db", null, 9);' in db, "Retain database v9 and existing history."
 assert "private void showWeeklyAnalysis()" in app and 'page.equals("weekly")' in app
 assert 'result.sessions++' in app and 'if(entry.warmup)continue' in app
