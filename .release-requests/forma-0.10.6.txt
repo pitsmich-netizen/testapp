@@ -1,0 +1,6 @@
+FORMA 0.10.6
+versionCode 24
+Fix Galaxy: stałe, ciche powiadomienie od Start treningu przez foreground service specialUse; podczas przerwy natywny licznik sekund na ekranie blokady; dotknięcie powiadomienia otwiera sesję; status znika po pauzie/zakończeniu. Zachowany alarm dźwięk/wibracja.
+Usunięto nieczytelne miniatury, wprowadzono ostre schematy wektorowe Start/Koniec z powiększaniem dla 9 ćwiczeń. Reszta instrukcji pozostaje tekstowa.
+Baza treningów v10 i zawartość historii bez zmian.
+CI PR #26: GitHub Actions 44784741002 — success.
