@@ -12,6 +12,8 @@ import android.content.Intent;
 import android.content.ClipData;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.graphics.Bitmap;
+import android.widget.ImageView;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.graphics.Typeface;
@@ -541,6 +543,26 @@ public final class MainActivity extends Activity {
         render();
     }
 
+    private void appendExerciseIllustration(LinearLayout parent,String exerciseId) {
+        Bitmap bitmap=ExerciseIllustrations.forId(this,exerciseId);
+        if(bitmap==null)return;
+        space(parent,8);
+        TextView label=text("POZYCJA STARTOWA  /  KOŃCOWA",10,TEAL,true);
+        add(parent,label);
+        ImageView image=new ImageView(this);
+        image.setImageBitmap(bitmap);
+        image.setAdjustViewBounds(true);
+        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        image.setContentDescription("Ilustracja ćwiczenia — pozycja początkowa i końcowa");
+        image.setBackground(rounded(CARD,10,BORDER));
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
+        lp.topMargin=dp(5);
+        parent.addView(image,lp);
+        TextView disclaimer=text("Schemat poglądowy. Szczegóły ustawienia znajdziesz poniżej.",11,MUTED,false);
+        disclaimer.setPadding(dp(0),dp(4),dp(0),dp(3));
+        add(parent,disclaimer);
+    }
+
     private void showPlanPreview(){
         TextView back=actionLabel("‹  Twój plan",TEAL);
         back.setMinHeight(dp(42));
@@ -562,10 +584,13 @@ public final class MainActivity extends Activity {
             TextView toggle=actionLabel("ⓘ  Technika i ustawienie  ⌄",TEAL);
             toggle.setMinHeight(dp(40));
             add(exercise,toggle);
-            TextView guide=text(ExerciseGuides.forId(ex.id,ex.description),13,TEXT,false);
+            LinearLayout guide=col();
             guide.setPadding(dp(10),dp(9),dp(10),dp(9));
             guide.setBackground(rounded(CARD2,10,BORDER));
-            guide.setLineSpacing(dp(4),1.08f);
+            appendExerciseIllustration(guide,ex.id);
+            TextView instructions=text(ExerciseGuides.forId(ex.id,ex.description),13,TEXT,false);
+            instructions.setLineSpacing(dp(4),1.08f);
+            add(guide,instructions);
             guide.setVisibility(View.GONE);
             add(exercise,guide);
             toggle.setOnClickListener(v->{
@@ -1360,6 +1385,7 @@ public final class MainActivity extends Activity {
             LinearLayout guide=col();
             guide.setPadding(dp(12),dp(12),dp(12),dp(12));
             guide.setBackground(rounded(CARD2,11,BORDER));
+            appendExerciseIllustration(guide,ex.id);
             TextView desc=text(ExerciseGuides.forId(ex.id,ex.description),13,TEXT,false);
             desc.setLineSpacing(dp(4),1.08f);
             add(guide,desc);
