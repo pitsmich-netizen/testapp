@@ -159,8 +159,25 @@ public final class MainActivity extends Activity {
         if(RestTimer.ACTION_OPEN_SESSION.equals(getIntent()==null?null:getIntent().getAction()))
             openSessionFromNotification();
         render();
+        syncWorkoutNotification();
         handler.post(ticker);
         updater.check(false);
+    }
+
+    private void syncWorkoutNotification() {
+        WorkoutDb.Session active=db.active();
+        if(active!=null && active.pausedAt==0){
+            try {WorkoutStatusService.start(this);}
+            catch(RuntimeException ignored){
+                Toast.makeText(this,"Android zablokował powiadomienie treningu",Toast.LENGTH_SHORT).show();
+            }
+        } else WorkoutStatusService.stop(this);
+    }
+
+    private void askWorkoutNotificationPermission() {
+        if(Build.VERSION.SDK_INT>=33&&!RestTimer.canNotify(this)){
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},6071);
+        }
     }
 
     private void openSessionFromNotification() {
@@ -184,8 +201,10 @@ public final class MainActivity extends Activity {
 
     @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults) {
         super.onRequestPermissionsResult(requestCode,permissions,grantResults);
-        if(requestCode==6071 && RestTimer.canNotify(this))
+        if(requestCode==6071 && RestTimer.canNotify(this)){
             RestTimer.reschedule(this);
+            syncWorkoutNotification();
+        }
     }
 
     @Override protected void onSaveInstanceState(Bundle state) {
@@ -209,6 +228,8 @@ public final class MainActivity extends Activity {
         super.onResume();
         if(updater!=null) updater.afterPermissionReturn();
         RestTimer.reschedule(this);
+        // Only a foreground Activity can safely start an ongoing user-initiated FGS.
+        syncWorkoutNotification();
     }
     @Override protected void onDestroy() {
         handler.removeCallbacks(ticker);
@@ -993,7 +1014,7 @@ public final class MainActivity extends Activity {
         LinearLayout timerSettings=card(content);
         smallLabel(timerSettings,"TIMER W TLE");
         space(timerSettings,6);
-        add(timerSettings,text("Powiadomienie i wibracja po zakończeniu przerwy, także po zablokowaniu ekranu.",14,MUTED,false));
+        add(timerSettings,text("Ciche, stałe powiadomienie aktywnego treningu. Podczas przerwy wyświetla pozostały czas; na końcu przerwy dźwięk lub wibracja.",14,MUTED,false));
         space(timerSettings,8);
         add(timerSettings,text(RestTimer.canNotify(this)?"Powiadomienia: dostępne":"Powiadomienia: wymagają zezwolenia",13,RestTimer.canNotify(this)?GREEN:AMBER,true));
         space(timerSettings,5);
@@ -1169,6 +1190,8 @@ public final class MainActivity extends Activity {
                 .setPositiveButton("Wznów",(d,w)->{
                     if(active.pausedAt>0)db.resume(active.id);
                     openSession=active.id;openWorkout=active.workout;page="session";render();
+                    syncWorkoutNotification();
+                    askWorkoutNotificationPermission();
                 })
                 .setNegativeButton("Anuluj",null).show();
             return;
@@ -1179,6 +1202,8 @@ public final class MainActivity extends Activity {
         canUndoSet=false;editingSetExercise="";editingSetIndex=-1;
         expandedExerciseId="";
         page="session";render();
+        syncWorkoutNotification();
+        askWorkoutNotificationPermission();
     }
 
     private EditText field(String value,String hint,boolean decimal) {
@@ -1931,6 +1956,7 @@ public final class MainActivity extends Activity {
     private void pauseWorkout() {
         if(openSession<0)return;
         db.pause(openSession);
+        WorkoutStatusService.stop(this);
         stopRest();
         expandedExerciseId="";
         openSession=-1;
@@ -1947,6 +1973,7 @@ public final class MainActivity extends Activity {
             .setNegativeButton("Zostaw trening",null)
             .setPositiveButton("Usuń trening",(d,w)->{
                 db.deleteSession(id);
+                WorkoutStatusService.stop(this);
                 stopRest();
                 openSession=-1;
                 expandedExerciseId="";
@@ -1966,6 +1993,7 @@ public final class MainActivity extends Activity {
                 .setNegativeButton("Wróć do treningu",null)
                 .setPositiveButton("Usuń pustą sesję",(d,w)->{
                     db.deleteSession(id);
+                    WorkoutStatusService.stop(this);
                     stopRest();
                     openSession=-1;
                     expandedExerciseId="";
@@ -1981,6 +2009,7 @@ public final class MainActivity extends Activity {
             .setNegativeButton("Wróć",null)
             .setPositiveButton("Zakończ",(d,w)->{
                 db.finish(id);
+                WorkoutStatusService.stop(this);
                 stopRest();
                 openSession=-1;
                 canUndoSet=false;
