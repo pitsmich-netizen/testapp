@@ -1306,6 +1306,50 @@ public final class MainActivity extends Activity {
 
     }
 
+    private void changeExerciseComment(long sessionId,String exerciseId,String exerciseName) {
+        String existing=db.exerciseComment(sessionId,exerciseId);
+        EditText field=new EditText(this);
+        field.setText(existing);
+        field.setTextColor(TEXT);
+        field.setHintTextColor(MUTED);
+        field.setHint("Np. Technogym, uchwyt neutralny, ustawienie siedziska 4");
+        field.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_CAP_SENTENCES|
+            InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        field.setSingleLine(false);
+        field.setMinLines(2);
+        field.setMaxLines(5);
+        field.setTextSize(15);
+        field.setPadding(dp(12),dp(12),dp(12),dp(12));
+        field.setBackground(rounded(CARD2,12,BORDER));
+        LinearLayout wrap=col();
+        wrap.setPadding(dp(16),dp(8),dp(16),0);
+        add(wrap,field);
+        add(wrap,text("Komentarz zapisuje się przy tym ćwiczeniu tylko w tej sesji (maks. 300 znaków).",
+            12,MUTED,false));
+        AlertDialog dialog=new AlertDialog.Builder(this)
+            .setTitle("Komentarz · "+exerciseName)
+            .setView(wrap)
+            .setNegativeButton("Anuluj",null)
+            .setPositiveButton("Zapisz",null)
+            .create();
+        dialog.setOnShowListener(ignored->dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            .setOnClickListener(v->{
+                String comment=field.getText().toString().trim();
+                if(comment.length()>300){
+                    field.setError("Maksymalnie 300 znaków");
+                    return;
+                }
+                try {
+                    db.saveExerciseComment(sessionId,exerciseId,comment);
+                    dialog.dismiss();
+                    render();
+                } catch(Exception e) {
+                    Toast.makeText(this,"Nie udało się zapisać komentarza",Toast.LENGTH_LONG).show();
+                }
+            }));
+        dialog.show();
+    }
+
     private void showSession() {
         if(openSession<0) {page="plan";render();return;}
         List<Plan.Exercise> exercises=db.workoutPlan(openWorkout);
@@ -1339,6 +1383,16 @@ public final class MainActivity extends Activity {
             TextView title=text(ex.name,17,TEXT,true);
             title.setMaxLines(3);
             add(titleBox,title);
+            String existingComment=db.exerciseComment(openSession,ex.id);
+            TextView commentLink=actionLabel(existingComment.isEmpty()?
+                "✎  Dodaj komentarz · maszyna / uchwyt":
+                "✎  "+existingComment,existingComment.isEmpty()?MUTED:TEAL);
+            commentLink.setTextSize(12);
+            commentLink.setMaxLines(2);
+            commentLink.setMinHeight(dp(30));
+            commentLink.setContentDescription("Dodaj lub zmień komentarz do ćwiczenia "+ex.name);
+            add(titleBox,commentLink);
+            commentLink.setOnClickListener(v->changeExerciseComment(openSession,ex.id,ex.name));
             space(titleBox,4);
             int complete=db.countExerciseSets(openSession,ex.id);
             int target=db.expectedSets(openWorkout,ex);
@@ -2222,6 +2276,17 @@ public final class MainActivity extends Activity {
                 arrow.setGravity(Gravity.CENTER);
                 header.addView(arrow,new LinearLayout.LayoutParams(dp(36),dp(38)));
                 add(current,header);
+                String exerciseComment=db.exerciseComment(selected.id,exerciseId);
+                LinearLayout commentRow=row();
+                TextView commentText=actionLabel(exerciseComment.isEmpty()?
+                    "✎  Dodaj komentarz do ćwiczenia":
+                    "✎  "+exerciseComment,exerciseComment.isEmpty()?MUTED:TEAL);
+                commentText.setMaxLines(3);
+                commentText.setMinHeight(dp(36));
+                commentRow.addView(commentText,new LinearLayout.LayoutParams(0,-2,1));
+                add(current,commentRow);
+                final String exerciseName=ex==null?entry.exerciseId:ex.name;
+                commentText.setOnClickListener(v->changeExerciseComment(selected.id,exerciseId,exerciseName));
                 header.setContentDescription("Rozwiń lub zwiń serie ćwiczenia");
                 header.setOnClickListener(v->{
                     if(!collapsedDetailExercises.add(exerciseId))
@@ -2464,6 +2529,14 @@ public final class MainActivity extends Activity {
         for(Plan.Exercise ex:historyExercises) {
             LinearLayout c=card(content);
             add(c,text(ex.name,16,TEXT,true));
+            String comment=db.exerciseComment(session.id,ex.id);
+            TextView commentEdit=actionLabel(comment.isEmpty()?
+                "✎  Komentarz (maszyna / uchwyt)":"✎  "+comment,
+                comment.isEmpty()?MUTED:TEAL);
+            commentEdit.setMaxLines(3);
+            commentEdit.setMinHeight(dp(36));
+            add(c,commentEdit);
+            commentEdit.setOnClickListener(v->changeExerciseComment(session.id,ex.id,ex.name));
             space(c,4);
             int count=0;
             for(WorkoutDb.Entry entry:db.sets(session.id)) {
