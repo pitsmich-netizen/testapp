@@ -1,0 +1,6 @@
+FORMA 0.10.3
+versionCode: 21
+21 offline illustrations START/KONIEC integrated into workout and plan-preview exercise instructions.
+Inaccurate illustrations for lat_one/butterfly/leg_press omitted; textual instructions retained.
+SQLite DB v9, package ID, and workout history unchanged.
+CI GitHub Actions run 44766977521: success.
