@@ -38,12 +38,12 @@ for day,(group,ids) in enumerate(zip(groups,expected_ids)):
         assert 1<=rirlo<=rirhi<=3
     if day in (0,2):
         assert parsed[-1][1]==1 and parsed[-1][4]==0
-assert 'super(context, "forma_workouts.db", null, 9);' in db
+assert 'super(context, "forma_workouts.db", null, 10);' in db
 assert 'if(oldVersion<9) migrateFbwPlan(db)' in db
 assert 'pre_fbw_plan_items' in db and 'pre_fbw_schedule' in db
 assert 'ALTER TABLE sessions ADD COLUMN workout_label' in db
 assert 'workout_label' in backup and 'rir_min' in backup and 'rir_max' in backup
-assert 'versionCode 21' in gradle and "versionName '0.10.3'" in gradle
+assert 'versionCode 22' in gradle and "versionName '0.10.4'" in gradle
 assert 'startDragAndDrop(' in ui
 assert 'firstPending' in ui
 assert 'if(!editing && current==null)' in ui
