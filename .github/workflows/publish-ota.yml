@@ -13,7 +13,7 @@ on:
     tags:
       - 'v*'
     paths:
-      - '.release-requests/forma-0.10.3.txt'
+      - '.release-requests/forma-0.10.4.txt'
 
 permissions:
   contents: write
@@ -51,6 +51,8 @@ jobs:
         run: python3 scripts/verify_forma_0102.py
       - name: Verify FORMA 0.10.3 exercise image atlas
         run: python3 scripts/verify_forma_0103.py
+      - name: Verify FORMA 0.10.4 exercise comments and migration
+        run: python3 scripts/verify_forma_0104.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
