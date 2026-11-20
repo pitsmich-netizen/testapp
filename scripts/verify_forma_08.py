@@ -12,9 +12,9 @@ ui=source("app/src/main/java/pl/pitsmich/forma/MainActivity.java")
 backup=source("app/src/main/java/pl/pitsmich/forma/WorkoutBackup.java")
 gradle=source("app/build.gradle")
 
-assert 'super(context, "forma_workouts.db", null, 9);' in database
+assert 'super(context, "forma_workouts.db", null, 10);' in database
 assert "if(oldVersion<8) createPersonalTables(db)" in database
-assert "versionCode 21" in gradle and "versionName '0.10.3'" in gradle
+assert "versionCode 22" in gradle and "versionName '0.10.4'" in gradle
 assert "CREATE TABLE IF NOT EXISTS personal_exercises" in database
 assert "CREATE TABLE IF NOT EXISTS load_settings" in database
 assert "CREATE TABLE IF NOT EXISTS workout_schedule" in database
@@ -28,8 +28,8 @@ for phrase in ("startDragAndDrop(", "ACTION_DROP", "showSessionSummary()",
                "createCustomExercise(", "editExerciseLoadSettings(",
                "showExtraSetOptions(", "getBoolean(\"auto_next\",true)"):
     assert phrase in ui,phrase
-assert 'root.put("schema",2)' in backup
-assert "version!=1&&version!=2" in backup, "Older backups must remain readable."
+assert 'root.put("schema",3)' in backup
+assert "version!=1&&version!=2&&version!=3" in backup, "Older backups must remain readable."
 for key in ("personal_exercises", "workout_schedule", "load_settings"):
     assert 'root.put("'+key+'"' in backup,key
 assert backup.index('JSONArray personal=backup.optJSONArray("personal_exercises")') < backup.index('for(int i=0;i<sessions.length();i++) {',backup.index('public static String restore')), "Definitions must be restored before history."
