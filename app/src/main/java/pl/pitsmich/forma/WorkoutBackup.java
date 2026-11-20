@@ -18,7 +18,7 @@ public final class WorkoutBackup {
     public static JSONObject exportData(WorkoutDb db,SharedPreferences settings) throws Exception {
         JSONObject root=new JSONObject();
         root.put("format",FORMAT);
-        root.put("schema",2);
+        root.put("schema",3);
         root.put("exported_at",System.currentTimeMillis());
         JSONObject options=new JSONObject();
         options.put("auto_next",settings.getBoolean("auto_next",true));
@@ -56,6 +56,18 @@ public final class WorkoutBackup {
                     }
                 }
                 session.put("sets",sets);
+                JSONArray exerciseComments=new JSONArray();
+                try(Cursor comments=sql.rawQuery(
+                    "SELECT exercise_id,comment FROM exercise_comments WHERE session_id=? ORDER BY exercise_id",
+                    new String[]{Long.toString(id)})) {
+                    while(comments.moveToNext()) {
+                        JSONObject item=new JSONObject();
+                        item.put("exercise_id",comments.getString(0));
+                        item.put("comment",comments.getString(1));
+                        exerciseComments.put(item);
+                    }
+                }
+                session.put("exercise_comments",exerciseComments);
                 sessions.put(session);
             }
         }
@@ -141,7 +153,7 @@ public final class WorkoutBackup {
 
     private static void validateHeader(JSONObject backup) throws Exception {
         int version=backup.optInt("schema",-1);
-        if(!FORMAT.equals(backup.optString("format")) || (version!=1&&version!=2))
+        if(!FORMAT.equals(backup.optString("format")) || (version!=1&&version!=2&&version!=3))
             throw new Exception("Plik nie jest obsługiwaną kopią FORMA.");
         if(backup.optJSONArray("sessions")==null || backup.optJSONArray("plans")==null)
             throw new Exception("Kopia nie zawiera pełnych danych treningowych.");
@@ -267,6 +279,7 @@ public final class WorkoutBackup {
                 if(replaceSeed) {
                     sql.update("sessions",row,"id=?",new String[]{Long.toString(existingId)});
                     sql.delete("exercise_sets","session_id=?",new String[]{Long.toString(existingId)});
+                    sql.delete("exercise_comments","session_id=?",new String[]{Long.toString(existingId)});
                     sessionId=existingId;
                 } else {
                     sessionId=sql.insertOrThrow("sessions",null,row);
@@ -294,6 +307,26 @@ public final class WorkoutBackup {
                     entry.put("reps",reps);entry.put("rir",rir);
                     entry.put("note",note);entry.put("warmup",warmup?1:0);
                     sql.insertOrThrow("exercise_sets",null,entry);
+                }
+                JSONArray comments=src.optJSONArray("exercise_comments");
+                if(comments!=null) {
+                    if(comments.length()>120)throw new Exception("Za dużo komentarzy ćwiczeń");
+                    HashSet<String> commentIds=new HashSet<>();
+                    for(int j=0;j<comments.length();j++) {
+                        JSONObject entry=comments.getJSONObject(j);
+                        String exerciseId=entry.getString("exercise_id");
+                        String comment=entry.getString("comment");
+                        if(exerciseId.length()>90 || !commentIds.add(exerciseId) ||
+                            db.exerciseById(exerciseId)==null || comment.length()>300)
+                            throw new Exception("Nieprawidłowy komentarz do ćwiczenia");
+                        if(!comment.trim().isEmpty()) {
+                            ContentValues commentRow=new ContentValues();
+                            commentRow.put("session_id",sessionId);
+                            commentRow.put("exercise_id",exerciseId);
+                            commentRow.put("comment",comment.trim());
+                            sql.insertOrThrow("exercise_comments",null,commentRow);
+                        }
+                    }
                 }
                 added++;
             }
