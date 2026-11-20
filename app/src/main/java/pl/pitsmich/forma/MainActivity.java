@@ -156,10 +156,38 @@ public final class MainActivity extends Activity {
             settingsSection=state.getString("settingsSection","");
             weeklyOffset=state.getInt("weeklyOffset",0);
         }
+        if(RestTimer.ACTION_OPEN_SESSION.equals(getIntent()==null?null:getIntent().getAction()))
+            openSessionFromNotification();
         render();
         handler.post(ticker);
         updater.check(false);
     }
+
+    private void openSessionFromNotification() {
+        WorkoutDb.Session active=db.active();
+        if(active!=null) {
+            if(active.pausedAt>0)db.resume(active.id);
+            openSession=active.id;
+            openWorkout=active.workout;
+            page="session";
+        } else page="plan";
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if(RestTimer.ACTION_OPEN_SESSION.equals(intent.getAction())){
+            openSessionFromNotification();
+            render();
+        }
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults);
+        if(requestCode==6071 && RestTimer.canNotify(this))
+            RestTimer.reschedule(this);
+    }
+
     @Override protected void onSaveInstanceState(Bundle state) {
         state.putString("page",page);
         state.putLong("openSession",openSession);
