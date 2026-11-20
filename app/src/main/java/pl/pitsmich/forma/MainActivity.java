@@ -12,8 +12,6 @@ import android.content.Intent;
 import android.content.ClipData;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
-import android.graphics.Bitmap;
-import android.widget.ImageView;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.graphics.Typeface;
@@ -593,23 +591,30 @@ public final class MainActivity extends Activity {
     }
 
     private void appendExerciseIllustration(LinearLayout parent,String exerciseId) {
-        Bitmap bitmap=ExerciseIllustrations.forId(this,exerciseId);
-        if(bitmap==null)return;
-        space(parent,8);
-        TextView label=text("POZYCJA STARTOWA  /  KOŃCOWA",10,TEAL,true);
+        if(!ExerciseDiagramView.supports(exerciseId))return;
+        space(parent,10);
+        TextView label=text("SCHEMAT RUCHU  ·  START / KONIEC",11,TEAL,true);
         add(parent,label);
-        ImageView image=new ImageView(this);
-        image.setImageBitmap(bitmap);
-        image.setAdjustViewBounds(true);
-        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        image.setContentDescription("Ilustracja ćwiczenia — pozycja początkowa i końcowa");
-        image.setBackground(rounded(CARD,10,BORDER));
+        ExerciseDiagramView diagram=new ExerciseDiagramView(this,exerciseId);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
-        lp.topMargin=dp(5);
-        parent.addView(image,lp);
-        TextView disclaimer=text("Schemat poglądowy. Szczegóły ustawienia znajdziesz poniżej.",11,MUTED,false);
-        disclaimer.setPadding(dp(0),dp(4),dp(0),dp(3));
-        add(parent,disclaimer);
+        lp.topMargin=dp(6);
+        parent.addView(diagram,lp);
+        TextView enlarge=actionLabel("⛶  Powiększ schemat",TEAL);
+        enlarge.setMinHeight(dp(40));
+        add(parent,enlarge);
+        enlarge.setOnClickListener(v->{
+            ExerciseDiagramView big=new ExerciseDiagramView(this,exerciseId);
+            LinearLayout wrapper=col();
+            wrapper.setPadding(dp(10),dp(4),dp(10),dp(4));
+            add(wrapper,big);
+            new AlertDialog.Builder(this)
+                .setTitle("Schemat techniki")
+                .setView(wrapper)
+                .setPositiveButton("Zamknij",null)
+                .show();
+        });
+        add(parent,text("Schemat orientacyjny, nie zastępuje wskazówek technicznych.",
+            11,MUTED,false));
     }
 
     private void showPlanPreview(){
