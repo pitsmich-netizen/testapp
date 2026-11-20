@@ -73,11 +73,12 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         update.put("notes",notes);
         getWritableDatabase().update("sessions",update,"id=?",new String[]{Long.toString(id)});
     }
-    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 9); }
+    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 10); }
     @Override public void onConfigure(SQLiteDatabase db) { super.onConfigure(db); db.setForeignKeyConstraintsEnabled(true); }
     @Override public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, workout INTEGER NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER, notes TEXT NOT NULL DEFAULT '', cloud_id TEXT, paused_at INTEGER, paused_total_ms INTEGER NOT NULL DEFAULT 0, audit_resolution TEXT NOT NULL DEFAULT 'pending', workout_label TEXT)");
         db.execSQL("CREATE TABLE exercise_sets (session_id INTEGER NOT NULL, exercise_id TEXT NOT NULL, set_index INTEGER NOT NULL, weight REAL NOT NULL, reps INTEGER NOT NULL, rir INTEGER NOT NULL DEFAULT -1, note TEXT NOT NULL DEFAULT '', warmup INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(session_id,exercise_id,set_index), FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE)");
+        createExerciseComments(db);
         db.execSQL("CREATE INDEX idx_sets_exercise ON exercise_sets(exercise_id)");
         db.execSQL("CREATE INDEX idx_sessions_time ON sessions(started_at)");
         db.execSQL("CREATE UNIQUE INDEX idx_sessions_cloud_id ON sessions(cloud_id)");
@@ -113,9 +114,43 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         }
         if(oldVersion<8) createPersonalTables(db);
         if(oldVersion<9) migrateFbwPlan(db);
+        if(oldVersion<10) createExerciseComments(db);
         if(oldVersion<2) seedInitialWorkout(db);
         if(oldVersion<3) seedAdditionalNovemberSets(db);
     }
+    private static void createExerciseComments(SQLiteDatabase sql) {
+        sql.execSQL("CREATE TABLE IF NOT EXISTS exercise_comments ("+
+            "session_id INTEGER NOT NULL, exercise_id TEXT NOT NULL, "+
+            "comment TEXT NOT NULL DEFAULT '', PRIMARY KEY(session_id,exercise_id), "+
+            "FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE)");
+    }
+
+    /** Comment belongs to a specific exercise in a specific workout session. */
+    public String exerciseComment(long sessionId,String exerciseId) {
+        try(Cursor c=getReadableDatabase().rawQuery(
+            "SELECT comment FROM exercise_comments WHERE session_id=? AND exercise_id=?",
+            new String[]{Long.toString(sessionId),exerciseId})) {
+            return c.moveToFirst()?c.getString(0):"";
+        }
+    }
+
+    public void saveExerciseComment(long sessionId,String exerciseId,String comment) {
+        if(exerciseId==null||exerciseId.isEmpty()||exerciseId.length()>90 ||
+            comment==null||comment.length()>300 || byId(sessionId)==null)
+            throw new IllegalArgumentException("Nieprawidłowy komentarz ćwiczenia");
+        SQLiteDatabase sql=getWritableDatabase();
+        if(comment.trim().isEmpty()) {
+            sql.delete("exercise_comments","session_id=? AND exercise_id=?",
+                new String[]{Long.toString(sessionId),exerciseId});
+        } else {
+            ContentValues row=new ContentValues();
+            row.put("session_id",sessionId);
+            row.put("exercise_id",exerciseId);
+            row.put("comment",comment.trim());
+            sql.insertWithOnConflict("exercise_comments",null,row,SQLiteDatabase.CONFLICT_REPLACE);
+        }
+    }
+
     private static void createPlanTable(SQLiteDatabase sql) {
         sql.execSQL("CREATE TABLE IF NOT EXISTS plan_items ("+
             "workout INTEGER NOT NULL,position INTEGER NOT NULL,exercise_id TEXT NOT NULL,"+

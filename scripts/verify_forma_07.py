@@ -15,8 +15,8 @@ cloud=read("app/src/main/java/pl/pitsmich/forma/CloudSync.java")
 timer=read("app/src/main/java/pl/pitsmich/forma/RestTimer.java")
 gradle=read("app/build.gradle")
 
-assert 'super(context, "forma_workouts.db", null, 9);' in db
-assert "versionCode 21" in gradle and "versionName '0.10.3'" in gradle
+assert 'super(context, "forma_workouts.db", null, 10);' in db
+assert "versionCode 22" in gradle and "versionName '0.10.4'" in gradle
 assert "if(oldVersion<6)" in db and "if(oldVersion<7)" in db
 assert "audit_resolution" in db and "plan_items" in db
 for column in ("rir", "note", "warmup"):

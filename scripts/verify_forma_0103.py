@@ -8,8 +8,8 @@ java=(root/"app/src/main/java/pl/pitsmich/forma/ExerciseIllustrations.java").rea
 ui=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(encoding="utf-8")
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf-8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf-8")
-assert "versionCode 21" in gradle and "versionName '0.10.3'" in gradle
-assert 'super(context, "forma_workouts.db", null, 9);' in db
+assert "versionCode 22" in gradle and "versionName '0.10.4'" in gradle
+assert 'super(context, "forma_workouts.db", null, 10);' in db
 for i,size in [(0,5304),(1,4510)]:
     data=(root/f"app/src/main/assets/forma_atlas_{i}.base64").read_text(encoding="ascii").strip()
     raw=base64.b64decode(data,validate=True)
