@@ -1,0 +1,5 @@
+FORMA 0.10.1
+versionCode: 19
+Rozwijane instrukcje techniki dla 24 ćwiczeń: ustawienie, ruch, oddech i błędy.
+Bez zmian schematu bazy i danych użytkownika.
+CI: 44751794783 — success.
