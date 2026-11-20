@@ -1,0 +1,6 @@
+FORMA 0.10.2
+versionCode 20
+Rozdzielono podgląd ćwiczeń (bez zapisu) i wyraźny Start treningu na kartach FBW; w podglądzie instrukcje techniki.
+Integracja zegarka nie jest włączona bez potwierdzenia kompatybilnego modelu.
+Dane treningowe i baza SQLite v9 bez zmian.
+GitHub Actions test 44756114992: success.
