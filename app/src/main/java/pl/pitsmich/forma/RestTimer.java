@@ -17,6 +17,9 @@ import android.media.RingtoneManager;
 public final class RestTimer {
     private static final String PREFS = "forma_timer";
     private static final String KEY_END = "restUntil"; // Keep compatible with 0.5.1.
+    private static final String CHANNEL_COUNTDOWN = "forma_rest_countdown_v1";
+    private static final int COUNTDOWN_ID = 6653;
+    public static final String ACTION_OPEN_SESSION = "pl.pitsmich.forma.OPEN_ACTIVE_SESSION";
     private static final String CHANNEL_SOUND = "forma_rest_sound_v2";
     private static final String CHANNEL_SILENT = "forma_rest_vibration_v2";
     private static final int ALARM_CODE = 6651;
@@ -53,13 +56,60 @@ public final class RestTimer {
         SharedPreferences preferences=context.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
         preferences.edit().putLong(KEY_END,end).commit();
         schedule(context,end);
+        showCountdown(context,end);
     }
 
     public static void reschedule(Context context) {
         long end=endTime(context);
         if(end==0)return;
         if(end<=System.currentTimeMillis())finishIfExpired(context);
-        else schedule(context,end);
+        else {
+            schedule(context,end);
+            showCountdown(context,end);
+        }
+    }
+
+    /** Native Android chronometer: lockscreen seconds tick without per-second app wakeups. */
+    private static void showCountdown(Context context,long end) {
+        if(!canNotify(context)||end<=System.currentTimeMillis())return;
+        NotificationManager manager=(NotificationManager)
+            context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if(manager==null)return;
+        NotificationChannel channel=new NotificationChannel(CHANNEL_COUNTDOWN,
+            "FORMA — odliczanie przerwy",NotificationManager.IMPORTANCE_LOW);
+        channel.setDescription("Pozostały czas przerwy w powiadomieniu i na ekranie blokady.");
+        channel.enableVibration(false);
+        channel.setSound(null,null);
+        channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        manager.createNotificationChannel(channel);
+        Intent openIntent=new Intent(context,MainActivity.class);
+        openIntent.setAction(ACTION_OPEN_SESSION);
+        openIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent open=PendingIntent.getActivity(context,6653,openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+        Notification notification=new Notification.Builder(context,CHANNEL_COUNTDOWN)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle("FORMA • Przerwa")
+            .setContentText("Pozostały czas")
+            .setWhen(end)
+            .setShowWhen(true)
+            .setUsesChronometer(true)
+            .setChronometerCountDown(true)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setCategory(Notification.CATEGORY_STATUS)
+            .setContentIntent(open)
+            .setTimeoutAfter(Math.max(1,end-System.currentTimeMillis())+2000)
+            .build();
+        manager.notify(COUNTDOWN_ID,notification);
+    }
+
+    private static void clearCountdown(Context context) {
+        NotificationManager manager=(NotificationManager)
+            context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if(manager!=null)manager.cancel(COUNTDOWN_ID);
     }
 
     private static void schedule(Context context,long end) {
@@ -81,7 +131,10 @@ public final class RestTimer {
         AlarmManager manager=(AlarmManager)context.getSystemService(Context.ALARM_SERVICE);
         if(manager!=null)manager.cancel(alarm(context));
         NotificationManager notifications=(NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if(notifications!=null)notifications.cancel(NOTIFICATION_ID);
+        if(notifications!=null){
+            notifications.cancel(NOTIFICATION_ID);
+            notifications.cancel(COUNTDOWN_ID);
+        }
     }
 
     // Idempotent: both the visible ticker and the alarm receiver can call this.
@@ -90,6 +143,7 @@ public final class RestTimer {
             long end=endTime(context);
             if(end==0 || System.currentTimeMillis()<end)return;
             context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().remove(KEY_END).commit();
+            clearCountdown(context);
             if(canNotify(context))showFinished(context);
         }
     }
