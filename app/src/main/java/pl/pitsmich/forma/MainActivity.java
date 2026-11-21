@@ -1064,6 +1064,23 @@ public final class MainActivity extends Activity {
                 Toast.makeText(this,"Otwórz ustawienia powiadomień aplikacji w Androidzie",Toast.LENGTH_LONG).show();
             }
         });
+        space(timerSettings,7);
+        add(timerSettings,text("Jeśli Samsung ukrywa timer pod „1 powiadomienie więcej”, w ustawieniach kanału włącz wyświetlanie na ekranie blokady i powiadomienia szczegółowe. One UI może nadal grupować karty.",12,MUTED,false));
+        Button lockscreen=button("Widoczność na ekranie blokady",false);
+        add(timerSettings,lockscreen);
+        lockscreen.setOnClickListener(v->{
+            try {
+                WorkoutStatusService.ensureChannel(this);
+                Intent i=new Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS);
+                i.putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName());
+                i.putExtra(Settings.EXTRA_CHANNEL_ID,WorkoutStatusService.CHANNEL);
+                startActivity(i);
+            } catch(Exception ignored) {
+                Intent fallback=new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                fallback.putExtra(Settings.EXTRA_APP_PACKAGE,getPackageName());
+                startActivity(fallback);
+            }
+        });
         if(Build.VERSION.SDK_INT>=31 && !RestTimer.canScheduleExact(this)) {
             space(timerSettings,6);
             Button precise=button("Włącz dokładne alarmy",false);
