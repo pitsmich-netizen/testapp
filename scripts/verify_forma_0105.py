@@ -8,7 +8,7 @@ activity=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_tex
 manifest=(root/"app/src/main/AndroidManifest.xml").read_text(encoding="utf8")
 assert "extends Service" in service and "startForeground(ID,build(this))" in service
 assert "setWhen(until).setUsesChronometer(true).setChronometerCountDown(true)" in service
-assert "NotificationManager.IMPORTANCE_DEFAULT" in service
+assert "NotificationManager.IMPORTANCE_HIGH" in service
 assert "setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)" in service
 assert "Notification.VISIBILITY_PUBLIC" in service and "setContentIntent(tap)" in service
 assert ".addAction(" not in service

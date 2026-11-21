@@ -34,6 +34,6 @@ assert "showCompletedEditor()" in main
 assert "initialImportAudit(" in main and "initialImportAudit(" in database
 assert 'super(context, "forma_workouts.db", null, 10);' in database
 assert "db.deleteSession(sessionId)" not in database[database.index("public String initialImportAudit"):database.index("public String sessionNotes")]
-assert "versionCode 24" in read("app/build.gradle")
-assert "versionName '0.10.6'" in read("app/build.gradle")
+assert "versionCode 25" in read("app/build.gradle")
+assert "versionName '0.10.7'" in read("app/build.gradle")
 print("Timer wiring, permissions, safe import audit and database compatibility: OK")

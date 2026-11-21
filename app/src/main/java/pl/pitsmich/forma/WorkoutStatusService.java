@@ -15,7 +15,7 @@ import android.os.IBinder;
  * No background polling: Android's own chronometer counts down rest time.
  */
 public final class WorkoutStatusService extends Service {
-    public static final String CHANNEL="forma_workout_status_v2";
+    public static final String CHANNEL="forma_workout_visible_v3";
     private static final int ID=6653;
     private static volatile boolean running;
 
@@ -41,16 +41,17 @@ public final class WorkoutStatusService extends Service {
         }
     }
 
-    private static void channel(Context context) {
+    public static void ensureChannel(Context context) {
         NotificationManager manager=(NotificationManager)
             context.getSystemService(Context.NOTIFICATION_SERVICE);
         if(manager==null)return;
         NotificationChannel channel=new NotificationChannel(CHANNEL,
-            "FORMA — aktywny trening",NotificationManager.IMPORTANCE_DEFAULT);
+            "FORMA — widoczny aktywny trening",NotificationManager.IMPORTANCE_HIGH);
         channel.setDescription("Cichy status treningu i odliczanie przerwy na ekranie blokady.");
         channel.setSound(null,null);
         channel.enableVibration(false);
         channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        channel.enableLights(false);
         manager.createNotificationChannel(channel);
     }
 
@@ -64,13 +65,14 @@ public final class WorkoutStatusService extends Service {
             PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         Notification.Builder b=new Notification.Builder(context,CHANNEL)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle(rest?"FORMA • Przerwa":"FORMA • Trening trwa")
+            .setContentTitle(rest?"FORMA • Przerwa — odliczanie":"FORMA • Trening trwa")
             .setContentText(rest?"Pozostały czas":"Dotknij, aby wrócić do treningu")
             .setContentIntent(tap)
             .setCategory(Notification.CATEGORY_STATUS)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setPriority(Notification.PRIORITY_HIGH)
             .setShowWhen(rest);
         if(rest) b.setWhen(until).setUsesChronometer(true).setChronometerCountDown(true);
         if(Build.VERSION.SDK_INT>=31)
@@ -81,7 +83,7 @@ public final class WorkoutStatusService extends Service {
     @Override public void onCreate(){
         super.onCreate();
         running=true;
-        channel(this);
+        ensureChannel(this);
     }
 
     @Override public int onStartCommand(Intent intent,int flags,int startId){
