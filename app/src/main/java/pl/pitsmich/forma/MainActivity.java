@@ -639,7 +639,7 @@ public final class MainActivity extends Activity {
         enlarge.setMinHeight(dp(40));
         add(parent,enlarge);
         enlarge.setOnClickListener(v->showEquipmentPhoto(exerciseId));
-        add(parent,text("Zdjęcie poglądowe. Maszyny na Twojej siłowni mogą wyglądać inaczej.",
+        add(parent,text("Zdjęcie poglądowe ze zbioru gym-exercise-images. Pierwsze otwarcie wymaga internetu; potem zdjęcie jest w pamięci telefonu.",
             11,MUTED,false));
     }
 
