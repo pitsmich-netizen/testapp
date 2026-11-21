@@ -1,0 +1,6 @@
+FORMA 0.10.7
+versionCode 25
+Nowy kanał statusu treningu forma_workout_visible_v3 (wysoka ważność, bez dźwięku); nadal natywny licznik przerwy i klik do sesji. Ustawienia → Trening i timer: przycisk ustawień widoczności kanału na ekranie blokady.
+Usunięte schematy techniki i dodane generyczne zdjęcia stanowisk i sprzętu (zewnętrzna biblioteka zdjęć z kontrolą HTTPS), ładowane po pierwszym użyciu i cachowane lokalnie; podgląd na całą szerokość i powiększanie. Instrukcje tekstowe pozostały.
+SQLite v10 i historia nietknięte.
+CI: GitHub Actions run 44916614031 success.
