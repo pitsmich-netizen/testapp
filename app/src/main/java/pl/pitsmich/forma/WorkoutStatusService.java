@@ -41,7 +41,7 @@ public final class WorkoutStatusService extends Service {
         }
     }
 
-    private static void channel(Context context) {
+    public static void ensureChannel(Context context) {
         NotificationManager manager=(NotificationManager)
             context.getSystemService(Context.NOTIFICATION_SERVICE);
         if(manager==null)return;
@@ -83,7 +83,7 @@ public final class WorkoutStatusService extends Service {
     @Override public void onCreate(){
         super.onCreate();
         running=true;
-        channel(this);
+        ensureChannel(this);
     }
 
     @Override public int onStartCommand(Intent intent,int flags,int startId){
