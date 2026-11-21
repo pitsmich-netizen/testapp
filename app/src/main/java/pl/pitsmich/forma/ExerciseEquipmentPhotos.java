@@ -86,11 +86,11 @@ public final class ExerciseEquipmentPhotos {
         return out.toByteArray();
     }
 
-    public static void into(Context activityContext,String exerciseId,ImageView view,Runnable missing) {
+    public static void into(Context activityContext,String exerciseId,ImageView view,Runnable loaded,Runnable missing) {
         String path=relativePath(exerciseId);
         if(path==null){if(missing!=null)missing.run();return;}
         Bitmap cached=MEMORY.get(path);
-        if(cached!=null&&!cached.isRecycled()){view.setImageBitmap(cached);return;}
+        if(cached!=null&&!cached.isRecycled()){view.setImageBitmap(cached);if(loaded!=null)loaded.run();return;}
         Context context=activityContext.getApplicationContext();
         DOWNLOADS.execute(()->{
             Bitmap result=null;
@@ -125,7 +125,7 @@ public final class ExerciseEquipmentPhotos {
             Bitmap bitmap=result;
             MAIN.post(()->{
                 if(!path.equals(view.getTag()))return;
-                if(bitmap!=null)view.setImageBitmap(bitmap);
+                if(bitmap!=null){view.setImageBitmap(bitmap);if(loaded!=null)loaded.run();}
                 else if(missing!=null)missing.run();
             });
         });
