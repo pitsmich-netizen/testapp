@@ -23,7 +23,7 @@ public final class ExerciseEquipmentPhotos {
     private static final String HOST="https://raw.githubusercontent.com/numbhill/gym-exercise-images/master/";
     private static final ExecutorService DOWNLOADS=Executors.newFixedThreadPool(2);
     private static final Handler MAIN=new Handler(Looper.getMainLooper());
-    private static final LruCache<String,Bitmap> MEMORY=new LruCache<String,Bitmap>(24) {
+    private static final LruCache<String,Bitmap> MEMORY=new LruCache<String,Bitmap>(24*1024) {
         @Override protected int sizeOf(String key,Bitmap value){return Math.max(1,value.getByteCount()/1024);}
     };
     private ExerciseEquipmentPhotos(){}
@@ -42,17 +42,14 @@ public final class ExerciseEquipmentPhotos {
             case "leg_press": return "legs/leg-press.webp";
             case "leg_curl": return "legs/leg-curl.webp";
             case "leg_ext": return "legs/leg-extension.webp";
-            case "rev_lunge": return "legs/bulgarian-split-squat.webp";
             case "calf_standing": return "legs/standing-calf-raise.webp";
             case "calf_seated": return "legs/calf-raise.webp";
             case "calf": return "legs/calf-raise.webp";
-            case "db_lateral": return "shoulders/cable-lateral-raise.webp";
+            case "db_lateral": return "arms/dumbbell-curl.webp";
             case "cable_lateral": return "shoulders/cable-lateral-raise.webp";
             case "tri_push": return "arms/rope-pushdown.webp";
             case "tri_overhead": return "arms/overhead-cable-triceps-extension.webp";
             case "bi_cable": return "arms/cable-curl.webp";
-            case "ab_crunch": return "abs/cable-crunch.webp";
-            case "pallof": return "abs/cable-crunch.webp";
             default:return null;
         }
     }
