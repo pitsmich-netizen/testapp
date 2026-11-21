@@ -608,6 +608,7 @@ public final class MainActivity extends Activity {
         TextView status=text("Ładowanie zdjęcia stanowiska…",12,MUTED,false);
         add(wrapper,status);
         ExerciseEquipmentPhotos.into(this,exerciseId,photo,
+            ()->status.setVisibility(View.GONE),
             ()->status.setText("Nie udało się wczytać zdjęcia. Sprawdź internet i spróbuj ponownie."));
         new AlertDialog.Builder(this)
             .setTitle("Stanowisko / sprzęt")
@@ -631,6 +632,7 @@ public final class MainActivity extends Activity {
         TextView state=text("Ładowanie zdjęcia…",11,MUTED,false);
         add(parent,state);
         ExerciseEquipmentPhotos.into(this,exerciseId,photo,
+            ()->state.setVisibility(View.GONE),
             ()->state.setText("Zdjęcie niedostępne — sprawdź połączenie z internetem."));
         photo.setOnClickListener(v->showEquipmentPhoto(exerciseId));
         TextView enlarge=actionLabel("⛶  Powiększ zdjęcie",TEAL);
