@@ -41,6 +41,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import android.widget.LinearLayout;
+import android.widget.ImageView;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -592,30 +593,51 @@ public final class MainActivity extends Activity {
         render();
     }
 
+    private void showEquipmentPhoto(String exerciseId) {
+        LinearLayout wrapper=col();
+        wrapper.setPadding(dp(12),dp(8),dp(12),dp(8));
+        ImageView photo=new ImageView(this);
+        String source=ExerciseEquipmentPhotos.relativePath(exerciseId);
+        if(source==null)return;
+        photo.setTag(source);
+        photo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        photo.setAdjustViewBounds(true);
+        photo.setMinimumHeight(dp(270));
+        photo.setBackground(rounded(CARD2,12,BORDER));
+        wrapper.addView(photo,new LinearLayout.LayoutParams(-1,dp(320)));
+        TextView status=text("Ładowanie zdjęcia stanowiska…",12,MUTED,false);
+        add(wrapper,status);
+        ExerciseEquipmentPhotos.into(this,exerciseId,photo,
+            ()->status.setText("Nie udało się wczytać zdjęcia. Sprawdź internet i spróbuj ponownie."));
+        new AlertDialog.Builder(this)
+            .setTitle("Stanowisko / sprzęt")
+            .setView(wrapper)
+            .setPositiveButton("Zamknij",null)
+            .show();
+    }
+
     private void appendExerciseIllustration(LinearLayout parent,String exerciseId) {
-        if(!ExerciseDiagramView.supports(exerciseId))return;
-        space(parent,10);
-        TextView label=text("SCHEMAT RUCHU  ·  START / KONIEC",11,TEAL,true);
-        add(parent,label);
-        ExerciseDiagramView diagram=new ExerciseDiagramView(this,exerciseId);
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);
+        if(!ExerciseEquipmentPhotos.hasReference(exerciseId))return;
+        space(parent,9);
+        add(parent,text("ZDJĘCIE STANOWISKA / SPRZĘTU",11,TEAL,true));
+        ImageView photo=new ImageView(this);
+        photo.setTag(ExerciseEquipmentPhotos.relativePath(exerciseId));
+        photo.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        photo.setBackground(rounded(CARD2,12,BORDER));
+        photo.setContentDescription("Zdjęcie sprzętu. Dotknij, aby powiększyć.");
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(180));
         lp.topMargin=dp(6);
-        parent.addView(diagram,lp);
-        TextView enlarge=actionLabel("⛶  Powiększ schemat",TEAL);
+        parent.addView(photo,lp);
+        TextView state=text("Ładowanie zdjęcia…",11,MUTED,false);
+        add(parent,state);
+        ExerciseEquipmentPhotos.into(this,exerciseId,photo,
+            ()->state.setText("Zdjęcie niedostępne — sprawdź połączenie z internetem."));
+        photo.setOnClickListener(v->showEquipmentPhoto(exerciseId));
+        TextView enlarge=actionLabel("⛶  Powiększ zdjęcie",TEAL);
         enlarge.setMinHeight(dp(40));
         add(parent,enlarge);
-        enlarge.setOnClickListener(v->{
-            ExerciseDiagramView big=new ExerciseDiagramView(this,exerciseId);
-            LinearLayout wrapper=col();
-            wrapper.setPadding(dp(10),dp(4),dp(10),dp(4));
-            add(wrapper,big);
-            new AlertDialog.Builder(this)
-                .setTitle("Schemat techniki")
-                .setView(wrapper)
-                .setPositiveButton("Zamknij",null)
-                .show();
-        });
-        add(parent,text("Schemat orientacyjny, nie zastępuje wskazówek technicznych.",
+        enlarge.setOnClickListener(v->showEquipmentPhoto(exerciseId));
+        add(parent,text("Zdjęcie poglądowe. Maszyny na Twojej siłowni mogą wyglądać inaczej.",
             11,MUTED,false));
     }
 
