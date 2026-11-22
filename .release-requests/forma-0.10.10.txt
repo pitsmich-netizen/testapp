@@ -1,0 +1,4 @@
+FORMA 0.10.10
+versionCode 28
+Jedno powiadomienie o aktywnym treningu z natywnym odliczaniem podczas przerwy. Usunięto osobne powiadomienie timera z 0.10.9; po aktualizacji czyszczony jest jego dawny identyfikator. Zostaje alert dźwięk/wibracja końca przerwy. Nowa ikona aplikacji FORMA (adaptive i round), dedykowany glyph powiadomień. Baza v10 i historia bez zmian.
+PR #30 CI success: 45053303048.
