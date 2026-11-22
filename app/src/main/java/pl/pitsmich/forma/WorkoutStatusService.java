@@ -27,15 +27,32 @@ public final class WorkoutStatusService extends Service {
         else context.startService(i);
     }
 
+    /** Cancel synchronously: a pending timer refresh must never revive a completed workout. */
     public static void stop(Context context) {
+        running=false;
+        NotificationManager manager=(NotificationManager)
+            context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if(manager!=null)manager.cancel(ID);
         context.stopService(new Intent(context,WorkoutStatusService.class));
+    }
+
+    private static boolean hasRunningWorkout(Context context) {
+        WorkoutDb db=new WorkoutDb(context);
+        try {
+            WorkoutDb.Session active=db.active();
+            return active!=null && active.pausedAt==0;
+        } finally { db.close(); }
     }
 
     public static void refresh(Context context) {
         if(!running)return;
+        if(!hasRunningWorkout(context)) {
+            stop(context);
+            return;
+        }
         NotificationManager manager=(NotificationManager)
             context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if(manager!=null) {
+        if(manager!=null && running) {
             try {manager.notify(ID,build(context));}
             catch(SecurityException ignored){/* User may have disabled notifications. */}
         }
@@ -87,18 +104,18 @@ public final class WorkoutStatusService extends Service {
     }
 
     @Override public int onStartCommand(Intent intent,int flags,int startId){
-        WorkoutDb db=new WorkoutDb(this);
-        WorkoutDb.Session active;
-        try {active=db.active();}
-        finally {db.close();}
-        if(active==null||active.pausedAt>0){
-            stopSelf();
+        if(!hasRunningWorkout(this)){
+            running=false;
+            stopForeground(STOP_FOREGROUND_REMOVE);
+            stopSelf(startId);
             return START_NOT_STICKY;
         }
+        running=true;
         try {startForeground(ID,build(this));}
         catch(RuntimeException e){
             running=false;
-            stopSelf();
+            stopForeground(STOP_FOREGROUND_REMOVE);
+            stopSelf(startId);
             return START_NOT_STICKY;
         }
         return START_STICKY;
