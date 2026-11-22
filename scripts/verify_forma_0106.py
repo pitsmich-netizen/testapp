@@ -16,8 +16,8 @@ assert "syncWorkoutNotification();" in main and "askWorkoutNotificationPermissio
 assert "startForeground(ID,build(this))" in service
 assert "NotificationManager.IMPORTANCE_HIGH" in service
 assert "setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)" in service
-assert "setUsesChronometer(true)" in service and "setChronometerCountDown(true)" in service
-assert "setWhen(until)" in service
+assert "setUsesChronometer(true)" not in service
+assert "setChronometerCountDown(true)" not in service
 assert "setOngoing(true)" in service and "setOnlyAlertOnce(true)" in service
 assert "setContentIntent(tap)" in service
 assert ".addAction(" not in service
