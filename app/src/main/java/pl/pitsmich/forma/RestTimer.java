@@ -22,6 +22,8 @@ public final class RestTimer {
     private static final String CHANNEL_SILENT = "forma_rest_vibration_v2";
     private static final int ALARM_CODE = 6651;
     private static final int NOTIFICATION_ID = 6652;
+    // Previous experimental standalone countdown notification, retired in 0.10.10.
+    private static final int LEGACY_COUNTDOWN_ID = 6654;
     private RestTimer() { }
 
     public static long endTime(Context context) {
@@ -54,7 +56,7 @@ public final class RestTimer {
         SharedPreferences preferences=context.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
         preferences.edit().putLong(KEY_END,end).commit();
         schedule(context,end);
-        RestCountdownNotification.show(context,end);
+        cancelLegacyCountdown(context);
         WorkoutStatusService.refresh(context);
     }
 
@@ -64,9 +66,14 @@ public final class RestTimer {
         if(end<=System.currentTimeMillis())finishIfExpired(context);
         else {
             schedule(context,end);
-            RestCountdownNotification.show(context,end);
+            cancelLegacyCountdown(context);
             WorkoutStatusService.refresh(context);
         }
+    }
+
+    private static void cancelLegacyCountdown(Context context) {
+        NotificationManager manager=(NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if(manager!=null)manager.cancel(LEGACY_COUNTDOWN_ID);
     }
 
     private static void schedule(Context context,long end) {
@@ -90,8 +97,8 @@ public final class RestTimer {
         NotificationManager notifications=(NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
         if(notifications!=null){
             notifications.cancel(NOTIFICATION_ID);
+            notifications.cancel(LEGACY_COUNTDOWN_ID);
         }
-        RestCountdownNotification.cancel(context);
         WorkoutStatusService.refresh(context);
     }
 
@@ -101,7 +108,7 @@ public final class RestTimer {
             long end=endTime(context);
             if(end==0 || System.currentTimeMillis()<end)return;
             context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().remove(KEY_END).commit();
-            RestCountdownNotification.cancel(context);
+            cancelLegacyCountdown(context);
             WorkoutStatusService.refresh(context);
             if(canNotify(context))showFinished(context);
         }
@@ -133,7 +140,7 @@ public final class RestTimer {
         PendingIntent open=PendingIntent.getActivity(context,ALARM_CODE,activity,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification notification=new Notification.Builder(context,channelId)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_forma_notification)
             .setContentTitle("FORMA • Przerwa zakończona")
             .setContentText("Możesz rozpocząć następną serię.")
             .setContentIntent(open)

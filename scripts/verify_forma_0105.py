@@ -7,8 +7,7 @@ rest=(root/"app/src/main/java/pl/pitsmich/forma/RestTimer.java").read_text(encod
 activity=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(encoding="utf8")
 manifest=(root/"app/src/main/AndroidManifest.xml").read_text(encoding="utf8")
 assert "extends Service" in service and "startForeground(ID,build(this))" in service
-countdown=(root/"app/src/main/java/pl/pitsmich/forma/RestCountdownNotification.java").read_text(encoding="utf8")
-assert "setUsesChronometer(true)" in countdown and "setChronometerCountDown(true)" in countdown
+assert "setUsesChronometer(true)" in service and "setChronometerCountDown(true)" in service
 assert "NotificationManager.IMPORTANCE_HIGH" in service
 assert "setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)" in service
 assert "Notification.VISIBILITY_PUBLIC" in service and "setContentIntent(tap)" in service
