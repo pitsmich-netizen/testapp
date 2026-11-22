@@ -54,7 +54,6 @@ public final class RestTimer {
         SharedPreferences preferences=context.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
         preferences.edit().putLong(KEY_END,end).commit();
         schedule(context,end);
-        RestCountdownNotification.show(context,end);
         WorkoutStatusService.refresh(context);
     }
 
@@ -64,7 +63,6 @@ public final class RestTimer {
         if(end<=System.currentTimeMillis())finishIfExpired(context);
         else {
             schedule(context,end);
-            RestCountdownNotification.show(context,end);
             WorkoutStatusService.refresh(context);
         }
     }
@@ -91,7 +89,6 @@ public final class RestTimer {
         if(notifications!=null){
             notifications.cancel(NOTIFICATION_ID);
         }
-        RestCountdownNotification.cancel(context);
         WorkoutStatusService.refresh(context);
     }
 
@@ -101,7 +98,6 @@ public final class RestTimer {
             long end=endTime(context);
             if(end==0 || System.currentTimeMillis()<end)return;
             context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().remove(KEY_END).commit();
-            RestCountdownNotification.cancel(context);
             WorkoutStatusService.refresh(context);
             if(canNotify(context))showFinished(context);
         }
@@ -133,7 +129,7 @@ public final class RestTimer {
         PendingIntent open=PendingIntent.getActivity(context,ALARM_CODE,activity,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification notification=new Notification.Builder(context,channelId)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_forma_notification)
             .setContentTitle("FORMA • Przerwa zakończona")
             .setContentText("Możesz rozpocząć następną serię.")
             .setContentIntent(open)
