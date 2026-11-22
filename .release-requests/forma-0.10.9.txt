@@ -1,0 +1,4 @@
+FORMA 0.10.9
+versionCode 27
+Osobne zwykłe powiadomienie odliczania przerwy (Android NotificationManager, niezależne od foreground service), nowy kanał forma_rest_live_v1, minuty i sekundy z systemowego chronometru, dotknięcie wraca do sesji. Usuwane przy stop/skip/finish. Osobny alert dźwięku lub wibracji po zakończeniu przerwy zachowany. Usługa statusu treningu już nie dubluje licznika. Eksperyment do sprawdzenia na Samsung One UI 9; bez zmian DB v10 i historii.
+PR #29 CI run 45051901703 — success.
