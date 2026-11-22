@@ -54,6 +54,7 @@ public final class RestTimer {
         SharedPreferences preferences=context.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
         preferences.edit().putLong(KEY_END,end).commit();
         schedule(context,end);
+        RestCountdownNotification.show(context,end);
         WorkoutStatusService.refresh(context);
     }
 
@@ -63,6 +64,7 @@ public final class RestTimer {
         if(end<=System.currentTimeMillis())finishIfExpired(context);
         else {
             schedule(context,end);
+            RestCountdownNotification.show(context,end);
             WorkoutStatusService.refresh(context);
         }
     }
@@ -89,6 +91,7 @@ public final class RestTimer {
         if(notifications!=null){
             notifications.cancel(NOTIFICATION_ID);
         }
+        RestCountdownNotification.cancel(context);
         WorkoutStatusService.refresh(context);
     }
 
@@ -98,6 +101,7 @@ public final class RestTimer {
             long end=endTime(context);
             if(end==0 || System.currentTimeMillis()<end)return;
             context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit().remove(KEY_END).commit();
+            RestCountdownNotification.cancel(context);
             WorkoutStatusService.refresh(context);
             if(canNotify(context))showFinished(context);
         }
