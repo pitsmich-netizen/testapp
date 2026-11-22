@@ -15,7 +15,7 @@ assert "channel.enableVibration(false)" in service
 assert "Notification.VISIBILITY_PUBLIC" in service
 assert "channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC)" in service
 assert "Notification.FOREGROUND_SERVICE_IMMEDIATE" in service
-assert "setChronometerCountDown(true)" in service
+assert "setChronometerCountDown(true)" not in service
 assert "setContentIntent(tap)" in service
 assert ".addAction(" not in service
 assert "Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS" in app
