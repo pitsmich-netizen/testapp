@@ -14,7 +14,7 @@ gradle=source("app/build.gradle")
 
 assert 'super(context, "forma_workouts.db", null, 10);' in database
 assert "if(oldVersion<8) createPersonalTables(db)" in database
-assert "versionCode 26" in gradle and "versionName '0.10.8'" in gradle
+assert "versionCode 27" in gradle and "versionName '0.10.9'" in gradle
 assert "CREATE TABLE IF NOT EXISTS personal_exercises" in database
 assert "CREATE TABLE IF NOT EXISTS load_settings" in database
 assert "CREATE TABLE IF NOT EXISTS workout_schedule" in database
