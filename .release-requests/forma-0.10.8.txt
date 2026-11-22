@@ -1,0 +1,5 @@
+FORMA 0.10.8
+versionCode 26
+Poprawiono pozostałe powiadomienie 'Trening trwa' po zakończeniu, wstrzymaniu lub anulowaniu sesji: natychmiastowe kasowanie, weryfikacja aktywności sesji przy każdym odświeżeniu i restarcie usługi.
+Bez zmian w kanałach powiadomień, schemacie DB v10 i historii.
+CI PR #28 GitHub Actions run 45050105378 success.
