@@ -6,7 +6,7 @@ app=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(enc
 manifest=(root/"app/src/main/AndroidManifest.xml").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
-assert "versionCode 32" in gradle and "versionName '0.10.14'" in gradle
+assert "versionCode 33" in gradle and "versionName '0.10.15'" in gradle
 assert 'android:enableOnBackInvokedCallback="true"' in manifest
 assert "registerOnBackInvokedCallback" in app and "unregisterOnBackInvokedCallback" in app
 assert "private void navigateBack()" in app and "private void renderFromBack()" in app
