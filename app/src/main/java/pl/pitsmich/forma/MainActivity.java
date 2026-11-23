@@ -1694,7 +1694,8 @@ public final class MainActivity extends Activity {
             TextView number=text(String.format(Locale.ROOT,"%02d",index+1),13,MUTED,true);
             number.setGravity(Gravity.CENTER);
             waiting.addView(number,new LinearLayout.LayoutParams(0,dp(36),1));
-            TextView prior=text(previous==null?"Oczekuje":weight(previous.weight)+" kg  ×  "+previous.reps,
+            TextView prior=text(previous==null?"Oczekuje":weight(previous.weight)+" kg  ×  "+previous.reps+
+                (previous.rir>=0?" · RIR "+previous.rir:""),
                 13,MUTED,false);
             prior.setGravity(Gravity.CENTER);
             waiting.addView(prior,new LinearLayout.LayoutParams(0,dp(36),3.1f));
@@ -1725,6 +1726,11 @@ public final class MainActivity extends Activity {
             state.setGravity(Gravity.CENTER);
             saved.addView(state,new LinearLayout.LayoutParams(0,dp(34),1.6f));
             add(block,saved);
+            // A measured RIR is always distinct from the exercise's target RIR.
+            String rirComparison=(current.rir>=0?"RIR teraz "+current.rir:"");
+            if(previous!=null && previous.rir>=0)
+                rirComparison+=(rirComparison.isEmpty()?"":"  ·  ")+"poprz. RIR "+previous.rir;
+            if(!rirComparison.isEmpty())add(block,text(rirComparison,11,MUTED,false));
             if(previous!=null&&!current.warmup) {
                 double change=current.weight-previous.weight;
                 int repChange=current.reps-previous.reps;
@@ -1753,9 +1759,14 @@ public final class MainActivity extends Activity {
         title.addView(titleText,new LinearLayout.LayoutParams(0,dp(20),1));
         TextView hint=text(suggested==null?"Nowa seria":
             (sessionPrevious!=null?"Ostatnia seria: ":"Poprz. trening: ")+
-            weight(suggested.weight)+" kg × "+suggested.reps,11,MUTED,false);
+            weight(suggested.weight)+" kg × "+suggested.reps+
+            (suggested.rir>=0?" · RIR "+suggested.rir:""),11,MUTED,false);
         title.addView(hint);
         add(block,title);
+        // Keep the same-set historical RIR visible even when the load suggestion
+        // comes from an earlier set in the current session.
+        if(sessionPrevious!=null && previous!=null && previous.rir>=0)
+            add(block,text("Poprz. trening · ta seria: RIR "+previous.rir,11,TEAL,false));
         if(current==null){
             String guide=sessionPrevious!=null?
                 "Wpisano wynik poprzedniej serii. Cel: "+ex.minReps+"–"+ex.maxReps+

@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 root=Path(__file__).resolve().parents[1]
 manifest=(root/"app/src/main/AndroidManifest.xml").read_text()
 gradle=(root/"app/build.gradle").read_text()
-assert "versionCode 30" in gradle and "versionName '0.10.12'" in gradle
+assert "versionCode 31" in gradle and "versionName '0.10.13'" in gradle
 assert 'android:icon="@mipmap/ic_launcher"' in manifest
 assert 'android:roundIcon="@mipmap/ic_launcher_round"' in manifest
 for path in ("app/src/main/res/drawable/ic_forma_foreground.xml",

@@ -5,7 +5,7 @@ root=Path(__file__).resolve().parents[1]
 s=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text()
 g=(root/"app/build.gradle").read_text()
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text()
-assert "versionCode 30" in g and "versionName '0.10.12'" in g
+assert "versionCode 31" in g and "versionName '0.10.13'" in g
 assert 'super(context, "forma_workouts.db", null, 10);' in db, "Do not change database schema for UI polish."
 assert 'TextView version=text(BuildConfig.VERSION_NAME' in s
 assert 'LinearLayout weightBox=row();' in s
