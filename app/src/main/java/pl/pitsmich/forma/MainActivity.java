@@ -1766,6 +1766,11 @@ public final class MainActivity extends Activity {
             TextView guidance=text("ⓘ  "+guidanceText,11,MUTED,false);
             guidance.setPadding(dp(2),dp(2),dp(2),dp(4));
             add(block,guidance);
+            // Keep the existing conservative progression tip from history.
+            if(previous!=null && lastInSession==null) {
+                TextView trend=text("↗  "+db.loadGuidance(ex,openWorkout,index),11,GREEN,false);
+                add(block,trend);
+            }
         }
 
         // One horizontal control strip. Flexible stepper groups share remaining width
