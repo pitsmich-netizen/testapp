@@ -1,0 +1,3 @@
+FORMA 0.10.15
+versionCode 33
+W Progres → ćwiczenie dodano zakładkę trendu RIR (do 8 sesji) obok ciężaru, powtórzeń i objętości. Średnia wyłącznie z zapisanych RIR serii roboczych; RIR 0 to prawidłowy pomiar, brak danych to kreska. W nagłówku i historii ćwiczenia wyświetlana średnia oraz odsetek serii z zapisem. Bez zmian timer, powiadomienia, mechanika zapisu serii, SQLite v10 i dane. PR #36, CI Android APK success (run 45234056489).
