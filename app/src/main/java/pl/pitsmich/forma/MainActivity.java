@@ -3285,9 +3285,11 @@ public final class MainActivity extends Activity {
     private double trendValue(WorkoutDb.Progress progress,String exercise,int metric) {
         if(metric==1)return progress.totalReps;
         if(metric==2)return exerciseVolumeAt(exercise,progress.date);
+        if(metric==3)return progress.averageRir();
         return progress.maxWeight;
     }
     private String trendValueLabel(double value,int metric) {
+        if(metric==3)return value<0?"—":String.format(Locale.forLanguageTag("pl-PL"),"%.1f",value);
         return metric==1?Integer.toString((int)value)+" powt.":
             weight(value)+" kg";
     }
@@ -3329,6 +3331,10 @@ public final class MainActivity extends Activity {
                 estimatedMax=Math.max(estimatedMax,p.maxWeight*(1.0+p.repsAtMax/30.0));
             recordVolume=Math.max(recordVolume,exerciseVolumeAt(ex.id,p.date));
         }
+        if(newest.rirCount>0)
+            add(hero,text("Średni RIR: "+trendValueLabel(newest.averageRir(),3)+
+                "  ·  "+newest.rirCount+"/"+newest.numberOfSets+" serii z zapisem",13,TEAL,true));
+        else add(hero,text("RIR: brak zapisu w ostatniej sesji",12,MUTED,false));
         if(estimatedMax>0)
             add(hero,text("Szacowane 1RM: "+weight(estimatedMax)+" kg  ·  wzór Epleya (orientacyjnie)",12,MUTED,false));
         add(hero,text("Najwyższa objętość sesji: "+weight(recordVolume)+" kg",12,MUTED,false));
@@ -3347,9 +3353,9 @@ public final class MainActivity extends Activity {
             LinearLayout chart=card(content);
             smallLabel(chart,"TREND WYNIKÓW — "+count+" OSTATNICH SESJI");
             space(chart,10);
-            String[] kinds={"Ciężar","Powtórzenia","Objętość"};
+            String[] kinds={"Ciężar","Powtórzenia","Objętość","RIR"};
             int metric=getSharedPreferences("forma_settings",0).getInt("trend_metric",0);
-            if(metric<0||metric>2)metric=0;
+            if(metric<0||metric>3)metric=0;
             LinearLayout selector=row();
             for(int i=0;i<kinds.length;i++) {
                 final int chosen=i;
@@ -3366,8 +3372,8 @@ public final class MainActivity extends Activity {
             }
             add(chart,selector);
             space(chart,11);
-            double max=0;
-            for(int i=0;i<count;i++)max=Math.max(max,trendValue(list.get(i),ex.id,metric));
+            double max=metric==3?4.0:0;
+            if(metric!=3)for(int i=0;i<count;i++)max=Math.max(max,trendValue(list.get(i),ex.id,metric));
             for(int i=count-1;i>=0;i--) {
                 WorkoutDb.Progress p=list.get(i);
                 LinearLayout line=row();
@@ -3378,7 +3384,8 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(11),1);
                 line.addView(bar,bp);
                 double value=trendValue(p,ex.id,metric);
-                double fraction=max>0?Math.max(0.04,value/max):0.04;
+                double fraction=metric==3?(value<0?0:Math.max(0,value/4.0)):
+                    (max>0?Math.max(0.04,value/max):0.04);
                 View segment=new View(this);
                 segment.setBackground(rounded(TEAL,4,0));
                 bar.addView(segment,new LinearLayout.LayoutParams(0,dp(10),(float)fraction));
@@ -3389,7 +3396,8 @@ public final class MainActivity extends Activity {
                 add(chart,line);
             }
             space(chart,6);
-            add(chart,text(metric==2?"Objętość to suma ciężar × powtórzenia × mnożnik dla serii roboczych.":
+            add(chart,text(metric==3?"Średnia z zapisanych RIR serii roboczych (0–4). Kreska oznacza brak danych, a RIR 0 to brak powtórzeń w zapasie. Wyższy RIR nie zawsze oznacza lepszy wynik.":
+                metric==2?"Objętość to suma ciężar × powtórzenia × mnożnik dla serii roboczych.":
                 metric==1?"Łączna liczba powtórzeń w seriach roboczych.":
                 "Najwyższy ciężar w serii roboczej danej sesji.",12,MUTED,false));
         }
@@ -3404,7 +3412,10 @@ public final class MainActivity extends Activity {
             line.addView(date,new LinearLayout.LayoutParams(0,dp(27),1));
             line.addView(text(weight(p.maxWeight)+" kg × "+p.repsAtMax,15,TEXT,true));
             add(c,line);
-            add(c,text(p.numberOfSets+" serii  •  "+p.totalReps+" powt.",12,dayColor(selectedProgressWorkout),false));
+            String recordedRir=p.rirCount==0?"RIR —":
+                "RIR śr. "+trendValueLabel(p.averageRir(),3)+" ("+p.rirCount+"/"+p.numberOfSets+")";
+            add(c,text(p.numberOfSets+" serii  •  "+p.totalReps+" powt.  •  "+recordedRir,
+                12,dayColor(selectedProgressWorkout),false));
         }
     }
 

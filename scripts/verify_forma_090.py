@@ -7,7 +7,7 @@ app=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(enc
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
 theme=(root/"app/src/main/res/values/styles.xml").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
-assert re.search(r"versionCode (1[5-9]|[2-9][0-9])", gradle) and "versionName '0.10.14'" in gradle
+assert re.search(r"versionCode (1[5-9]|[2-9][0-9])", gradle) and "versionName '0.10.15'" in gradle
 assert 'super(context, "forma_workouts.db", null, 10);' in db, "Retain database v9 and existing history."
 assert "private void showWeeklyAnalysis()" in app and 'page.equals("weekly")' in app
 assert 'result.sessions++' in app and 'if(entry.warmup)continue' in app
@@ -21,7 +21,7 @@ assert 'db.updateCompleted(session.id,session.startedAt,notes)' in app
 assert 'new SimpleDateFormat("dd.MM.yyyy' in app
 assert 'private double exerciseVolumeAt(' in app
 assert 'private double trendValue(' in app
-assert 'String[] kinds={"Ciężar","Powtórzenia","Objętość"}' in app
+assert 'String[] kinds={"Ciężar","Powtórzenia","Objętość","RIR"}' in app
 assert 'getInt("trend_metric",0)' in app
 assert 'db.progressionTip(ex)' in app
 assert "unknownRir" in db and "insufficientRir" in db
