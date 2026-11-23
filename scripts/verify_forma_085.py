@@ -5,7 +5,7 @@ root=Path(__file__).resolve().parent.parent
 main=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text()
 gradle=(root/"app/build.gradle").read_text()
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text()
-assert "versionCode 31" in gradle and "versionName '0.10.13'" in gradle
+assert "versionCode 32" in gradle and "versionName '0.10.14'" in gradle
 assert 'super(context, "forma_workouts.db", null, 10);' in db
 assert 'update.setOnClickListener(v->updater.check(true));' in main
 assert 'version.setOnClickListener(v->updater.configure());' in main
