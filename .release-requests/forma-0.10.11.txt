@@ -1,0 +1,4 @@
+FORMA 0.10.11
+versionCode 29
+Przywrócono zwykłe powiadomienie przerwy z działającej wersji 0.10.9. Oddzielne od powiadomienia statusu treningu; własna ikona FORMA z wersji 0.10.10 pozostaje. Odliczanie systemowe, kliknięcie wraca do sesji, alert końca przerwy bez zmian. Poprawka znikania statusu po zakończeniu treningu pozostaje. Baza SQLite v10 i historia bez zmian.
+PR #31 CI run 45190286404 — success.
