@@ -7,7 +7,7 @@ db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encodin
 backup=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutBackup.java").read_text(encoding="utf8")
 ui=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
-assert "versionCode 28" in gradle and "versionName '0.10.10'" in gradle
+assert "versionCode 29" in gradle and "versionName '0.10.11'" in gradle
 assert 'super(context, "forma_workouts.db", null, 10);' in db
 assert 'if(oldVersion<10) createExerciseComments(db);' in db
 assert "public String exerciseComment(long sessionId,String exerciseId)" in db
