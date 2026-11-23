@@ -73,8 +73,6 @@ public final class WorkoutStatusService extends Service {
     }
 
     private static Notification build(Context context) {
-        long end=RestTimer.endTime(context);
-        boolean rest=end>System.currentTimeMillis();
         Intent open=new Intent(context,MainActivity.class);
         open.setAction(RestTimer.ACTION_OPEN_SESSION);
         open.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -82,17 +80,15 @@ public final class WorkoutStatusService extends Service {
             PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         Notification.Builder b=new Notification.Builder(context,CHANNEL)
             .setSmallIcon(R.drawable.ic_forma_notification)
-            .setContentTitle(rest?"FORMA • Przerwa":"FORMA • Trening trwa")
-            .setContentText(rest?"Odliczanie do następnej serii":"Dotknij, aby wrócić do treningu")
+            .setContentTitle("FORMA • Trening trwa")
+            .setContentText("Dotknij, aby wrócić do treningu")
             .setContentIntent(tap)
             .setCategory(Notification.CATEGORY_STATUS)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(Notification.PRIORITY_HIGH)
-            .setShowWhen(rest);
-        if(rest)
-            b.setWhen(end).setUsesChronometer(true).setChronometerCountDown(true);
+            .setShowWhen(false);
         if(Build.VERSION.SDK_INT>=31)
             b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
         return b.build();
