@@ -1,0 +1,3 @@
+FORMA 0.10.14
+versionCode 32
+Przy otwarciu aplikacji po zminimalizowaniu oraz zimnym starcie automatycznie przywróć aktywny, niewstrzymany trening i ostatnio wybrane ćwiczenie. Systemowy przycisk i gest Wstecz (również Android 13+/One UI 9) wracają do poprzedniego ekranu, z uwzględnieniem zakładek i podmenu; minimalizowanie wyłącznie na ekranie głównym. Wstrzymanej sesji nie wznawiaj bez zgody. Bez zmian timera, notyfikacji i SQLite. PR #35, CI Android APK run 45207189280 success.
