@@ -1,0 +1,4 @@
+FORMA 0.10.12
+versionCode 30
+Kolejna seria automatycznie uzupełnia ciężar i powtórzenia z ostatniej serii bieżącego treningu (lub z poprzedniej sesji). Potwierdzenie nowej serii kończy starą przerwę i uruchamia nową tylko gdy pozostały serie w ćwiczeniu; edytowanie zapisanej serii nie resetuje timera. Kompaktowy timer i karta ćwiczenia. Stabilny mechanizm powiadomień z 0.10.11, ikona, zdjęcia, historia i DB v10 bez zmian.
+PR #33 CI run 45197287181 success.
