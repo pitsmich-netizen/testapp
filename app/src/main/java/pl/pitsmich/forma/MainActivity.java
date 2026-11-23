@@ -1333,28 +1333,28 @@ public final class MainActivity extends Activity {
 
         LinearLayout timerShell=col();
         timerShell.setBackground(rounded(CARD,15,BORDER));
-        timerShell.setPadding(dp(13),dp(10),dp(13),dp(11));
+        timerShell.setPadding(dp(12),dp(7),dp(12),dp(8));
         LinearLayout.LayoutParams shellLp=new LinearLayout.LayoutParams(-1,-2);
-        shellLp.topMargin=dp(7);shellLp.bottomMargin=dp(3);
+        shellLp.topMargin=dp(5);shellLp.bottomMargin=dp(2);
         root.addView(timerShell,shellLp);
 
         LinearLayout times=row();
         LinearLayout elapsed=col();
         add(elapsed,text("CZAS TRENINGU",10,MUTED,true));
-        elapsedLabel=text("00:00",20,TEXT,true);
+        elapsedLabel=text("00:00",19,TEXT,true);
         add(elapsed,elapsedLabel);
-        times.addView(elapsed,new LinearLayout.LayoutParams(0,dp(47),1));
+        times.addView(elapsed,new LinearLayout.LayoutParams(0,dp(41),1));
 
         LinearLayout rest=col();
         add(rest,text("PRZERWA",10,MUTED,true));
-        timerLabel=text(restUntil==0?"00:00":formatTime(RestTimer.secondsRemaining(this)),24,TEAL,true);
+        timerLabel=text(restUntil==0?"00:00":formatTime(RestTimer.secondsRemaining(this)),23,TEAL,true);
         add(rest,timerLabel);
-        times.addView(rest,new LinearLayout.LayoutParams(0,dp(47),1));
+        times.addView(rest,new LinearLayout.LayoutParams(0,dp(41),1));
 
         TextView skip=text("Pomiń  ×",12,MUTED,true);
         skip.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         skip.setContentDescription("Pomiń aktualną przerwę");
-        times.addView(skip,new LinearLayout.LayoutParams(dp(78),dp(47)));
+        times.addView(skip,new LinearLayout.LayoutParams(dp(78),dp(41)));
         skip.setOnClickListener(v->stopRest());
         add(timerShell,times);
 
@@ -1366,7 +1366,7 @@ public final class MainActivity extends Activity {
         restProgress.setMax(Math.max(1,secondsTotal));
         restProgress.setProgress((int)Math.max(0,Math.min(secondsTotal,secondsTotal-remaining)));
         LinearLayout.LayoutParams progressLp=new LinearLayout.LayoutParams(-1,dp(5));
-        progressLp.topMargin=dp(6);progressLp.bottomMargin=dp(9);
+        progressLp.topMargin=dp(4);progressLp.bottomMargin=dp(7);
         timerShell.addView(restProgress,progressLp);
 
         LinearLayout buttons=row();
@@ -1378,7 +1378,7 @@ public final class MainActivity extends Activity {
             timerChoices[i]=t;
             t.setTextSize(13);
             t.setContentDescription("Rozpocznij przerwę "+sec+" sekund");
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(35),1);
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(34),1);
             if(i>0)p.leftMargin=dp(7);
             buttons.addView(t,p);
             t.setOnClickListener(v->{
@@ -1391,7 +1391,7 @@ public final class MainActivity extends Activity {
             });
         }
         TextView plus=pill("+15 s",false);
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(35),1);
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(34),1);
         p.leftMargin=dp(7);
         buttons.addView(plus,p);
         plus.setContentDescription("Wydłuż przerwę o 15 sekund");
@@ -1481,7 +1481,7 @@ public final class MainActivity extends Activity {
             LinearLayout.LayoutParams tb=new LinearLayout.LayoutParams(0,-2,1);
             tb.leftMargin=dp(12);
             header.addView(titleBox,tb);
-            TextView title=text(ex.name,17,TEXT,true);
+            TextView title=text(ex.name,18,TEXT,true);
             title.setMaxLines(3);
             add(titleBox,title);
             String existingComment=db.exerciseComment(openSession,ex.id);
@@ -1494,7 +1494,7 @@ public final class MainActivity extends Activity {
             commentLink.setContentDescription("Dodaj lub zmień komentarz do ćwiczenia "+ex.name);
             add(titleBox,commentLink);
             commentLink.setOnClickListener(v->changeExerciseComment(openSession,ex.id,ex.name));
-            space(titleBox,4);
+            space(titleBox,2);
             int complete=db.countExerciseSets(openSession,ex.id);
             int target=db.expectedSets(openWorkout,ex);
             boolean finished=complete>=target;
@@ -1667,6 +1667,11 @@ public final class MainActivity extends Activity {
     private void addSetRow(LinearLayout target,Plan.Exercise ex,int index,TextView exerciseStatus) {
         WorkoutDb.Entry current=db.get(openSession,ex.id,index);
         WorkoutDb.Entry previous=db.previousWorkout(openWorkout,ex.id,index);
+        // For a new series, carry the last confirmed values of THIS session first.
+        // Historical set-specific values remain a fallback for the first series.
+        WorkoutDb.Entry lastInSession=index>0?db.get(openSession,ex.id,index-1):null;
+        WorkoutDb.Entry draftSource=current!=null?current:
+            lastInSession!=null&&!lastInSession.warmup?lastInSession:previous;
         int firstPending=0;
         while(db.get(openSession,ex.id,firstPending)!=null && firstPending<12)
             firstPending++;
@@ -1674,10 +1679,10 @@ public final class MainActivity extends Activity {
         boolean editing=explicit || (editingSetIndex<0 && current==null && index==firstPending);
 
         LinearLayout block=col();
-        block.setPadding(dp(5),dp(editing?6:3),dp(5),dp(editing?7:3));
+        block.setPadding(dp(3),dp(editing?5:2),dp(3),dp(editing?5:2));
         block.setBackground(rounded(editing?CARD2:CARD,9,editing?BORDER:0));
         LinearLayout.LayoutParams layout=new LinearLayout.LayoutParams(-1,-2);
-        layout.bottomMargin=dp(3);
+        layout.bottomMargin=dp(2);
         target.addView(block,layout);
 
         if(!editing && current==null) {
@@ -1747,8 +1752,19 @@ public final class MainActivity extends Activity {
         title.addView(hint);
         add(block,title);
         if(current==null){
-            TextView guidance=text("ⓘ  "+db.loadGuidance(ex,openWorkout,index),11,MUTED,false);
-            guidance.setPadding(dp(2),dp(3),dp(2),dp(6));
+            String guidanceText=lastInSession!=null&&!lastInSession.warmup?
+                "Ostatnia seria: "+weight(lastInSession.weight)+" kg × "+lastInSession.reps+
+                (lastInSession.rir>=0?"  ·  RIR "+lastInSession.rir:"")+
+                "  •  Cel: "+ex.minReps+"–"+ex.maxReps+
+                (ex.rirMin>=0?"  ·  RIR "+ex.rirMin:""):
+                (previous!=null?
+                    "Ostatnio: "+weight(previous.weight)+" kg × "+previous.reps+
+                    (previous.rir>=0?"  ·  RIR "+previous.rir:"")+
+                    "  •  Cel: "+ex.minReps+"–"+ex.maxReps:
+                    "Pierwszy wynik — dobierz ciężar do zakresu "+ex.minReps+"–"+ex.maxReps+
+                    (ex.rirMin>=0?" i RIR "+ex.rirMin:"")+".");
+            TextView guidance=text("ⓘ  "+guidanceText,11,MUTED,false);
+            guidance.setPadding(dp(2),dp(2),dp(2),dp(4));
             add(block,guidance);
         }
 
@@ -1763,9 +1779,8 @@ public final class MainActivity extends Activity {
         minus.setTextSize(20);minus.setGravity(Gravity.CENTER);
         minus.setContentDescription("Zmniejsz ciężar o "+weight(increment)+" kg");
         minus.setBackground(rounded(Color.rgb(35,32,27),7,Color.rgb(65,57,47)));
-        weightBox.addView(minus,new LinearLayout.LayoutParams(dp(29),dp(42)));
-        EditText kg=field(current!=null?weight(current.weight):
-            previous!=null?weight(previous.weight):"","kg",true);
+        weightBox.addView(minus,new LinearLayout.LayoutParams(dp(33),dp(42)));
+        EditText kg=field(draftSource!=null?weight(draftSource.weight):"","kg",true);
         kg.setTextSize(16);kg.setPadding(dp(1),dp(2),dp(1),dp(2));
         kg.setSingleLine(true);
         kg.setContentDescription("Ciężar w kg, seria "+(index+1));
@@ -1774,7 +1789,7 @@ public final class MainActivity extends Activity {
         plus.setTextSize(20);plus.setGravity(Gravity.CENTER);
         plus.setContentDescription("Zwiększ ciężar o "+weight(increment)+" kg");
         plus.setBackground(rounded(Color.rgb(29,39,33),7,Color.rgb(48,71,58)));
-        weightBox.addView(plus,new LinearLayout.LayoutParams(dp(29),dp(42)));
+        weightBox.addView(plus,new LinearLayout.LayoutParams(dp(33),dp(42)));
         LinearLayout.LayoutParams weightLp=new LinearLayout.LayoutParams(0,dp(42),1.12f);
         weightLp.rightMargin=dp(5);
         controls.addView(weightBox,weightLp);
@@ -1786,9 +1801,8 @@ public final class MainActivity extends Activity {
         repMinus.setTextSize(20);repMinus.setGravity(Gravity.CENTER);
         repMinus.setContentDescription("Odejmij jedno powtórzenie");
         repMinus.setBackground(rounded(CARD,7,BORDER));
-        repsBox.addView(repMinus,new LinearLayout.LayoutParams(dp(27),dp(42)));
-        EditText reps=field(current!=null?Integer.toString(current.reps):
-            previous!=null?Integer.toString(previous.reps):"","powt.",false);
+        repsBox.addView(repMinus,new LinearLayout.LayoutParams(dp(31),dp(42)));
+        EditText reps=field(draftSource!=null?Integer.toString(draftSource.reps):"","powt.",false);
         reps.setTextSize(16);reps.setPadding(dp(1),dp(2),dp(1),dp(2));
         reps.setSingleLine(true);
         reps.setContentDescription("Powtórzenia, seria "+(index+1));
@@ -1797,7 +1811,7 @@ public final class MainActivity extends Activity {
         repPlus.setTextSize(20);repPlus.setGravity(Gravity.CENTER);
         repPlus.setContentDescription("Dodaj jedno powtórzenie");
         repPlus.setBackground(rounded(CARD,7,BORDER));
-        repsBox.addView(repPlus,new LinearLayout.LayoutParams(dp(27),dp(42)));
+        repsBox.addView(repPlus,new LinearLayout.LayoutParams(dp(31),dp(42)));
         LinearLayout.LayoutParams repsLp=new LinearLayout.LayoutParams(0,dp(42),0.95f);
         repsLp.rightMargin=dp(5);
         controls.addView(repsBox,repsLp);
@@ -1847,11 +1861,18 @@ public final class MainActivity extends Activity {
                 WorkoutDb.Entry existing=db.get(openSession,ex.id,index);
                 db.save(openSession,ex.id,index,w,repsValue,rirDraft[0],
                     existing==null?"":existing.note,existing!=null&&existing.warmup);
+                // Only after a successful, confirmed save: end the previous rest.
+                // Validation and typing alone never touch the timer.
+                stopRest();
                 save.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM);
                 WorkoutDb.Entry saved=db.get(openSession,ex.id,index);
                 boolean pr=db.isPersonalRecord(openSession,ex.id,saved);
                 editingSetExercise="";editingSetIndex=-1;
-                if(previousEntry==null && ex.restSeconds>0)startRest(ex.restSeconds);
+                // Start a NEW rest only between working sets of this exercise.
+                // The final set does not immediately create another countdown.
+                if(previousEntry==null && ex.restSeconds>0 &&
+                    db.countExerciseSets(openSession,ex.id)<db.expectedSets(openWorkout,ex))
+                    startRest(ex.restSeconds);
                 if(pr)Toast.makeText(this,"★ NOWY REKORD!  "+weight(w)+" kg",Toast.LENGTH_SHORT).show();
                 if(previousEntry==null&&getSharedPreferences("forma_settings",0)
                     .getBoolean("auto_next",true) &&
@@ -2255,7 +2276,7 @@ public final class MainActivity extends Activity {
             LinearLayout c=card(content);
             LinearLayout top=row();
             TextView kind=actionLabel(db.sessionWorkoutLabel(session),dayColor(session.workout));
-            top.addView(kind,new LinearLayout.LayoutParams(0,dp(35),1));
+            top.addView(kind,new LinearLayout.LayoutParams(0,dp(34),1));
             TextView more=actionLabel("⋮",SKY);
             more.setGravity(Gravity.CENTER);
             more.setTextSize(25);
