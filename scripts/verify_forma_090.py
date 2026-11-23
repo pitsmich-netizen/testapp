@@ -21,7 +21,7 @@ assert 'db.updateCompleted(session.id,session.startedAt,notes)' in app
 assert 'new SimpleDateFormat("dd.MM.yyyy' in app
 assert 'private double exerciseVolumeAt(' in app
 assert 'private double trendValue(' in app
-assert 'String[] kinds={"Ciężar","Powtórzenia","Objętość"}' in app
+assert 'String[] kinds={"Ciężar","Powtórzenia","Objętość","RIR"}' in app
 assert 'getInt("trend_metric",0)' in app
 assert 'db.progressionTip(ex)' in app
 assert "unknownRir" in db and "insufficientRir" in db
