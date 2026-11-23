@@ -15,8 +15,8 @@ assert 'controls.addView(repsBox,repsLp);' in s
 assert 'controls.addView(save,saveLp);' in s
 assert 'controls.addView(rir,new LinearLayout.LayoutParams(dp(44),dp(42)));' in s
 assert "LinearLayout actions=row();" not in s[s.index("    private void addSetRow("):s.index("    private void scrollToExpandedExercise()")]
-assert 'weightBox.addView(minus,new LinearLayout.LayoutParams(dp(29),dp(42)))' in s
-assert 'weightBox.addView(plus,new LinearLayout.LayoutParams(dp(29),dp(42)))' in s
+assert 'weightBox.addView(minus,new LinearLayout.LayoutParams(dp(33),dp(42)))' in s
+assert 'weightBox.addView(plus,new LinearLayout.LayoutParams(dp(33),dp(42)))' in s
 assert "private void addSessionMenuItem(" in s
 assert 'dialog.setCanceledOnTouchOutside(true)' in s
 assert 'dialog.dismiss();cancelWorkout();' in s
