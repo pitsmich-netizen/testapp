@@ -1,0 +1,3 @@
+FORMA 0.10.13
+versionCode 31
+Poprzedni RIR widoczny przy każdej serii: podczas edycji, w seriach oczekujących i zapisanych. Aktualny RIR pozostaje osobno wpisywany po serii. Zachowano automatyczny koniec przerwy z 0.10.12, sprawdzone powiadomienia, DB v10 i historię. PR #34; CI Android APK success (run 45203934746).
