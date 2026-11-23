@@ -109,6 +109,111 @@ public final class MainActivity extends Activity {
     private ProgressBar sessionProgress;
     private int plannedSets=0;
 
+
+    private static final class ScreenLocation {
+        final String page,section,expanded,selectedExercise;
+        final long detailSession,openSession;
+        final int openWorkout,editingWorkout,selectedProgressWorkout;
+        ScreenLocation(MainActivity a) {
+            page=a.page;section=a.settingsSection;expanded=a.expandedExerciseId;
+            selectedExercise=a.selectedExercise;detailSession=a.detailSession;
+            openSession=a.openSession;openWorkout=a.openWorkout;
+            editingWorkout=a.editingWorkout;selectedProgressWorkout=a.selectedProgressWorkout;
+        }
+        boolean sameScreen(ScreenLocation b) {
+            if(!page.equals(b.page))return false;
+            if(page.equals("settings"))return section.equals(b.section);
+            if(page.equals("detail")||page.equals("edit")||page.equals("summary"))
+                return detailSession==b.detailSession;
+            if(page.equals("exerciseProgress"))return selectedExercise.equals(b.selectedExercise);
+            if(page.equals("planEditor")||page.equals("planPreview"))return editingWorkout==b.editingWorkout;
+            return true;
+        }
+        void restore(MainActivity a) {
+            a.page=page;a.settingsSection=section;a.expandedExerciseId=expanded;
+            a.selectedExercise=selectedExercise;a.detailSession=detailSession;
+            a.openSession=openSession;a.openWorkout=openWorkout;
+            a.editingWorkout=editingWorkout;a.selectedProgressWorkout=selectedProgressWorkout;
+        }
+    }
+    private final java.util.ArrayDeque<ScreenLocation> screenHistory=new java.util.ArrayDeque<>();
+    private ScreenLocation lastScreen;
+    private boolean navigatingBack=false,wasStopped=false;
+    private android.window.OnBackInvokedCallback modernBackCallback;
+
+    private void captureNavigation() {
+        ScreenLocation current=new ScreenLocation(this);
+        if(lastScreen!=null&&!navigatingBack&&!current.sameScreen(lastScreen)) {
+            if(screenHistory.size()>=24)screenHistory.removeFirst();
+            screenHistory.addLast(lastScreen);
+        }
+    }
+    private void renderFromBack() {
+        navigatingBack=true;
+        try {render();} finally {navigatingBack=false;}
+    }
+    private boolean canBackTo(ScreenLocation screen) {
+        if(screen.page.equals("session")) {
+            WorkoutDb.Session active=db.active();
+            return active!=null&&active.pausedAt==0&&active.id==screen.openSession;
+        }
+        if(screen.page.equals("detail")||screen.page.equals("summary")||screen.page.equals("edit")) {
+            WorkoutDb.Session saved=db.byId(screen.detailSession);
+            return saved!=null&&saved.finishedAt>0;
+        }
+        return !screen.page.equals("planEditor")||db.active()==null;
+    }
+    private void navigateBack() {
+        if(page.equals("edit")) {completeEditing();return;}
+        if(page.equals("summary")) {page="history";renderFromBack();return;}
+        while(!screenHistory.isEmpty()) {
+            ScreenLocation previous=screenHistory.removeLast();
+            if(!canBackTo(previous))continue;
+            previous.restore(this);
+            renderFromBack();
+            if(page.equals("session"))scrollToExpandedExercise();
+            return;
+        }
+        if(page.equals("plan")) {moveTaskToBack(true);return;}
+        if(page.equals("settings")&&!settingsSection.isEmpty())settingsSection="";
+        else if(page.equals("detail"))page="history";
+        else if(page.equals("exerciseProgress")||page.equals("weekly"))page="progress";
+        else page="plan";
+        renderFromBack();
+    }
+    private boolean exerciseInWorkout(int workout,String id) {
+        if(id==null||id.isEmpty())return false;
+        for(Plan.Exercise ex:db.workoutPlan(workout))if(ex.id.equals(id))return true;
+        return false;
+    }
+    private String savedActiveExercise(WorkoutDb.Session active) {
+        android.content.SharedPreferences p=getSharedPreferences("forma_session_ui",0);
+        if(p.getLong("session_id",-1)!=active.id)return "";
+        String saved=p.getString("exercise_id","");
+        return exerciseInWorkout(active.workout,saved)?saved:"";
+    }
+    private void rememberActiveExercise() {
+        if(!page.equals("session")||db==null)return;
+        WorkoutDb.Session active=db.active();
+        if(active==null||active.id!=openSession||active.pausedAt>0)return;
+        getSharedPreferences("forma_session_ui",0).edit()
+            .putLong("session_id",active.id).putString("exercise_id",expandedExerciseId).apply();
+        if(lastScreen!=null&&lastScreen.page.equals("session"))lastScreen=new ScreenLocation(this);
+    }
+    private void openActiveSession(WorkoutDb.Session active) {
+        if(openSession!=active.id||!page.equals("session")||
+            !exerciseInWorkout(active.workout,expandedExerciseId))
+            expandedExerciseId=savedActiveExercise(active);
+        openSession=active.id;openWorkout=active.workout;page="session";
+    }
+    private boolean restoreRunningSessionToForeground() {
+        WorkoutDb.Session active=db.active();
+        if(active==null||active.pausedAt>0)return false;
+        if(page.equals("session")&&openSession==active.id)return false;
+        openActiveSession(active);
+        return true;
+    }
+
     private final Runnable ticker=new Runnable() {
         @Override public void run() {
             RestTimer.finishIfExpired(MainActivity.this);
@@ -155,9 +260,16 @@ public final class MainActivity extends Activity {
             settingsSection=state.getString("settingsSection","");
             weeklyOffset=state.getInt("weeklyOffset",0);
         }
+        if(Build.VERSION.SDK_INT>=33) {
+            modernBackCallback=()->navigateBack();
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,modernBackCallback);
+        }
         if(RestTimer.ACTION_OPEN_SESSION.equals(getIntent()==null?null:getIntent().getAction()))
             openSessionFromNotification();
+        else if(state==null)restoreRunningSessionToForeground();
         render();
+        if(page.equals("session"))scrollToExpandedExercise();
         syncWorkoutNotification();
         handler.post(ticker);
         updater.check(false);
@@ -183,9 +295,7 @@ public final class MainActivity extends Activity {
         WorkoutDb.Session active=db.active();
         if(active!=null) {
             if(active.pausedAt>0)db.resume(active.id);
-            openSession=active.id;
-            openWorkout=active.workout;
-            page="session";
+            openActiveSession(active);
         } else page="plan";
     }
 
@@ -195,6 +305,7 @@ public final class MainActivity extends Activity {
         if(RestTimer.ACTION_OPEN_SESSION.equals(intent.getAction())){
             openSessionFromNotification();
             render();
+            if(page.equals("session"))scrollToExpandedExercise();
         }
     }
 
@@ -227,10 +338,21 @@ public final class MainActivity extends Activity {
         super.onResume();
         if(updater!=null) updater.afterPermissionReturn();
         RestTimer.reschedule(this);
+        if(wasStopped && restoreRunningSessionToForeground()) {
+            render();scrollToExpandedExercise();
+        }
+        wasStopped=false;
         // Only a foreground Activity can safely start an ongoing user-initiated FGS.
         syncWorkoutNotification();
     }
+    @Override protected void onStop() {
+        rememberActiveExercise();
+        wasStopped=true;
+        super.onStop();
+    }
     @Override protected void onDestroy() {
+        if(Build.VERSION.SDK_INT>=33 && modernBackCallback!=null)
+            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(modernBackCallback);
         handler.removeCallbacks(ticker);
         if(cloud!=null)cloud.close();
         db.close();
@@ -297,6 +419,7 @@ public final class MainActivity extends Activity {
     }
 
     private void render() {
+        captureNavigation();
         timerLabel=null; sessionCount=null; elapsedLabel=null; sessionProgress=null; restProgress=null;
         expandedBody=null; expandedChevron=null; expandedCard=null; contentScroll=null;
         root=col();
@@ -329,12 +452,11 @@ public final class MainActivity extends Activity {
         }
         TextView gear=text(page.equals("settings")?"‹":"⚙",26,TEAL,true);
         gear.setGravity(Gravity.CENTER);
-        gear.setContentDescription(page.equals("settings")?"Wróć do planu":"Ustawienia aplikacji");
+        gear.setContentDescription(page.equals("settings")?"Wróć do poprzedniego ekranu":"Ustawienia aplikacji");
         brand.addView(gear,new LinearLayout.LayoutParams(dp(47),dp(44)));
         gear.setOnClickListener(v->{
-            if(page.equals("settings")&&!settingsSection.isEmpty())settingsSection="";
-            else page=page.equals("settings")?"plan":"settings";
-            render();
+            if(page.equals("settings"))navigateBack();
+            else {settingsSection="";page="settings";render();}
         });
         if(!page.equals("session")) {
             add(root,brand);
@@ -370,6 +492,8 @@ public final class MainActivity extends Activity {
         else showSettings();
 
         if(!page.equals("session") && !page.equals("edit") && !page.equals("planEditor") && !page.equals("summary")) showNavigation();
+        lastScreen=new ScreenLocation(this);
+        if(page.equals("session"))rememberActiveExercise();
     }
 
     private void showNavigation() {
@@ -494,8 +618,8 @@ public final class MainActivity extends Activity {
             add(resume,text(db.sessionWorkoutLabel(active)+"  ·  "+active.sets+" serii",19,TEXT,true));
             clickCard(resume,()->{
                 if(active.pausedAt>0) db.resume(active.id);
-                openSession=active.id;openWorkout=active.workout;
-                expandedExerciseId="";page="session";render();
+                openActiveSession(active);render();
+                scrollToExpandedExercise();
                 syncWorkoutNotification();
                 askWorkoutNotificationPermission();
             });
@@ -647,7 +771,7 @@ public final class MainActivity extends Activity {
         TextView back=actionLabel("‹  Twój plan",TEAL);
         back.setMinHeight(dp(42));
         add(content,back);
-        back.setOnClickListener(v->{page="plan";render();});
+        back.setOnClickListener(v->navigateBack());
         space(content,4);
         headline(content,db.workoutLabel(editingWorkout));
         add(content,text("Podgląd — nie uruchamia treningu, timera ani zapisu serii.",13,MUTED,false));
@@ -740,7 +864,7 @@ public final class MainActivity extends Activity {
         space(content,4);
         TextView back=actionLabel("‹  Wróć do planu",SKY);
         back.setMinHeight(dp(38));add(content,back);
-        back.setOnClickListener(v->{page="plan";render();});
+        back.setOnClickListener(v->navigateBack());
         headline(content,"Edytuj "+db.workoutLabel(editingWorkout));
         add(content,text("Przesuwaj ćwiczenia strzałkami. Dotknij nazwy, aby zmienić serie, zakres lub przerwę.",13,MUTED,false));
         space(content,12);
@@ -1237,7 +1361,8 @@ public final class MainActivity extends Activity {
                 .setMessage("Możesz wrócić do niezakończonej sesji "+db.sessionWorkoutLabel(active)+".")
                 .setPositiveButton("Wznów",(d,w)->{
                     if(active.pausedAt>0)db.resume(active.id);
-                    openSession=active.id;openWorkout=active.workout;page="session";render();
+                    openActiveSession(active);render();
+                    scrollToExpandedExercise();
                     syncWorkoutNotification();
                     askWorkoutNotificationPermission();
                 })
@@ -1294,7 +1419,7 @@ public final class MainActivity extends Activity {
         back.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
         back.setContentDescription("Wróć do planu");
         top.addView(back,new LinearLayout.LayoutParams(dp(51),dp(42)));
-        back.setOnClickListener(v->{page="plan";render();});
+        back.setOnClickListener(v->navigateBack());
         TextView title=text(db.workoutLabel(openWorkout),21,TEXT,true);
         title.setGravity(Gravity.CENTER);
         title.setSingleLine(true);
@@ -1590,6 +1715,7 @@ public final class MainActivity extends Activity {
                     expandedBody=body;expandedChevron=chevron;
                     expandedCard=c;
                 }
+                rememberActiveExercise();
             });
         }
 
@@ -2527,7 +2653,7 @@ public final class MainActivity extends Activity {
     private void completeEditing() {
         detailSession=-1;
         page="history";
-        render();
+        renderFromBack();
         if(cloud.signedIn())runCloudSync();
     }
 
@@ -2968,7 +3094,7 @@ public final class MainActivity extends Activity {
     private void showWeeklyAnalysis() {
         TextView back=actionLabel("‹  Progres",TEAL);
         back.setMinHeight(dp(43));add(content,back);
-        back.setOnClickListener(v->{page="progress";render();});
+        back.setOnClickListener(v->navigateBack());
         headline(content,"Analiza tygodnia");
         long start=weekStart(weeklyOffset), end=weekStart(weeklyOffset+1);
         WeekReport week=weekReport(start,end);
@@ -3171,7 +3297,7 @@ public final class MainActivity extends Activity {
         TextView back=actionLabel("‹  Progres",TEAL);
         back.setMinHeight(dp(39));
         add(content,back);
-        back.setOnClickListener(v->{page="progress";render();});
+        back.setOnClickListener(v->navigateBack());
         Plan.Exercise ex=db.exerciseById(selectedExercise);
         if(ex==null){page="progress";render();return;}
         space(content,4);
@@ -3390,18 +3516,6 @@ public final class MainActivity extends Activity {
         }
     }
     @Override public void onBackPressed() {
-        if(page.equals("edit")) {completeEditing();return;}
-        if(page.equals("summary")) {page="history";render();return;}
-        if(page.equals("planEditor")) {page="plan";render();return;}
-        if(page.equals("exerciseProgress")) {page="progress";render();return;}
-        if(page.equals("session")) {
-            page="plan";
-            render();
-            return;
-        }
-        if(page.equals("detail")||page.equals("progress")||page.equals("history")||page.equals("settings")||page.equals("calendar")) {
-            page=page.equals("detail")?"history":"plan";
-            render();
-        } else super.onBackPressed();
+        navigateBack();
     }
 }
