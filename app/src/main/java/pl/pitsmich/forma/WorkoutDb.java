@@ -55,6 +55,8 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         public final long date;
         public double maxWeight=0;
         public int repsAtMax=0, totalReps=0, numberOfSets=0;
+        public int rirSum=0, rirCount=0; // Recorded working-set RIR only; -1 is missing.
+        public double averageRir() { return rirCount==0?-1.0:((double)rirSum)/rirCount; }
         Progress(long date) { this.date=date; }
     }
 
@@ -920,7 +922,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
     }
     public List<Progress> progress(String exercise) {
         ArrayList<Progress> result=new ArrayList<>();
-        String q="SELECT s.id,s.started_at,e.weight,e.reps FROM exercise_sets e JOIN sessions s ON s.id=e.session_id " +
+        String q="SELECT s.id,s.started_at,e.weight,e.reps,e.rir FROM exercise_sets e JOIN sessions s ON s.id=e.session_id " +
                 "WHERE e.exercise_id=? AND e.warmup=0 AND s.finished_at IS NOT NULL AND s.notes NOT LIKE '%[FORMA:TEST]%' ORDER BY s.started_at DESC,e.set_index ASC";
         try(Cursor c=getReadableDatabase().rawQuery(q,new String[]{exercise})) {
             long sessionId=-1; Progress p=null;
@@ -937,6 +939,8 @@ public final class WorkoutDb extends SQLiteOpenHelper {
                         p.maxWeight=weight; p.repsAtMax=reps;
                     }
                     p.totalReps+=reps; p.numberOfSets++;
+                    int rir=c.getInt(4);
+                    if(rir>=0) {p.rirSum+=rir;p.rirCount++;}
                 }
             }
         }
