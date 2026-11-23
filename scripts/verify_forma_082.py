@@ -5,8 +5,8 @@ root=Path(__file__).resolve().parent.parent
 main=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text()
 gradle=(root/"app/build.gradle").read_text()
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text()
-assert "versionCode 29" in gradle
-assert "versionName '0.10.11'" in gradle
+assert "versionCode 30" in gradle
+assert "versionName '0.10.12'" in gradle
 assert 'super(context, "forma_workouts.db", null, 10);' in db
 assert 'TextView version=text(BuildConfig.VERSION_NAME' in main
 assert 'if(!page.equals("session")) {' in main, "No global gear on workout screen"
