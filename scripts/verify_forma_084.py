@@ -6,11 +6,11 @@ main=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text()
 gradle=(root/"app/build.gradle").read_text()
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text()
 timer=(root/"app/src/main/java/pl/pitsmich/forma/RestTimer.java").read_text()
-assert "versionCode 35" in gradle and "versionName '0.10.17'" in gradle
+assert "versionCode 36" in gradle and "versionName '0.10.18'" in gradle
 assert "buildFeatures { buildConfig true }" in gradle
 assert "BuildConfig.VERSION_NAME" in main
 assert 'text("FORMA 0.8.1"' not in main
-assert 'super(context, "forma_workouts.db", null, 10);' in db
+assert 'super(context, "forma_workouts.db", null, 11);' in db
 assert "RestTimer.start(this,seconds)" in main and "RestTimer.reschedule(this)" in main
 assert 'private ProgressBar restProgress' in main
 assert 'restProgress.setProgress' in main
