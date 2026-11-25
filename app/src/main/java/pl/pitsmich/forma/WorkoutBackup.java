@@ -18,7 +18,7 @@ public final class WorkoutBackup {
     public static JSONObject exportData(WorkoutDb db,SharedPreferences settings) throws Exception {
         JSONObject root=new JSONObject();
         root.put("format",FORMAT);
-        root.put("schema",3);
+        root.put("schema",4);
         root.put("exported_at",System.currentTimeMillis());
         JSONObject options=new JSONObject();
         options.put("auto_next",settings.getBoolean("auto_next",true));
@@ -118,6 +118,18 @@ public final class WorkoutBackup {
             }
         }
         root.put("load_settings",loads);
+        // Save exercise group overrides, including overrides for built-in exercises.
+        JSONArray muscleGroups=new JSONArray();
+        try(Cursor c=sql.rawQuery(
+            "SELECT exercise_id,muscle_group FROM exercise_groups ORDER BY exercise_id",null)) {
+            while(c.moveToNext()) {
+                JSONObject item=new JSONObject();
+                item.put("exercise_id",c.getString(0));
+                item.put("muscle_group",c.getString(1));
+                muscleGroups.put(item);
+            }
+        }
+        root.put("muscle_groups",muscleGroups);
         JSONArray schedule=new JSONArray();
         for(WorkoutDb.ScheduleDay day:db.schedule()){
             JSONObject item=new JSONObject();
@@ -145,6 +157,7 @@ public final class WorkoutBackup {
         return "Sesje: "+sessions.length()+"\nSerie: "+entries+
             "\nPlany treningowe: "+backup.optJSONArray("plans").length()+
             "\nWłasne ćwiczenia: "+(backup.optJSONArray("personal_exercises")==null?0:backup.optJSONArray("personal_exercises").length())+
+            "\nPrzypisania partii: "+(backup.optJSONArray("muscle_groups")==null?0:backup.optJSONArray("muscle_groups").length())+
             "\n\nImport połączy brakujące treningi z historią na telefonie. "+
             "Istniejące sesje zostaną pominięte, poza początkowym importem 18.11, który zostanie zastąpiony Twoją kopią. "+
             "Plany i preferencje aplikacji zostaną przywrócone z kopii. "+
@@ -153,7 +166,7 @@ public final class WorkoutBackup {
 
     private static void validateHeader(JSONObject backup) throws Exception {
         int version=backup.optInt("schema",-1);
-        if(!FORMAT.equals(backup.optString("format")) || (version!=1&&version!=2&&version!=3))
+        if(!FORMAT.equals(backup.optString("format")) || (version!=1&&version!=2&&version!=3&&version!=4))
             throw new Exception("Plik nie jest obsługiwaną kopią FORMA.");
         if(backup.optJSONArray("sessions")==null || backup.optJSONArray("plans")==null)
             throw new Exception("Kopia nie zawiera pełnych danych treningowych.");
@@ -192,6 +205,28 @@ public final class WorkoutBackup {
                     row.put("rest_seconds",rest);row.put("each_side",src.optBoolean("each_side",false)?1:0);
                     sql.insertWithOnConflict("personal_exercises",null,row,SQLiteDatabase.CONFLICT_REPLACE);
                 }
+            }
+            // Older backups contain no muscle_groups: leave existing overrides
+            // untouched in that case. A v4 backup restores the complete mapping.
+            JSONArray muscleGroups=backup.optJSONArray("muscle_groups");
+            if(muscleGroups!=null) {
+                if(muscleGroups.length()>700)throw new Exception("Za dużo przypisań partii");
+                java.util.ArrayList<ContentValues> assignments=new java.util.ArrayList<>();
+                HashSet<String> usedGroups=new HashSet<>();
+                for(int i=0;i<muscleGroups.length();i++) {
+                    JSONObject entry=muscleGroups.getJSONObject(i);
+                    String id=entry.getString("exercise_id");
+                    String group=entry.getString("muscle_group");
+                    if(id.length()>90||db.exerciseById(id)==null||
+                        !WorkoutDb.isValidMuscleGroup(group)||!usedGroups.add(id))
+                        throw new Exception("Nieprawidłowa partia ćwiczenia w kopii");
+                    ContentValues row=new ContentValues();
+                    row.put("exercise_id",id);row.put("muscle_group",group);
+                    assignments.add(row);
+                }
+                sql.delete("exercise_groups",null,null);
+                for(ContentValues row:assignments)
+                    sql.insertOrThrow("exercise_groups",null,row);
             }
             JSONArray loadSettings=backup.optJSONArray("load_settings");
             if(loadSettings!=null){
