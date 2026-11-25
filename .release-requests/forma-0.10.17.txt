@@ -1,0 +1,3 @@
+FORMA 0.10.17
+versionCode 35
+Naprawa skakania ekranu podczas zatwierdzania serii. Przy kontynuacji bieżącego ćwiczenia przewijanie zachowuje położenie karty po przebudowie widoku, a automatyczne przejście do kolejnego ćwiczenia ustawia nową kartę bezpośrednio przed pierwszym narysowaniem ekranu — bez widocznej animacji od góry listy. Nie zmieniono obsługi przerw, powiadomień, danych ani schematu bazy SQLite v10. PR #38; GitHub CI: 45685291956 (success). Do testów na Samsung One UI.
