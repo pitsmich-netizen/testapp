@@ -1,0 +1,3 @@
+FORMA 0.10.18
+versionCode 36
+Nowe przypisywanie partii mięśniowej w edytorze planu (menu ⋮ → Partia mięśniowa) oraz podczas tworzenia własnego ćwiczenia. Wsparcie dla ćwiczeń wbudowanych i własnych. Analiza tygodniowa używa zapisanych kategorii i pokazuje zmianę liczby serii względem poprzedniego tygodnia. Zachowano rozgrzewki/testowe treningi poza statystykami. Migracja SQLite v10→v11 bez usuwania serii; JSON backup schema4 z muscle_groups oraz import kopii v1/v2/v3. Bez zmian timera, powiadomień i zapisów treningu. PR #39, CI #45687629884 success.
