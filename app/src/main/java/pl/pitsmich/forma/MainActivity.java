@@ -1752,11 +1752,10 @@ public final class MainActivity extends Activity {
             if(!exercises.get(i).id.equals(current.id))continue;
             expandedExerciseId=exercises.get(i+1).id;
             render();
-            if(contentScroll!=null && expandedCard!=null) {
-                ScrollView scroll=contentScroll;
-                LinearLayout card=expandedCard;
-                scroll.post(()->scroll.smoothScrollTo(0,Math.max(0,card.getTop()-dp(10))));
-            }
+            // Position the next exercise before the first frame is drawn.
+            // Animated scrolling from the newly rebuilt view's top caused the
+            // visible up/down jumping in the recording.
+            positionSessionScroll(expandedCard,dp(10));
             return;
         }
     }
@@ -2031,13 +2030,46 @@ public final class MainActivity extends Activity {
                     db.countExerciseSets(openSession,ex.id)>=db.expectedSets(openWorkout,ex)) {
                     advanceAfterLastSet(ex);
                 } else {
-                    render();
-                    scrollToExpandedExercise();
+                    renderKeepingSessionPosition();
                 }
             }catch(Exception error){
                 Toast.makeText(this,"Sprawdź ciężar i powtórzenia",Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    // Rebuild the edited set without losing the user's place in the workout.
+    // The current card keeps its visual top offset even if rows change height.
+    private void renderKeepingSessionPosition() {
+        ScrollView previousScroll=contentScroll;
+        LinearLayout previousCard=expandedCard;
+        String previousExercise=expandedExerciseId;
+        int previousY=previousScroll==null?0:previousScroll.getScrollY();
+        int previousCardOnScreen=previousCard==null?0:previousCard.getTop()-previousY;
+        render();
+        if(!page.equals("session")||contentScroll==null)return;
+        if(previousCard!=null && expandedCard!=null &&
+            previousExercise.equals(expandedExerciseId))
+            positionSessionScroll(expandedCard,previousCardOnScreen);
+        else positionSessionScroll(null,previousY);
+    }
+
+    // OnPreDraw prevents a transient first frame at scrollY=0 after setContentView.
+    // No smooth-scroll animation: one stable viewport update per saved set.
+    private void positionSessionScroll(LinearLayout card,int offset) {
+        if(contentScroll==null || !page.equals("session"))return;
+        final ScrollView scroll=contentScroll;
+        scroll.getViewTreeObserver().addOnPreDrawListener(
+            new android.view.ViewTreeObserver.OnPreDrawListener() {
+                @Override public boolean onPreDraw() {
+                    scroll.getViewTreeObserver().removeOnPreDrawListener(this);
+                    if(contentScroll==scroll && page.equals("session")) {
+                        int target=card==null?offset:card.getTop()-offset;
+                        scroll.scrollTo(0,Math.max(0,target));
+                    }
+                    return true;
+                }
+            });
     }
 
     private void scrollToExpandedExercise(){

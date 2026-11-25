@@ -7,7 +7,7 @@ timer=(root/"app/src/main/java/pl/pitsmich/forma/RestTimer.java").read_text(enco
 notif=(root/"app/src/main/java/pl/pitsmich/forma/RestCountdownNotification.java").read_text(encoding="utf8")
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
-assert "versionCode 34" in gradle and "versionName '0.10.16'" in gradle
+assert "versionCode 35" in gradle and "versionName '0.10.17'" in gradle
 assert "private boolean hasAnotherPendingExercise(Plan.Exercise finished)" in ui
 assert "for(Plan.Exercise other:db.workoutPlan(openWorkout))" in ui
 assert "if(other.id.equals(finished.id))continue;" in ui
