@@ -1,0 +1,3 @@
+FORMA 0.10.16
+versionCode 34
+Naprawiono brak odliczania przerwy po ostatniej serii ćwiczenia. Timer uruchamia się teraz, jeżeli inne zaplanowane ćwiczenie ma jeszcze niezapisane serie. Po ostatniej serii całego treningu przerwa nie uruchamia się. Przerwa opiera się na czasie ćwiczenia właśnie zakończonego. Nie zmieniono powiadomień, One UI, timera, SQLite v10, danych i edycji istniejących serii. PR #37, CI Android APK success run 45631920859.
