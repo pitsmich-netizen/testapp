@@ -866,7 +866,7 @@ public final class MainActivity extends Activity {
         back.setMinHeight(dp(38));add(content,back);
         back.setOnClickListener(v->navigateBack());
         headline(content,"Edytuj "+db.workoutLabel(editingWorkout));
-        add(content,text("Przesuwaj ćwiczenia strzałkami. Dotknij nazwy, aby zmienić serie, zakres lub przerwę.",13,MUTED,false));
+        add(content,text("Przesuwaj ćwiczenia strzałkami. Dotknij nazwy, aby zmienić serie, zakres lub przerwę; menu ⋮ pozwala przypisać partię mięśniową.",13,MUTED,false));
         space(content,12);
         List<Plan.Exercise> items=db.workoutPlan(editingWorkout);
         for(int i=0;i<items.size();i++) {
@@ -897,6 +897,7 @@ public final class MainActivity extends Activity {
             lower.addView(down,new LinearLayout.LayoutParams(dp(46),dp(39)));
             if(position<items.size()-1)down.setOnClickListener(v->movePlanExercise(position,1));
             add(card,lower);
+            add(card,text("Partia: "+db.muscleGroup(exercise.id),12,MUTED,false));
             clickCard(card,()->editPlanParameters(position));
         }
         Button addExercise=button("+ Dodaj ćwiczenie",true);
@@ -930,11 +931,13 @@ public final class MainActivity extends Activity {
                 "✎  Edytuj serie i powtórzenia",
                 "⇄  Zamień ćwiczenie",
                 "⚖  Skok ciężaru i objętość",
+                "◉  Partia mięśniowa",
                 "×  Usuń z planu"
             },choice->{
                     if(choice==0)editPlanParameters(position);
                     else if(choice==1)showPlanExerciseChooser(position);
                     else if(choice==2)editExerciseLoadSettings(db.workoutPlan(editingWorkout).get(position));
+                    else if(choice==3)editExerciseMuscleGroup(db.workoutPlan(editingWorkout).get(position));
                     else {
                         java.util.ArrayList<Plan.Exercise> items=new java.util.ArrayList<>(db.workoutPlan(editingWorkout));
                         if(items.size()<=1) {
@@ -986,11 +989,17 @@ public final class MainActivity extends Activity {
         EditText name=new EditText(this);
         name.setSingleLine(true);name.setTextColor(TEXT);name.setHint("Np. wyciskanie neutralne");
         name.setHintTextColor(MUTED);add(form,name);
-        add(form,text("SPRZĘT / GRUPA MIĘŚNIOWA",12,MUTED,true));
+        add(form,text("SPRZĘT / UWAGI",12,MUTED,true));
         EditText equipment=new EditText(this);
         equipment.setSingleLine(true);equipment.setTextColor(TEXT);
         equipment.setHint("Np. hantle • klatka");equipment.setHintTextColor(MUTED);
         add(form,equipment);
+        add(form,text("PARTIA MIĘŚNIOWA — STATYSTYKI",12,MUTED,true));
+        Spinner muscleGroup=new Spinner(this);
+        muscleGroup.setAdapter(new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_dropdown_item,WorkoutDb.MUSCLE_GROUPS));
+        muscleGroup.setSelection(WorkoutDb.MUSCLE_GROUPS.length-1); // Unassigned = Inne.
+        add(form,muscleGroup);
         add(form,text("KRÓTKI OPIS",12,MUTED,true));
         EditText description=new EditText(this);
         description.setSingleLine(true);description.setTextColor(TEXT);
@@ -1021,6 +1030,8 @@ public final class MainActivity extends Activity {
                         throw new IllegalArgumentException("Maksymalnie 18 ćwiczeń w planie");
                     Plan.Exercise exercise=db.createExercise(label,details,tool,tool,
                         count,low,high,90,false);
+                    db.saveMuscleGroup(exercise.id,
+                        WorkoutDb.MUSCLE_GROUPS[muscleGroup.getSelectedItemPosition()]);
                     java.util.ArrayList<Plan.Exercise> items=
                         new java.util.ArrayList<>(db.workoutPlan(editingWorkout));
                     if(replaceAt<0)items.add(exercise);else items.set(replaceAt,exercise);
@@ -1032,6 +1043,25 @@ public final class MainActivity extends Activity {
             }));
         dialog.show();
     }
+    private void editExerciseMuscleGroup(Plan.Exercise exercise) {
+        String selected=db.muscleGroup(exercise.id);
+        int active=WorkoutDb.MUSCLE_GROUPS.length-1;
+        for(int i=0;i<WorkoutDb.MUSCLE_GROUPS.length;i++)
+            if(WorkoutDb.MUSCLE_GROUPS[i].equals(selected)){active=i;break;}
+        new AlertDialog.Builder(this)
+            .setTitle("Partia mięśniowa — "+exercise.name)
+            .setSingleChoiceItems(WorkoutDb.MUSCLE_GROUPS,active,(dialog,index)->{
+                try {
+                    db.saveMuscleGroup(exercise.id,WorkoutDb.MUSCLE_GROUPS[index]);
+                    dialog.dismiss();
+                    render();
+                } catch(Exception error) {
+                    Toast.makeText(this,"Nie udało się zapisać partii",Toast.LENGTH_LONG).show();
+                }
+            })
+            .setNegativeButton("Anuluj",null).show();
+    }
+
     private void editExerciseLoadSettings(Plan.Exercise exercise) {
         LinearLayout form=col();
         form.setPadding(dp(18),dp(8),dp(18),dp(5));
@@ -3090,23 +3120,7 @@ public final class MainActivity extends Activity {
     }
 
     private String groupForExercise(String id) {
-        if(java.util.Arrays.asList("db_flat","smith_incline","chest_press","butterfly").contains(id))
-            return "Klatka";
-        if(java.util.Arrays.asList("lat_wide","lat_close","lat_one","row_cable","straight_arm").contains(id))
-            return "Plecy";
-        if(java.util.Arrays.asList("leg_press","leg_ext","leg_curl","rev_lunge").contains(id))
-            return "Nogi";
-        if(java.util.Arrays.asList("cable_lateral","db_lateral","facepull").contains(id))
-            return "Barki";
-        if(java.util.Arrays.asList("tri_push","tri_overhead").contains(id))
-            return "Triceps";
-        if(java.util.Arrays.asList("bi_cable").contains(id))
-            return "Biceps";
-        if(java.util.Arrays.asList("calf","calf_standing","calf_seated").contains(id))
-            return "Łydki";
-        if(java.util.Arrays.asList("ab_crunch","pallof").contains(id))
-            return "Core";
-        return "Inne";
+        return db.muscleGroup(id);
     }
     private long weekStart(int offset) {
         Calendar cal=Calendar.getInstance(Locale.forLanguageTag("pl-PL"));
@@ -3125,13 +3139,18 @@ public final class MainActivity extends Activity {
     }
     private WeekReport weekReport(long start,long end) {
         WeekReport result=new WeekReport();
+        java.util.HashMap<String,String> groupCache=new java.util.HashMap<>();
         for(WorkoutDb.Session session:db.completed()) {
             if(WorkoutDb.isTestSession(session)||session.startedAt<start||session.startedAt>=end)continue;
             result.sessions++;
             for(WorkoutDb.Entry entry:db.sets(session.id)) {
                 if(entry.warmup)continue;
                 result.workingSets++;
-                String group=groupForExercise(entry.exerciseId);
+                String group=groupCache.get(entry.exerciseId);
+                if(group==null) {
+                    group=groupForExercise(entry.exerciseId);
+                    groupCache.put(entry.exerciseId,group);
+                }
                 double amount=entry.weight*entry.reps*db.loadMultiplier(entry.exerciseId);
                 result.volume+=amount;
                 result.sets.put(group,result.sets.containsKey(group)?result.sets.get(group)+1:1);
@@ -3189,6 +3208,10 @@ public final class MainActivity extends Activity {
             TextView value=text(count+" serii  ·  "+weight(week.volumes.get(group))+" kg",12,TEAL,false);
             line.addView(value);
             add(part,line);
+            int previousCount=previous.sets.getOrDefault(group,0);
+            int delta=count-previousCount;
+            add(part,text("vs poprzedni tydzień: "+(delta>0?"+":"")+delta+" serii",11,
+                delta>0?GREEN:delta<0?AMBER:MUTED,false));
             ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);
             bar.setMax(max);bar.setProgress(count);
             bar.setProgressTintList(ColorStateList.valueOf(TEAL));
@@ -3198,7 +3221,7 @@ public final class MainActivity extends Activity {
         }
         if(!any)add(part,text("Brak zapisanych serii roboczych w wybranym tygodniu.",14,MUTED,false));
         space(content,6);
-        add(content,text("Objętość = kg × powtórzenia × mnożnik sprzętu. Własne ćwiczenia bez przypisanej partii widnieją jako „Inne”.",12,MUTED,false));
+        add(content,text("Objętość = kg × powtórzenia × mnożnik sprzętu. Każda seria robocza należy do jednej głównej partii. Własne ćwiczenia bez przypisania widnieją jako „Inne”. Zmiana partii aktualizuje też analizę wcześniejszych treningów, ale nie zapisane wyniki.",12,MUTED,false));
     }
 
     private void showProgress() {
