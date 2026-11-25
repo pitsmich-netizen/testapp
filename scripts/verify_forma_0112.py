@@ -5,7 +5,7 @@ root=Path(__file__).resolve().parents[1]
 ui=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(encoding="utf8")
 timer=(root/"app/src/main/java/pl/pitsmich/forma/RestTimer.java").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
-assert "versionCode 33" in gradle and "versionName '0.10.15'" in gradle
+assert "versionCode 34" in gradle and "versionName '0.10.16'" in gradle
 assert "WorkoutDb.Entry sessionPrevious=null;" in ui
 assert "sessionPrevious=db.get(openSession,ex.id,prior);" in ui
 assert "WorkoutDb.Entry suggested=sessionPrevious!=null?sessionPrevious:previous;" in ui
@@ -16,7 +16,7 @@ assert "Cel: " in ui and "ex.minReps" in ui
 assert "db.save(openSession,ex.id,index,w,repsValue" in ui
 assert "if(previousEntry==null) {\n                    stopRest();" in ui
 assert "boolean moreSets=db.countExerciseSets(openSession,ex.id)<db.expectedSets(openWorkout,ex);" in ui
-assert "if(moreSets && ex.restSeconds>0)startRest(ex.restSeconds);" in ui
+assert "if((moreSets || anotherExercisePending) && ex.restSeconds>0)" in ui
 assert "restProgress" in ui and "timerShell.setPadding(dp(12),dp(7),dp(12),dp(8))" in ui
 assert "NotificationManager" not in ui or "RestTimer.stop(this);" in ui
 assert "RestCountdownNotification.show(context,end);" in timer

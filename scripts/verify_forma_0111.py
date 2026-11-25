@@ -6,7 +6,7 @@ timer=(root/"app/src/main/java/pl/pitsmich/forma/RestTimer.java").read_text()
 regular=(root/"app/src/main/java/pl/pitsmich/forma/RestCountdownNotification.java").read_text()
 service=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutStatusService.java").read_text()
 gradle=(root/"app/build.gradle").read_text()
-assert "versionCode 33" in gradle and "versionName '0.10.15'" in gradle
+assert "versionCode 34" in gradle and "versionName '0.10.16'" in gradle
 assert "RestCountdownNotification.show(context,end)" in timer
 assert timer.count("RestCountdownNotification.show(context,end)") == 2
 assert "RestCountdownNotification.cancel(context)" in timer
