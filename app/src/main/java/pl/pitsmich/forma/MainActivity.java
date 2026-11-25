@@ -1730,6 +1730,19 @@ public final class MainActivity extends Activity {
         pause.setOnClickListener(v->pauseWorkout());
     }
 
+    // A rest period is needed after the final set of an exercise when another
+    // planned exercise still has uncompleted working sets. This does not depend
+    // on the user's auto-advance preference.
+    private boolean hasAnotherPendingExercise(Plan.Exercise finished) {
+        if(openSession<0)return false;
+        for(Plan.Exercise other:db.workoutPlan(openWorkout)) {
+            if(other.id.equals(finished.id))continue;
+            if(db.countExerciseSets(openSession,other.id)<db.expectedSets(openWorkout,other))
+                return true;
+        }
+        return false;
+    }
+
     private void advanceAfterLastSet(Plan.Exercise current) {
         if(openSession<0 || !getSharedPreferences("forma_settings",0).getBoolean("auto_next",true))
             return;
@@ -2006,7 +2019,11 @@ public final class MainActivity extends Activity {
                 if(previousEntry==null) {
                     stopRest();
                     boolean moreSets=db.countExerciseSets(openSession,ex.id)<db.expectedSets(openWorkout,ex);
-                    if(moreSets && ex.restSeconds>0)startRest(ex.restSeconds);
+                    boolean anotherExercisePending=!moreSets && hasAnotherPendingExercise(ex);
+                    // Rest between sets AND between exercises, but never after the
+                    // final working set of the entire workout.
+                    if((moreSets || anotherExercisePending) && ex.restSeconds>0)
+                        startRest(ex.restSeconds);
                 }
                 if(pr)Toast.makeText(this,"★ NOWY REKORD!  "+weight(w)+" kg",Toast.LENGTH_SHORT).show();
                 if(previousEntry==null&&getSharedPreferences("forma_settings",0)
