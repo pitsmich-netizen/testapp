@@ -7,15 +7,15 @@ db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encodin
 backup=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutBackup.java").read_text(encoding="utf8")
 ui=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
-assert "versionCode 35" in gradle and "versionName '0.10.17'" in gradle
-assert 'super(context, "forma_workouts.db", null, 10);' in db
+assert "versionCode 36" in gradle and "versionName '0.10.18'" in gradle
+assert 'super(context, "forma_workouts.db", null, 11);' in db
 assert 'if(oldVersion<10) createExerciseComments(db);' in db
 assert "public String exerciseComment(long sessionId,String exerciseId)" in db
 assert "public void saveExerciseComment(long sessionId,String exerciseId,String comment)" in db
 assert 'CREATE TABLE IF NOT EXISTS exercise_comments' in db
 assert 'FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE' in db
-assert 'root.put("schema",3)' in backup
-assert "version!=1&&version!=2&&version!=3" in backup
+assert 'root.put("schema",4)' in backup
+assert "version!=1&&version!=2&&version!=3&&version!=4" in backup
 assert 'session.put("exercise_comments",exerciseComments)' in backup
 assert 'src.optJSONArray("exercise_comments")' in backup
 assert 'sql.delete("exercise_comments","session_id=?"' in backup

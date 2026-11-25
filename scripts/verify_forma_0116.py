@@ -7,7 +7,7 @@ timer=(root/"app/src/main/java/pl/pitsmich/forma/RestTimer.java").read_text(enco
 notif=(root/"app/src/main/java/pl/pitsmich/forma/RestCountdownNotification.java").read_text(encoding="utf8")
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
-assert "versionCode 35" in gradle and "versionName '0.10.17'" in gradle
+assert "versionCode 36" in gradle and "versionName '0.10.18'" in gradle
 assert "private boolean hasAnotherPendingExercise(Plan.Exercise finished)" in ui
 assert "for(Plan.Exercise other:db.workoutPlan(openWorkout))" in ui
 assert "if(other.id.equals(finished.id))continue;" in ui
@@ -21,7 +21,7 @@ assert "advanceAfterLastSet(ex);" in ui
 assert "RestCountdownNotification.show(context,end);" in timer
 assert "RestCountdownNotification.cancel(context);" in timer
 assert "setChronometerCountDown(true)" in notif
-assert 'super(context, "forma_workouts.db", null, 10);' in db
+assert 'super(context, "forma_workouts.db", null, 11);' in db
 
 # Expected transitions: another exercise matters only after last set of current one.
 def rest(more_sets, pending_other, seconds):

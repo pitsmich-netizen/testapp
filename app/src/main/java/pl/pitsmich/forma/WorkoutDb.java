@@ -75,12 +75,13 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         update.put("notes",notes);
         getWritableDatabase().update("sessions",update,"id=?",new String[]{Long.toString(id)});
     }
-    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 10); }
+    public WorkoutDb(Context context) { super(context, "forma_workouts.db", null, 11); }
     @Override public void onConfigure(SQLiteDatabase db) { super.onConfigure(db); db.setForeignKeyConstraintsEnabled(true); }
     @Override public void onCreate(SQLiteDatabase db) {
         db.execSQL("CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, workout INTEGER NOT NULL, started_at INTEGER NOT NULL, finished_at INTEGER, notes TEXT NOT NULL DEFAULT '', cloud_id TEXT, paused_at INTEGER, paused_total_ms INTEGER NOT NULL DEFAULT 0, audit_resolution TEXT NOT NULL DEFAULT 'pending', workout_label TEXT)");
         db.execSQL("CREATE TABLE exercise_sets (session_id INTEGER NOT NULL, exercise_id TEXT NOT NULL, set_index INTEGER NOT NULL, weight REAL NOT NULL, reps INTEGER NOT NULL, rir INTEGER NOT NULL DEFAULT -1, note TEXT NOT NULL DEFAULT '', warmup INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(session_id,exercise_id,set_index), FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE)");
         createExerciseComments(db);
+        createMuscleGroupTable(db);
         db.execSQL("CREATE INDEX idx_sets_exercise ON exercise_sets(exercise_id)");
         db.execSQL("CREATE INDEX idx_sessions_time ON sessions(started_at)");
         db.execSQL("CREATE UNIQUE INDEX idx_sessions_cloud_id ON sessions(cloud_id)");
@@ -117,6 +118,7 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         if(oldVersion<8) createPersonalTables(db);
         if(oldVersion<9) migrateFbwPlan(db);
         if(oldVersion<10) createExerciseComments(db);
+        if(oldVersion<11) createMuscleGroupTable(db);
         if(oldVersion<2) seedInitialWorkout(db);
         if(oldVersion<3) seedAdditionalNovemberSets(db);
     }
@@ -125,6 +127,52 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             "session_id INTEGER NOT NULL, exercise_id TEXT NOT NULL, "+
             "comment TEXT NOT NULL DEFAULT '', PRIMARY KEY(session_id,exercise_id), "+
             "FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE)");
+    }
+
+    // Primary muscle group shared across all plans; stored separately from
+    // user-authored exercise equipment and historical workout sets.
+    public static final String[] MUSCLE_GROUPS={
+        "Klatka","Plecy","Nogi","Barki","Biceps","Triceps","Łydki","Core","Inne"
+    };
+    public static boolean isValidMuscleGroup(String group) {
+        for(String allowed:MUSCLE_GROUPS)if(allowed.equals(group))return true;
+        return false;
+    }
+    private static void createMuscleGroupTable(SQLiteDatabase sql) {
+        sql.execSQL("CREATE TABLE IF NOT EXISTS exercise_groups ("+
+            "exercise_id TEXT PRIMARY KEY, muscle_group TEXT NOT NULL)");
+    }
+    private static String defaultMuscleGroup(String id) {
+        if(java.util.Arrays.asList("db_flat","smith_incline","chest_press","butterfly").contains(id))return "Klatka";
+        if(java.util.Arrays.asList("lat_wide","lat_close","lat_one","row_cable","straight_arm").contains(id))return "Plecy";
+        if(java.util.Arrays.asList("leg_press","leg_ext","leg_curl","rev_lunge").contains(id))return "Nogi";
+        if(java.util.Arrays.asList("cable_lateral","db_lateral","facepull").contains(id))return "Barki";
+        if(java.util.Arrays.asList("tri_push","tri_overhead").contains(id))return "Triceps";
+        if("bi_cable".equals(id))return "Biceps";
+        if(java.util.Arrays.asList("calf","calf_standing","calf_seated").contains(id))return "Łydki";
+        if(java.util.Arrays.asList("ab_crunch","pallof").contains(id))return "Core";
+        return "Inne";
+    }
+    public String muscleGroup(String exerciseId) {
+        if(exerciseId==null||exerciseId.isEmpty())return "Inne";
+        try(Cursor c=getReadableDatabase().rawQuery(
+            "SELECT muscle_group FROM exercise_groups WHERE exercise_id=?",
+            new String[]{exerciseId})) {
+            if(c.moveToFirst()&&isValidMuscleGroup(c.getString(0)))return c.getString(0);
+        }
+        return defaultMuscleGroup(exerciseId);
+    }
+    public void saveMuscleGroup(String exerciseId,String group) {
+        if(exerciseId==null||exerciseById(exerciseId)==null||!isValidMuscleGroup(group))
+            throw new IllegalArgumentException("Nieprawidłowa partia mięśniowa");
+        SQLiteDatabase sql=getWritableDatabase();
+        if(group.equals(defaultMuscleGroup(exerciseId)))
+            sql.delete("exercise_groups","exercise_id=?",new String[]{exerciseId});
+        else {
+            ContentValues row=new ContentValues();
+            row.put("exercise_id",exerciseId);row.put("muscle_group",group);
+            sql.insertWithOnConflict("exercise_groups",null,row,SQLiteDatabase.CONFLICT_REPLACE);
+        }
     }
 
     /** Comment belongs to a specific exercise in a specific workout session. */
