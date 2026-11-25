@@ -15,5 +15,5 @@ for label in ("USTAWIENIE:","RUCH:","ODDECH:","UNIKAJ:"):
 assert 'ExerciseGuides.forId(ex.id,ex.description)' in ui
 assert 'guide.setVisibility(View.GONE)' in ui
 assert 'guide.setVisibility(show?View.VISIBLE:View.GONE)' in ui
-assert 'super(context, "forma_workouts.db", null, 10);' in (root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
+assert 'super(context, "forma_workouts.db", null, 11);' in (root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
 print("FORMA 0.10.1: "+str(len(covered))+" guides, catalog coverage, collapsible UI and DB compatibility OK.")

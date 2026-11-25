@@ -12,6 +12,6 @@ assert "ExerciseGuides.forId(ex.id,ex.description)" in ui
 assert "Powiększ zdjęcie" in ui
 assert "LruCache<String,Bitmap>" in photos
 assert "HttpURLConnection" in photos
-assert 'super(context, "forma_workouts.db", null, 10);' in db
+assert 'super(context, "forma_workouts.db", null, 11);' in db
 assert not (root/"app/src/main/java/pl/pitsmich/forma/ExerciseDiagramView.java").exists()
 print("FORMA equipment-photo guide regression passed.")
