@@ -6,7 +6,7 @@ app=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(enc
 manifest=(root/"app/src/main/AndroidManifest.xml").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
-assert "versionCode 35" in gradle and "versionName '0.10.17'" in gradle
+assert "versionCode 36" in gradle and "versionName '0.10.18'" in gradle
 assert 'android:enableOnBackInvokedCallback="true"' in manifest
 assert "registerOnBackInvokedCallback" in app and "unregisterOnBackInvokedCallback" in app
 assert "private void navigateBack()" in app and "private void renderFromBack()" in app
@@ -22,6 +22,6 @@ assert "rememberActiveExercise();" in app
 assert "back.setOnClickListener(v->navigateBack());" in app
 assert 'if(active.pausedAt>0)db.resume(active.id);' in app
 assert 'if(active==null||active.pausedAt>0)return false;' in app
-assert 'super(context, "forma_workouts.db", null, 10);' in db
+assert 'super(context, "forma_workouts.db", null, 11);' in db
 assert 'if(previousEntry==null) {\n                    stopRest();' in app
 print("FORMA 0.10.14: saved exercise, navigation, timer and DB unchanged")

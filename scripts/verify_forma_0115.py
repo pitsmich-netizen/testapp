@@ -5,7 +5,7 @@ root=Path(__file__).resolve().parents[1]
 ui=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(encoding="utf8")
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
-assert "versionCode 35" in gradle and "versionName '0.10.17'" in gradle
+assert "versionCode 36" in gradle and "versionName '0.10.18'" in gradle
 assert "public int rirSum=0, rirCount=0" in db
 assert "return rirCount==0?-1.0:((double)rirSum)/rirCount;" in db
 assert "e.reps,e.rir FROM exercise_sets" in db
@@ -21,7 +21,7 @@ assert "double fraction=metric==3?(value<0?0:" in ui
 assert "newest.rirCount>0" in ui and "newest.rirCount+\"/\"+newest.numberOfSets" in ui
 assert 'String recordedRir=p.rirCount==0?"RIR —":' in ui
 assert "Wyższy RIR nie zawsze oznacza lepszy wynik" in ui
-assert 'super(context, "forma_workouts.db", null, 10);' in db
+assert 'super(context, "forma_workouts.db", null, 11);' in db
 assert 'if(previousEntry==null) {\n                    stopRest();' in ui
 assert "RestCountdownNotification" not in ui or "RestTimer.stop(this);" in ui
 # Logic expectations: RIR 0 is measured; -1 is missing; partial coverage excludes missing.

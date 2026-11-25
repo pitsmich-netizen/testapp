@@ -6,7 +6,7 @@ ui=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(enco
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
 timer=(root/"app/src/main/java/pl/pitsmich/forma/RestTimer.java").read_text(encoding="utf8")
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
-assert "versionCode 35" in gradle and "versionName '0.10.17'" in gradle
+assert "versionCode 36" in gradle and "versionName '0.10.18'" in gradle
 assert "private void renderKeepingSessionPosition()" in ui
 assert "int previousY=previousScroll==null?0:previousScroll.getScrollY();" in ui
 assert "previousCard.getTop()-previousY" in ui
@@ -25,5 +25,5 @@ assert 'if(previousEntry==null) {\n                    stopRest();' in ui
 assert "boolean anotherExercisePending=!moreSets && hasAnotherPendingExercise(ex);" in ui
 assert "if((moreSets || anotherExercisePending) && ex.restSeconds>0)" in ui
 assert "RestCountdownNotification.show(context,end);" in timer
-assert 'super(context, "forma_workouts.db", null, 10);' in db
+assert 'super(context, "forma_workouts.db", null, 11);' in db
 print("FORMA 0.10.17: stable same-exercise anchor, instant next exercise and timer regression OK")
