@@ -6,7 +6,7 @@ service=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutStatusService.java").r
 activity=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(encoding="utf8")
 timer=(root/"app/src/main/java/pl/pitsmich/forma/RestTimer.java").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
-assert "versionCode 35" in gradle and "versionName '0.10.17'" in gradle
+assert "versionCode 36" in gradle and "versionName '0.10.18'" in gradle
 assert "private static boolean hasRunningWorkout(Context context)" in service
 assert "return active!=null && active.pausedAt==0;" in service
 assert "running=false;\n        NotificationManager manager" in service
@@ -22,5 +22,5 @@ assert "db.finish(id);\n                WorkoutStatusService.stop(this);" in act
 assert "db.pause(openSession);\n        WorkoutStatusService.stop(this);" in activity
 assert "db.deleteSession(id);\n                WorkoutStatusService.stop(this);" in activity
 assert "WorkoutStatusService.refresh(context);" in timer
-assert 'super(context, "forma_workouts.db", null, 10);' in (root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
+assert 'super(context, "forma_workouts.db", null, 11);' in (root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
 print("FORMA 0.10.8: stop immediately, reject stale timer refreshes and service restarts, data safe")

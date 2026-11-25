@@ -7,7 +7,7 @@ service=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutStatusService.java").r
 photos=(root/"app/src/main/java/pl/pitsmich/forma/ExerciseEquipmentPhotos.java").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
 manifest=(root/"app/src/main/AndroidManifest.xml").read_text(encoding="utf8")
-assert "versionCode 35" in gradle and "versionName '0.10.17'" in gradle
+assert "versionCode 36" in gradle and "versionName '0.10.18'" in gradle
 assert "forma_workout_visible_v3" in service
 assert "NotificationManager.IMPORTANCE_HIGH" in service
 assert "channel.setSound(null,null)" in service
@@ -35,5 +35,5 @@ assert 'case "leg_ext": return "legs/leg-extension.webp";' in photos
 assert 'case "lat_wide": case "lat_close": return "back/lat-pulldown.webp";' in photos
 assert not (root/"app/src/main/java/pl/pitsmich/forma/ExerciseDiagramView.java").exists()
 assert "android.permission.INTERNET" in manifest and "FOREGROUND_SERVICE" in manifest
-assert 'super(context, "forma_workouts.db", null, 10);' in (root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
+assert 'super(context, "forma_workouts.db", null, 11);' in (root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
 print("FORMA 0.10.7 notification channel, photo mapping, caching, full-size UI, and data compatibility OK")
