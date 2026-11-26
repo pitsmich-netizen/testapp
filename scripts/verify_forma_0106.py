@@ -9,7 +9,7 @@ service=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutStatusService.java").r
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
 manifest=ET.fromstring((root/"app/src/main/AndroidManifest.xml").read_text(encoding="utf8"))
 ns="{http://schemas.android.com/apk/res/android}"
-assert "versionCode 38" in gradle and "versionName '0.10.20'" in gradle
+assert "versionCode 39" in gradle and "versionName '0.10.21'" in gradle
 assert 'super(context, "forma_workouts.db", null, 11);' in (root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
 assert "WorkoutStatusService.start(this)" in main and "WorkoutStatusService.stop(this)" in main
 assert "syncWorkoutNotification();" in main and "askWorkoutNotificationPermission();" in main
