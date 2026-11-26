@@ -795,6 +795,32 @@ public final class WorkoutDb extends SQLiteOpenHelper {
             return new Entry(exercise,index,c.getDouble(0),c.getInt(1),c.getInt(2),c.getString(3),c.getInt(4)!=0);
         }
     }
+    /**
+     * Suggestion for the next time this exercise is performed in this FBW day.
+     * Other FBW days, unfinished sessions, test entries and warmup sets are
+     * deliberately excluded. This reads past data only.
+     */
+    public ProgressionPolicy.Suggestion nextSetSuggestion(
+            Plan.Exercise exercise,int workout,int setIndex) {
+        if(exercise==null || workout<0 || workout>2)return null;
+        long priorSession=lastExerciseSession(workout,exercise.id);
+        if(priorSession<0)return null;
+        ArrayList<ProgressionPolicy.WorkingSet> prior=new ArrayList<>();
+        try(Cursor c=getReadableDatabase().rawQuery(
+            "SELECT set_index,weight,reps,rir FROM exercise_sets "+
+            "WHERE session_id=? AND exercise_id=? AND warmup=0 ORDER BY set_index ASC",
+            new String[]{Long.toString(priorSession),exercise.id})) {
+            while(c.moveToNext())
+                prior.add(new ProgressionPolicy.WorkingSet(c.getInt(0),
+                    c.getDouble(1),c.getInt(2),c.getInt(3)));
+        }
+        int expected=expectedSets(workout,exercise);
+        // Custom exercises without a stated RIR range require at least RIR 1.
+        int floor=exercise.rirMin<0?1:exercise.rirMin;
+        return ProgressionPolicy.recommend(prior,setIndex,expected,
+            exercise.minReps,exercise.maxReps,floor,weightStep(exercise.id));
+    }
+
     /** Conservative per-set guidance. Never automatically changes the saved load. */
     public String loadGuidance(Plan.Exercise exercise,int workout,int setIndex) {
         Entry previous=previousWorkout(workout,exercise.id,setIndex);
