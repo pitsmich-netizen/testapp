@@ -23,7 +23,7 @@ assert 'private double exerciseVolumeAt(' in app
 assert 'private double trendValue(' in app
 assert 'String[] kinds={"Ciężar","Powtórzenia","Objętość","RIR"}' in app
 assert 'getInt("trend_metric",0)' in app
-assert 'db.progressionTip(ex)' in app
+assert 'db.nextSetSuggestion(planned,selectedProgressWorkout,0)' in app
 assert "unknownRir" in db and "insufficientRir" in db
 assert 'label.equals(sessionWorkoutLabel(candidate))' in db
 assert "common*2>=Math.max(" in db

@@ -73,10 +73,17 @@ jobs:
         run: python3 scripts/verify_forma_0117.py
       - name: Verify FORMA 0.10.18 muscle groups, migration and backup
         run: python3 scripts/verify_forma_0118.py
+      - name: Verify FORMA 0.10.19 progression integration
+        run: python3 scripts/verify_forma_0119.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+      - name: Test progression rules (Java)
+        run: |
+          mkdir -p "$RUNNER_TEMP/forma-progression-tests"
+          javac -d "$RUNNER_TEMP/forma-progression-tests" app/src/main/java/pl/pitsmich/forma/ProgressionPolicy.java scripts/ProgressionPolicyTest.java
+          java -cp "$RUNNER_TEMP/forma-progression-tests" pl.pitsmich.forma.ProgressionPolicyTest
       - name: Install Android SDK 35
         run: |
           SDK_ROOT=/usr/local/lib/android/sdk
