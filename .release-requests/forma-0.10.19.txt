@@ -1,0 +1,3 @@
+FORMA 0.10.19
+versionCode 37
+Inteligentna progresja: konkretna propozycja ciężaru i liczby powtórzeń na podstawie ostatniego zakończonego treningu danego dnia FBW i zapisanego RIR. Zwiększenie ciężaru tylko po wszystkich kompletnych seriach z górnym zakresem powtórzeń, takim samym ciężarem i odpowiednim RIR; w pozostałych wypadkach utrzymanie ciężaru lub próba +1 powtórzenie. Bezpieczna sugestia przy każdej serii z przyciskiem Użyj propozycji (tylko wypełnia pola, niczego nie zapisuje ani nie ustawia RIR). Wskazówki w ekranie treningu i Progres. Bez zmian timer/powiadomienia, SQLite v11, historii treningów, RIR i przewijania. PR #40, CI run 45765180599 success, Java regression scenarios passed.
