@@ -7,7 +7,7 @@ service=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutStatusService.java").r
 photos=(root/"app/src/main/java/pl/pitsmich/forma/ExerciseEquipmentPhotos.java").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
 manifest=(root/"app/src/main/AndroidManifest.xml").read_text(encoding="utf8")
-assert "versionCode 36" in gradle and "versionName '0.10.18'" in gradle
+assert "versionCode 37" in gradle and "versionName '0.10.19'" in gradle
 assert "forma_workout_visible_v3" in service
 assert "NotificationManager.IMPORTANCE_HIGH" in service
 assert "channel.setSound(null,null)" in service

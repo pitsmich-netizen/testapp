@@ -5,7 +5,7 @@ root=Path(__file__).resolve().parents[1]
 ui=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(encoding="utf8")
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
-assert "versionCode 36" in gradle and "versionName '0.10.18'" in gradle
+assert "versionCode 37" in gradle and "versionName '0.10.19'" in gradle
 assert "WorkoutDb.Entry previous=db.previousWorkout(openWorkout,ex.id,index);" in ui
 assert '(previous.rir>=0?" · RIR "+previous.rir:"")' in ui
 assert 'String rirComparison=(current.rir>=0?"RIR teraz "+current.rir:"");' in ui

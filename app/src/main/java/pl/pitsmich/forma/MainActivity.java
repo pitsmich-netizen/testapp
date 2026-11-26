@@ -1679,13 +1679,15 @@ public final class MainActivity extends Activity {
                 (ex.eachSide?" / stronę":"")+"  •  "+ex.restSeconds+" s przerwy";
             add(body,text(objective+"  •  RIR "+(ex.rirMin<0?"—":ex.rirMin==ex.rirMax?Integer.toString(ex.rirMin):ex.rirMin+"–"+ex.rirMax),12,TEAL,true));
             Plan.Exercise proposed=new Plan.Exercise(ex.id,ex.name,ex.description,
-                expected,ex.minReps,ex.maxReps,ex.restSeconds,ex.eachSide);
-            String tip=db.progressionTip(proposed);
-            if(tip!=null) {
+                expected,ex.minReps,ex.maxReps,ex.restSeconds,ex.eachSide,
+                ex.rirMin,ex.rirMax);
+            ProgressionPolicy.Suggestion next=db.nextSetSuggestion(proposed,openWorkout,0);
+            if(next!=null) {
                 space(body,8);
-                TextView suggestion=text("↗  "+tip,13,GREEN,false);
-                suggestion.setLineSpacing(dp(3),1f);
+                TextView suggestion=text("↗  Propozycja na dziś, seria 1: "+
+                    weight(next.weight)+" kg × "+next.reps+" powt.",13,GREEN,true);
                 add(body,suggestion);
+                add(body,text(next.explanation,11,MUTED,false));
             }
             space(body,3);
             TextView help=actionLabel("ⓘ  Szybka instrukcja techniki  ⌄",TEAL);
@@ -2027,6 +2029,27 @@ public final class MainActivity extends Activity {
             return true;
         });
         add(block,controls);
+        // Explicit opt-in: suggested numbers only populate editable fields.
+        // A recommendation never saves data or silently changes recorded RIR.
+        if(current==null) {
+            ProgressionPolicy.Suggestion next=db.nextSetSuggestion(ex,openWorkout,index);
+            if(next!=null) {
+                TextView apply=actionLabel("↗  Użyj propozycji: "+
+                    weight(next.weight)+" kg × "+next.reps+" powt.",TEAL);
+                apply.setTextSize(12);
+                apply.setMinHeight(dp(35));
+                apply.setContentDescription("Wstaw proponowane "+weight(next.weight)+
+                    " kilogramów i "+next.reps+" powtórzeń; bez zapisywania serii");
+                add(block,apply);
+                apply.setOnClickListener(v->{
+                    kg.setText(weight(next.weight));
+                    reps.setText(Integer.toString(next.reps));
+                    Toast.makeText(this,"Wstawiono propozycję — zatwierdź serię, aby zapisać",
+                        Toast.LENGTH_SHORT).show();
+                });
+                add(block,text(next.explanation,11,MUTED,false));
+            }
+        }
 
         save.setOnClickListener(v->{
             try {
@@ -3413,12 +3436,20 @@ public final class MainActivity extends Activity {
         space(hero,4);
         add(hero,text(new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL")).format(new Date(newest.date)),12,MUTED,false));
 
-        String suggestion=db.progressionTip(ex);
+        // A suggestion must match the selected FBW day and that day's RIR goals.
+        Plan.Exercise planned=null;
+        for(Plan.Exercise item:db.workoutPlan(selectedProgressWorkout))
+            if(item.id.equals(ex.id)){planned=item;break;}
+        ProgressionPolicy.Suggestion suggestion=planned==null?null:
+            db.nextSetSuggestion(planned,selectedProgressWorkout,0);
         if(suggestion!=null) {
             LinearLayout advice=card(content);
-            smallLabel(advice,"PROPOZYCJA PROGRESJI");
+            smallLabel(advice,"PROPOZYCJA NA NASTĘPNY TRENING — SERIA 1");
             space(advice,5);
-            add(advice,text(suggestion,13,TEXT,false));
+            add(advice,text(weight(suggestion.weight)+" kg × "+suggestion.reps+" powt.",18,GREEN,true));
+            add(advice,text(suggestion.explanation,12,MUTED,false));
+            space(advice,4);
+            add(advice,text("To propozycja, nie automatyczna zmiana zapisanego treningu.",11,MUTED,false));
         }
         int count=Math.min(8,list.size());
         if(count>=2) {
