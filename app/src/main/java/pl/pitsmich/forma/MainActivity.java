@@ -1934,7 +1934,8 @@ public final class MainActivity extends Activity {
             TextView kilos=text(weight(current.weight)+" kg",15,TEXT,true);
             kilos.setGravity(Gravity.CENTER);
             saved.addView(kilos,new LinearLayout.LayoutParams(0,dp(34),1.6f));
-            TextView repeats=text("× "+current.reps,15,TEXT,true);
+            TextView repeats=text("× "+current.reps+
+                (current.rir>=0?"  R"+current.rir:""),14,TEXT,true);
             repeats.setGravity(Gravity.CENTER);
             saved.addView(repeats,new LinearLayout.LayoutParams(0,dp(34),1.5f));
             boolean pr=db.isPersonalRecord(openSession,ex.id,current);
@@ -1943,22 +1944,9 @@ public final class MainActivity extends Activity {
             state.setGravity(Gravity.CENTER);
             saved.addView(state,new LinearLayout.LayoutParams(0,dp(34),1.6f));
             add(block,saved);
-            // A measured RIR is always distinct from the exercise's target RIR.
-            String rirComparison=(current.rir>=0?"RIR teraz "+current.rir:"");
-            if(previous!=null && previous.rir>=0)
-                rirComparison+=(rirComparison.isEmpty()?"":"  ·  ")+"poprz. RIR "+previous.rir;
-            if(!rirComparison.isEmpty())add(block,text(rirComparison,11,MUTED,false));
-            if(previous!=null&&!current.warmup) {
-                double change=current.weight-previous.weight;
-                int repChange=current.reps-previous.reps;
-                if(Math.abs(change)>0.001 || repChange!=0) {
-                    String delta=(change>0?"+":"")+weight(change)+" kg";
-                    String repsDelta=(repChange>0?"+":"")+repChange+" powt.";
-                    int trend=change>0.001?GREEN:change< -0.001?AMBER:
-                        repChange>0?GREEN:AMBER;
-                    add(block,text("vs ostatnio: "+delta+"  ·  "+repsDelta,11,trend,false));
-                }
-            }
+            // The compact saved row already shows actual RIR. Historical deltas
+            // live in the dedicated comparison view instead of repeating under
+            // every completed set.
             block.setContentDescription("Seria "+(index+1)+", "+weight(current.weight)+
                 " kilogramów, "+current.reps+" powtórzeń. Dotknij, aby edytować.");
             block.setOnClickListener(v->{
@@ -1978,12 +1966,14 @@ public final class MainActivity extends Activity {
             (sessionPrevious!=null?"Ostatnia seria: ":"Poprz. trening: ")+
             weight(suggested.weight)+" kg × "+suggested.reps+
             (suggested.rir>=0?" · RIR "+suggested.rir:""),11,MUTED,false);
+        hint.setSingleLine(true);
+        hint.setEllipsize(android.text.TextUtils.TruncateAt.END);
         title.addView(hint);
         add(block,title);
-        // Keep the same-set historical RIR visible even when the load suggestion
-        // comes from an earlier set in the current session.
+        LinearLayout setDetails=col();
+        setDetails.setVisibility(View.GONE);
         if(sessionPrevious!=null && previous!=null && previous.rir>=0)
-            add(block,text("Poprz. trening · ta seria: RIR "+previous.rir,11,TEAL,false));
+            add(setDetails,text("Poprz. trening · ta seria: RIR "+previous.rir,11,TEAL,false));
         if(current==null){
             String guide=sessionPrevious!=null?
                 "Wpisano wynik poprzedniej serii. Cel: "+ex.minReps+"–"+ex.maxReps+
@@ -1991,7 +1981,7 @@ public final class MainActivity extends Activity {
                 db.loadGuidance(ex,openWorkout,index);
             TextView guidance=text("ⓘ  "+guide,11,MUTED,false);
             guidance.setPadding(dp(2),dp(3),dp(2),dp(6));
-            add(block,guidance);
+            add(setDetails,guidance);
         }
 
         // One horizontal control strip. Flexible stepper groups share remaining width
@@ -2094,8 +2084,21 @@ public final class MainActivity extends Activity {
                     Toast.makeText(this,"Wstawiono propozycję — zatwierdź serię, aby zapisać",
                         Toast.LENGTH_SHORT).show();
                 });
-                add(block,text(next.explanation,11,MUTED,false));
+                add(setDetails,text(next.explanation,11,MUTED,false));
             }
+        }
+        if(setDetails.getChildCount()>0) {
+            TextView explain=actionLabel("ⓘ  Szczegóły sugestii  ⌄",MUTED);
+            explain.setTextSize(11);
+            explain.setMinHeight(dp(28));
+            add(block,explain);
+            add(block,setDetails);
+            explain.setOnClickListener(v->{
+                boolean visible=setDetails.getVisibility()!=View.VISIBLE;
+                setDetails.setVisibility(visible?View.VISIBLE:View.GONE);
+                explain.setText(visible?"ⓘ  Ukryj szczegóły  ⌃":
+                    "ⓘ  Szczegóły sugestii  ⌄");
+            });
         }
 
         save.setOnClickListener(v->{
