@@ -123,7 +123,7 @@ public final class MainActivity extends Activity {
         boolean sameScreen(ScreenLocation b) {
             if(!page.equals(b.page))return false;
             if(page.equals("settings"))return section.equals(b.section);
-            if(page.equals("detail")||page.equals("edit")||page.equals("summary"))
+            if(page.equals("detail")||page.equals("edit")||page.equals("summary")||page.equals("compare"))
                 return detailSession==b.detailSession;
             if(page.equals("exerciseProgress"))return selectedExercise.equals(b.selectedExercise);
             if(page.equals("planEditor")||page.equals("planPreview"))return editingWorkout==b.editingWorkout;
@@ -157,6 +157,7 @@ public final class MainActivity extends Activity {
             WorkoutDb.Session active=db.active();
             return active!=null&&active.pausedAt==0&&active.id==screen.openSession;
         }
+        if(screen.page.equals("compare"))return db.byId(screen.detailSession)!=null;
         if(screen.page.equals("detail")||screen.page.equals("summary")||screen.page.equals("edit")) {
             WorkoutDb.Session saved=db.byId(screen.detailSession);
             return saved!=null&&saved.finishedAt>0;
@@ -176,7 +177,7 @@ public final class MainActivity extends Activity {
         }
         if(page.equals("plan")) {moveTaskToBack(true);return;}
         if(page.equals("settings")&&!settingsSection.isEmpty())settingsSection="";
-        else if(page.equals("detail"))page="history";
+        else if(page.equals("detail")||page.equals("compare"))page="history";
         else if(page.equals("exerciseProgress")||page.equals("weekly"))page="progress";
         else page="plan";
         renderFromBack();
@@ -488,6 +489,7 @@ public final class MainActivity extends Activity {
         else if(page.equals("planPreview")) showPlanPreview();
         else if(page.equals("calendar")) showCalendar();
         else if(page.equals("summary")) showSessionSummary();
+        else if(page.equals("compare")) showWorkoutComparison();
         else if(page.equals("weekly")) showWeeklyAnalysis();
         else showSettings();
 
@@ -1620,6 +1622,13 @@ public final class MainActivity extends Activity {
 
         space(content,5);
         add(content,text("Ćwiczenia",19,TEXT,true));
+        TextView comparison=actionLabel("⇄  Porównaj z poprzednim treningiem  ›",TEAL);
+        comparison.setMinHeight(dp(38));
+        comparison.setContentDescription("Porównaj bieżące ćwiczenia i serie z poprzednim treningiem FBW");
+        add(content,comparison);
+        comparison.setOnClickListener(v->{
+            detailSession=openSession;page="compare";render();
+        });
         space(content,6);
 
         for(int i=0;i<exercises.size();i++) {
@@ -2423,6 +2432,15 @@ public final class MainActivity extends Activity {
             });
         }
 
+        if(previous!=null) {
+            TextView detailed=actionLabel("⇄  Porównaj ciężar, powtórzenia i RIR seria po serii  ›",TEAL);
+            detailed.setMinHeight(dp(43));
+            add(content,detailed);
+            detailed.setOnClickListener(v->{
+                detailSession=session.id;page="compare";render();
+            });
+        }
+
         // Porównanie ćwiczeń opiera się na trwałych identyfikatorach, a nie nazwie planu.
         LinearLayout exerciseCompare=card(content);
         smallLabel(exerciseCompare,"ZMIANY W ĆWICZENIACH");
@@ -2544,6 +2562,132 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private List<WorkoutComparison.SetValue> comparisonSets(long sessionId) {
+        java.util.ArrayList<WorkoutComparison.SetValue> result=new java.util.ArrayList<>();
+        for(WorkoutDb.Entry entry:db.sets(sessionId))
+            result.add(new WorkoutComparison.SetValue(entry.exerciseId,entry.setIndex,
+                entry.weight,entry.reps,entry.rir,db.loadMultiplier(entry.exerciseId),
+                entry.warmup));
+        return result;
+    }
+    private String comparisonSetText(WorkoutComparison.SetValue value) {
+        if(value==null)return "— brak serii";
+        return weight(value.weight)+" kg × "+value.reps+
+            (value.rir>=0?"  ·  RIR "+value.rir:"  ·  RIR —");
+    }
+    private String comparisonDelta(WorkoutComparison.Row row) {
+        if(row.status==WorkoutComparison.MISSING)return "Brak dopasowanej serii — bez oceny";
+        double kilos=row.current.weight-row.previous.weight;
+        int reps=row.current.reps-row.previous.reps;
+        String delta=(kilos>0?"+":"")+weight(kilos)+" kg  ·  "+
+            (reps>0?"+":"")+reps+" powt.";
+        if(row.current.rir>=0 && row.previous.rir>=0) {
+            int rir=row.current.rir-row.previous.rir;
+            delta+="  ·  RIR "+(rir>0?"+":"")+rir;
+        } else delta+="  ·  ΔRIR —";
+        return delta;
+    }
+    private void showWorkoutComparison() {
+        WorkoutDb.Session current=db.byId(detailSession);
+        if(current==null){page="history";render();return;}
+        TextView back=actionLabel("‹  Wróć do treningu",TEAL);
+        back.setMinHeight(dp(41));add(content,back);
+        back.setOnClickListener(v->navigateBack());
+        headline(content,"Porównanie treningów");
+        add(content,text(db.sessionWorkoutLabel(current)+"  ·  "+
+            new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL"))
+                .format(new Date(current.startedAt)),13,MUTED,false));
+        boolean ongoing=current.finishedAt==0;
+        WorkoutDb.Session previous=WorkoutDb.isTestSession(current)?null:
+            ongoing?db.previousCompletedForCurrentPlan(current):
+            db.previousCompletedSameWorkout(current);
+        if(previous==null) {
+            LinearLayout empty=card(content);
+            add(empty,text(WorkoutDb.isTestSession(current)?
+                "To trening testowy — bez porównania z rzeczywistą historią.":
+                "Nie ma wcześniejszego porównywalnego treningu tego dnia FBW.",
+                15,MUTED,false));
+            add(empty,text("Porównujemy tylko zakończone, nietestowe sesje z tym samym dniem i nazwą planu oraz podobnymi ćwiczeniami.",12,MUTED,false));
+            return;
+        }
+        java.util.ArrayList<String> planOrder=new java.util.ArrayList<>();
+        for(Plan.Exercise exercise:db.workoutPlan(current.workout))
+            planOrder.add(exercise.id);
+        WorkoutComparison.Result result=WorkoutComparison.compare(
+            comparisonSets(current.id),comparisonSets(previous.id),planOrder);
+        LinearLayout totals=card(content);
+        smallLabel(totals,ongoing?"W TRAKCIE — WYNIKI DOTYCHCZAS":"ZESTAWIENIE SESJI");
+        space(totals,5);
+        summaryLine(totals,"Teraz",result.currentWorkingSets+" serii  ·  "+
+            weight(result.currentVolume)+" kg objętości");
+        summaryLine(totals,"Poprzednio",result.previousWorkingSets+" serii  ·  "+
+            weight(result.previousVolume)+" kg objętości");
+        summaryLine(totals,"Dopasowane serie",Integer.toString(result.matchedSets));
+        add(totals,text("Poprzedni trening: "+
+            new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL"))
+                .format(new Date(previous.startedAt)),12,MUTED,false));
+        if(ongoing)
+            add(totals,text("Bieżący trening nie jest jeszcze zakończony. Całkowita objętość będzie niepełna; zmiany oceniamy wyłącznie w seriach o tym samym numerze.",12,AMBER,false));
+        else if(result.currentWorkingSets!=result.previousWorkingSets)
+            add(totals,text("Treningi mają różną liczbę serii. Porównanie objętości całych sesji może być mylące.",12,AMBER,false));
+        add(totals,text("Ocena ↑ / ↓ dotyczy wyłącznie ciężaru i powtórzeń. RIR pokazujemy osobno, nie oceniamy go jako automatycznej poprawy.",11,MUTED,false));
+
+        String defaultExpanded=ongoing?expandedExerciseId:"";
+        boolean first=true;
+        for(WorkoutComparison.Exercise ex:result.exercises) {
+            Plan.Exercise definition=db.exerciseById(ex.id);
+            String name=definition==null?ex.id:definition.name;
+            LinearLayout panel=card(content);
+            TextView header=actionLabel(name+"  ›",TEXT);
+            header.setTextSize(16);header.setMinHeight(dp(42));
+            add(panel,header);
+            add(panel,text(ex.currentSets+" teraz / "+ex.previousSets+
+                " poprzednio  ·  "+ex.matched+" wspólnych serii",12,MUTED,false));
+            if(ex.matched>0) {
+                String scores="↑ "+ex.improvements+"   = "+ex.stable+
+                    "   ↓ "+ex.declines;
+                if(ex.mixed>0)scores+="   ± "+ex.mixed;
+                add(panel,text(scores,12,ex.declines>0?AMBER:GREEN,true));
+                double d=ex.matchedCurrentVolume-ex.matchedPreviousVolume;
+                add(panel,text("Objętość porównanych serii: "+
+                    weight(ex.matchedCurrentVolume)+" vs "+
+                    weight(ex.matchedPreviousVolume)+" kg  ("+
+                    (d>0?"+":"")+weight(d)+" kg)",12,TEAL,false));
+            } else add(panel,text(ex.currentSets==0?
+                "Jeszcze niewykonane w bieżącej sesji":"Brak serii o tym samym numerze do porównania",12,MUTED,false));
+            String currentRir=ex.currentRirCount==0?"—":
+                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",ex.currentAverageRir());
+            String previousRir=ex.previousRirCount==0?"—":
+                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",ex.previousAverageRir());
+            add(panel,text("Śr. RIR: "+currentRir+" ("+ex.currentRirCount+"/"+ex.currentSets+")"+
+                " vs "+previousRir+" ("+ex.previousRirCount+"/"+ex.previousSets+")",
+                12,MUTED,false));
+
+            LinearLayout rows=col();
+            boolean expanded=ongoing?ex.id.equals(defaultExpanded):first;
+            rows.setVisibility(expanded?View.VISIBLE:View.GONE);
+            first=false;
+            header.setText(name+(expanded?"  ⌃":"  ⌄"));
+            header.setOnClickListener(v->{
+                boolean visible=rows.getVisibility()!=View.VISIBLE;
+                rows.setVisibility(visible?View.VISIBLE:View.GONE);
+                header.setText(name+(visible?"  ⌃":"  ⌄"));
+            });
+            space(rows,8);
+            for(WorkoutComparison.Row pair:ex.rows) {
+                add(rows,text("SERIA "+(pair.index+1),11,MUTED,true));
+                add(rows,text("Teraz:  "+comparisonSetText(pair.current),13,TEXT,false));
+                add(rows,text("Poprzednio:  "+comparisonSetText(pair.previous),12,MUTED,false));
+                int color=pair.status==WorkoutComparison.IMPROVED?GREEN:
+                    pair.status==WorkoutComparison.DECLINED?AMBER:
+                    pair.status==WorkoutComparison.MIXED?SKY:MUTED;
+                add(rows,text(comparisonDelta(pair),12,color,true));
+                space(rows,8);
+            }
+            add(panel,rows);
+        }
+    }
+
     private void showDetail() {
         TextView back=actionLabel("‹  Historia",TEAL);
         back.setMinHeight(dp(38));
@@ -2592,6 +2736,14 @@ public final class MainActivity extends Activity {
             summary.addView(cell,new LinearLayout.LayoutParams(0,-2,1));
         }
         space(stats,8);add(stats,summary);
+        if(selected.finishedAt>0 && !WorkoutDb.isTestSession(selected)) {
+            TextView compareLink=actionLabel("⇄  Porównaj z poprzednim treningiem  ›",TEAL);
+            compareLink.setMinHeight(dp(43));
+            add(content,compareLink);
+            compareLink.setOnClickListener(v->{
+                detailSession=selected.id;page="compare";render();
+            });
+        }
         space(content,2);
         String notes=db.sessionNotes(detailSession);
         if(notes!=null && notes.startsWith("Import z notatek 18.11.2026")) {
