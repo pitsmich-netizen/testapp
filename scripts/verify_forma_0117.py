@@ -6,7 +6,7 @@ ui=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(enco
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
 timer=(root/"app/src/main/java/pl/pitsmich/forma/RestTimer.java").read_text(encoding="utf8")
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
-assert "versionCode 36" in gradle and "versionName '0.10.18'" in gradle
+assert "versionCode 37" in gradle and "versionName '0.10.19'" in gradle
 assert "private void renderKeepingSessionPosition()" in ui
 assert "int previousY=previousScroll==null?0:previousScroll.getScrollY();" in ui
 assert "previousCard.getTop()-previousY" in ui
