@@ -1560,7 +1560,20 @@ public final class MainActivity extends Activity {
                 choice.setBackground(rounded(CARD,14,BORDER));
             }
         });
+        // Keep the remaining-rest clock visible; hide infrequently used manual
+        // presets so the fixed header does not dominate the workout screen.
+        TextView timerOptions=actionLabel("⚙  Ręczna przerwa  ⌄",MUTED);
+        timerOptions.setTextSize(11);
+        timerOptions.setMinHeight(dp(27));
+        add(timerShell,timerOptions);
+        buttons.setVisibility(View.GONE);
         add(timerShell,buttons);
+        timerOptions.setOnClickListener(v->{
+            boolean visible=buttons.getVisibility()!=View.VISIBLE;
+            buttons.setVisibility(visible?View.VISIBLE:View.GONE);
+            timerOptions.setText(visible?"⚙  Ukryj ustawienia przerwy  ⌃":
+                "⚙  Ręczna przerwa  ⌄");
+        });
 
     }
 
@@ -1620,16 +1633,21 @@ public final class MainActivity extends Activity {
             if(expandedExerciseId.isEmpty())expandedExerciseId=exercises.get(0).id;
         }
 
-        space(content,5);
-        add(content,text("Ćwiczenia",19,TEXT,true));
-        TextView comparison=actionLabel("⇄  Porównaj z poprzednim treningiem  ›",TEAL);
-        comparison.setMinHeight(dp(38));
+        space(content,3);
+        LinearLayout sessionToolbar=row();
+        TextView section=text("ĆWICZENIA",14,TEXT,true);
+        section.setGravity(Gravity.CENTER_VERTICAL);
+        sessionToolbar.addView(section,new LinearLayout.LayoutParams(0,dp(35),1));
+        TextView comparison=actionLabel("⇄  Porównaj  ›",MUTED);
+        comparison.setTextSize(12);
+        comparison.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         comparison.setContentDescription("Porównaj bieżące ćwiczenia i serie z poprzednim treningiem FBW");
-        add(content,comparison);
+        sessionToolbar.addView(comparison,new LinearLayout.LayoutParams(-2,dp(35)));
+        add(content,sessionToolbar);
         comparison.setOnClickListener(v->{
             detailSession=openSession;page="compare";render();
         });
-        space(content,6);
+        space(content,3);
 
         for(int i=0;i<exercises.size();i++) {
             final Plan.Exercise ex=exercises.get(i);
@@ -1649,16 +1667,19 @@ public final class MainActivity extends Activity {
             title.setMaxLines(3);
             add(titleBox,title);
             String existingComment=db.exerciseComment(openSession,ex.id);
-            TextView commentLink=actionLabel(existingComment.isEmpty()?
-                "✎  Dodaj komentarz · maszyna / uchwyt":
-                "✎  "+existingComment,existingComment.isEmpty()?MUTED:TEAL);
+            // Keep collapsed cards to two useful lines at most. Editing the
+            // optional note stays available next to the technique shortcut.
+            TextView commentLink=actionLabel("✎  Notatka",MUTED);
             commentLink.setTextSize(12);
-            commentLink.setMaxLines(2);
-            commentLink.setMinHeight(dp(24));
+            commentLink.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
             commentLink.setContentDescription("Dodaj lub zmień komentarz do ćwiczenia "+ex.name);
-            add(titleBox,commentLink);
             commentLink.setOnClickListener(v->changeExerciseComment(openSession,ex.id,ex.name));
-            space(titleBox,2);
+            if(!existingComment.isEmpty()) {
+                TextView preview=text("✎  "+existingComment,11,TEAL,false);
+                preview.setMaxLines(1);
+                preview.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                add(titleBox,preview);
+            }
             int complete=db.countExerciseSets(openSession,ex.id);
             int target=db.expectedSets(openWorkout,ex);
             boolean finished=complete>=target;
@@ -1687,22 +1708,39 @@ public final class MainActivity extends Activity {
             String objective=expected+" × "+ex.minReps+"–"+ex.maxReps+
                 (ex.eachSide?" / stronę":"")+"  •  "+ex.restSeconds+" s przerwy";
             add(body,text(objective+"  •  RIR "+(ex.rirMin<0?"—":ex.rirMin==ex.rirMax?Integer.toString(ex.rirMin):ex.rirMin+"–"+ex.rirMax),12,TEAL,true));
+            // Exercise-specific explanations and technique no longer occupy
+            // multiple lines above the active set input.
+            LinearLayout shortcuts=row();
+            TextView detailsToggle=actionLabel("ⓘ  Technika i progresja  ⌄",MUTED);
+            detailsToggle.setTextSize(12);
+            detailsToggle.setMinHeight(dp(33));
+            shortcuts.addView(detailsToggle,new LinearLayout.LayoutParams(0,dp(33),1));
+            shortcuts.addView(commentLink,new LinearLayout.LayoutParams(-2,dp(33)));
+            add(body,shortcuts);
+            LinearLayout exerciseDetails=col();
+            exerciseDetails.setVisibility(View.GONE);
+            add(body,exerciseDetails);
+            detailsToggle.setOnClickListener(v->{
+                boolean visible=exerciseDetails.getVisibility()!=View.VISIBLE;
+                exerciseDetails.setVisibility(visible?View.VISIBLE:View.GONE);
+                detailsToggle.setText(visible?"ⓘ  Ukryj szczegóły  ⌃":
+                    "ⓘ  Technika i progresja  ⌄");
+            });
             Plan.Exercise proposed=new Plan.Exercise(ex.id,ex.name,ex.description,
                 expected,ex.minReps,ex.maxReps,ex.restSeconds,ex.eachSide,
                 ex.rirMin,ex.rirMax);
             ProgressionPolicy.Suggestion next=db.nextSetSuggestion(proposed,openWorkout,0);
             if(next!=null) {
-                space(body,8);
+                space(exerciseDetails,5);
                 TextView suggestion=text("↗  Propozycja na dziś, seria 1: "+
                     weight(next.weight)+" kg × "+next.reps+" powt.",13,GREEN,true);
-                add(body,suggestion);
-                add(body,text(next.explanation,11,MUTED,false));
+                add(exerciseDetails,suggestion);
+                add(exerciseDetails,text(next.explanation,11,MUTED,false));
             }
-            space(body,3);
             TextView help=actionLabel("ⓘ  Szybka instrukcja techniki  ⌄",TEAL);
             help.setMinHeight(dp(40));
             help.setContentDescription("Rozwiń instrukcję techniki ćwiczenia "+ex.name);
-            add(body,help);
+            add(exerciseDetails,help);
             LinearLayout guide=col();
             guide.setPadding(dp(12),dp(12),dp(12),dp(12));
             guide.setBackground(rounded(CARD2,11,BORDER));
@@ -1711,7 +1749,7 @@ public final class MainActivity extends Activity {
             desc.setLineSpacing(dp(4),1.08f);
             add(guide,desc);
             guide.setVisibility(View.GONE);
-            add(body,guide);
+            add(exerciseDetails,guide);
             help.setOnClickListener(v->{
                 boolean show=guide.getVisibility()!=View.VISIBLE;
                 guide.setVisibility(show?View.VISIBLE:View.GONE);
@@ -1896,7 +1934,8 @@ public final class MainActivity extends Activity {
             TextView kilos=text(weight(current.weight)+" kg",15,TEXT,true);
             kilos.setGravity(Gravity.CENTER);
             saved.addView(kilos,new LinearLayout.LayoutParams(0,dp(34),1.6f));
-            TextView repeats=text("× "+current.reps,15,TEXT,true);
+            TextView repeats=text("× "+current.reps+
+                (current.rir>=0?"  R"+current.rir:""),14,TEXT,true);
             repeats.setGravity(Gravity.CENTER);
             saved.addView(repeats,new LinearLayout.LayoutParams(0,dp(34),1.5f));
             boolean pr=db.isPersonalRecord(openSession,ex.id,current);
@@ -1905,22 +1944,9 @@ public final class MainActivity extends Activity {
             state.setGravity(Gravity.CENTER);
             saved.addView(state,new LinearLayout.LayoutParams(0,dp(34),1.6f));
             add(block,saved);
-            // A measured RIR is always distinct from the exercise's target RIR.
-            String rirComparison=(current.rir>=0?"RIR teraz "+current.rir:"");
-            if(previous!=null && previous.rir>=0)
-                rirComparison+=(rirComparison.isEmpty()?"":"  ·  ")+"poprz. RIR "+previous.rir;
-            if(!rirComparison.isEmpty())add(block,text(rirComparison,11,MUTED,false));
-            if(previous!=null&&!current.warmup) {
-                double change=current.weight-previous.weight;
-                int repChange=current.reps-previous.reps;
-                if(Math.abs(change)>0.001 || repChange!=0) {
-                    String delta=(change>0?"+":"")+weight(change)+" kg";
-                    String repsDelta=(repChange>0?"+":"")+repChange+" powt.";
-                    int trend=change>0.001?GREEN:change< -0.001?AMBER:
-                        repChange>0?GREEN:AMBER;
-                    add(block,text("vs ostatnio: "+delta+"  ·  "+repsDelta,11,trend,false));
-                }
-            }
+            // The compact saved row already shows actual RIR. Historical deltas
+            // live in the dedicated comparison view instead of repeating under
+            // every completed set.
             block.setContentDescription("Seria "+(index+1)+", "+weight(current.weight)+
                 " kilogramów, "+current.reps+" powtórzeń. Dotknij, aby edytować.");
             block.setOnClickListener(v->{
@@ -1940,12 +1966,14 @@ public final class MainActivity extends Activity {
             (sessionPrevious!=null?"Ostatnia seria: ":"Poprz. trening: ")+
             weight(suggested.weight)+" kg × "+suggested.reps+
             (suggested.rir>=0?" · RIR "+suggested.rir:""),11,MUTED,false);
+        hint.setSingleLine(true);
+        hint.setEllipsize(android.text.TextUtils.TruncateAt.END);
         title.addView(hint);
         add(block,title);
-        // Keep the same-set historical RIR visible even when the load suggestion
-        // comes from an earlier set in the current session.
+        LinearLayout setDetails=col();
+        setDetails.setVisibility(View.GONE);
         if(sessionPrevious!=null && previous!=null && previous.rir>=0)
-            add(block,text("Poprz. trening · ta seria: RIR "+previous.rir,11,TEAL,false));
+            add(setDetails,text("Poprz. trening · ta seria: RIR "+previous.rir,11,TEAL,false));
         if(current==null){
             String guide=sessionPrevious!=null?
                 "Wpisano wynik poprzedniej serii. Cel: "+ex.minReps+"–"+ex.maxReps+
@@ -1953,7 +1981,7 @@ public final class MainActivity extends Activity {
                 db.loadGuidance(ex,openWorkout,index);
             TextView guidance=text("ⓘ  "+guide,11,MUTED,false);
             guidance.setPadding(dp(2),dp(3),dp(2),dp(6));
-            add(block,guidance);
+            add(setDetails,guidance);
         }
 
         // One horizontal control strip. Flexible stepper groups share remaining width
@@ -2056,8 +2084,21 @@ public final class MainActivity extends Activity {
                     Toast.makeText(this,"Wstawiono propozycję — zatwierdź serię, aby zapisać",
                         Toast.LENGTH_SHORT).show();
                 });
-                add(block,text(next.explanation,11,MUTED,false));
+                add(setDetails,text(next.explanation,11,MUTED,false));
             }
+        }
+        if(setDetails.getChildCount()>0) {
+            TextView explain=actionLabel("ⓘ  Szczegóły sugestii  ⌄",MUTED);
+            explain.setTextSize(11);
+            explain.setMinHeight(dp(28));
+            add(block,explain);
+            add(block,setDetails);
+            explain.setOnClickListener(v->{
+                boolean visible=setDetails.getVisibility()!=View.VISIBLE;
+                setDetails.setVisibility(visible?View.VISIBLE:View.GONE);
+                explain.setText(visible?"ⓘ  Ukryj szczegóły  ⌃":
+                    "ⓘ  Szczegóły sugestii  ⌄");
+            });
         }
 
         save.setOnClickListener(v->{
@@ -2433,7 +2474,7 @@ public final class MainActivity extends Activity {
         }
 
         if(previous!=null) {
-            TextView detailed=actionLabel("⇄  Porównaj ciężar, powtórzenia i RIR seria po serii  ›",TEAL);
+            TextView detailed=actionLabel("⇄  Porównaj serie  ›",TEAL);
             detailed.setMinHeight(dp(43));
             add(content,detailed);
             detailed.setOnClickListener(v->{
@@ -2441,8 +2482,19 @@ public final class MainActivity extends Activity {
             });
         }
 
-        // Porównanie ćwiczeń opiera się na trwałych identyfikatorach, a nie nazwie planu.
+        // Keep the summary short: the expanded breakdown remains on demand.
+        TextView summaryToggle=actionLabel("ⓘ  Skrót zmian w ćwiczeniach  ⌄",MUTED);
+        summaryToggle.setMinHeight(dp(35));
+        add(content,summaryToggle);
         LinearLayout exerciseCompare=card(content);
+        exerciseCompare.setVisibility(View.GONE);
+        summaryToggle.setOnClickListener(v->{
+            boolean visible=exerciseCompare.getVisibility()!=View.VISIBLE;
+            exerciseCompare.setVisibility(visible?View.VISIBLE:View.GONE);
+            summaryToggle.setText(visible?"ⓘ  Ukryj skrót  ⌃":
+                "ⓘ  Skrót zmian w ćwiczeniach  ⌄");
+        });
+        // Porównanie ćwiczeń opiera się na trwałych identyfikatorach, a nie nazwie planu.
         smallLabel(exerciseCompare,"ZMIANY W ĆWICZENIACH");
         int improvements=0,stable=0,decreases=0,comparable=0;
         java.util.HashSet<String> observed=new java.util.HashSet<>();
@@ -2575,6 +2627,10 @@ public final class MainActivity extends Activity {
         return weight(value.weight)+" kg × "+value.reps+
             (value.rir>=0?"  ·  RIR "+value.rir:"  ·  RIR —");
     }
+    private String comparisonBriefSet(WorkoutComparison.SetValue set) {
+        if(set==null)return "—";
+        return weight(set.weight)+"×"+set.reps+(set.rir>=0?" R"+set.rir:"");
+    }
     private String comparisonDelta(WorkoutComparison.Row row) {
         if(row.status==WorkoutComparison.MISSING)return "Brak dopasowanej serii — bez oceny";
         double kilos=row.current.weight-row.previous.weight;
@@ -2626,11 +2682,25 @@ public final class MainActivity extends Activity {
         add(totals,text("Poprzedni trening: "+
             new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL"))
                 .format(new Date(previous.startedAt)),12,MUTED,false));
-        if(ongoing)
-            add(totals,text("Bieżący trening nie jest jeszcze zakończony. Całkowita objętość będzie niepełna; zmiany oceniamy wyłącznie w seriach o tym samym numerze.",12,AMBER,false));
+        if(ongoing)add(totals,text("Trening trwa — wyniki bieżące są niepełne.",12,AMBER,false));
         else if(result.currentWorkingSets!=result.previousWorkingSets)
-            add(totals,text("Treningi mają różną liczbę serii. Porównanie objętości całych sesji może być mylące.",12,AMBER,false));
-        add(totals,text("Ocena ↑ / ↓ dotyczy wyłącznie ciężaru i powtórzeń. RIR pokazujemy osobno, nie oceniamy go jako automatycznej poprawy.",11,MUTED,false));
+            add(totals,text("Różna liczba serii — objętość całej sesji nie jest wprost porównywalna.",12,AMBER,false));
+        TextView methodology=actionLabel("ⓘ  Jak liczymy porównanie  ⌄",MUTED);
+        methodology.setTextSize(11);
+        methodology.setMinHeight(dp(30));
+        add(totals,methodology);
+        LinearLayout methodologyDetails=col();
+        methodologyDetails.setVisibility(View.GONE);
+        if(ongoing)
+            add(methodologyDetails,text("Bieżący trening nie jest jeszcze zakończony. Całkowita objętość będzie niepełna; zmiany oceniamy wyłącznie w seriach o tym samym numerze.",12,MUTED,false));
+        add(methodologyDetails,text("Ocena ↑ / ↓ dotyczy wyłącznie ciężaru i powtórzeń. RIR pokazujemy osobno, nie oceniamy go jako automatycznej poprawy.",11,MUTED,false));
+        add(totals,methodologyDetails);
+        methodology.setOnClickListener(v->{
+            boolean visible=methodologyDetails.getVisibility()!=View.VISIBLE;
+            methodologyDetails.setVisibility(visible?View.VISIBLE:View.GONE);
+            methodology.setText(visible?"ⓘ  Ukryj objaśnienia  ⌃":
+                "ⓘ  Jak liczymy porównanie  ⌄");
+        });
 
         String defaultExpanded=ongoing?expandedExerciseId:"";
         boolean first=true;
@@ -2643,25 +2713,13 @@ public final class MainActivity extends Activity {
             add(panel,header);
             add(panel,text(ex.currentSets+" teraz / "+ex.previousSets+
                 " poprzednio  ·  "+ex.matched+" wspólnych serii",12,MUTED,false));
-            if(ex.matched>0) {
-                String scores="↑ "+ex.improvements+"   = "+ex.stable+
-                    "   ↓ "+ex.declines;
-                if(ex.mixed>0)scores+="   ± "+ex.mixed;
+            String scores="↑ "+ex.improvements+"   = "+ex.stable+
+                "   ↓ "+ex.declines;
+            if(ex.mixed>0)scores+="   ± "+ex.mixed;
+            if(ex.matched>0)
                 add(panel,text(scores,12,ex.declines>0?AMBER:GREEN,true));
-                double d=ex.matchedCurrentVolume-ex.matchedPreviousVolume;
-                add(panel,text("Objętość porównanych serii: "+
-                    weight(ex.matchedCurrentVolume)+" vs "+
-                    weight(ex.matchedPreviousVolume)+" kg  ("+
-                    (d>0?"+":"")+weight(d)+" kg)",12,TEAL,false));
-            } else add(panel,text(ex.currentSets==0?
-                "Jeszcze niewykonane w bieżącej sesji":"Brak serii o tym samym numerze do porównania",12,MUTED,false));
-            String currentRir=ex.currentRirCount==0?"—":
-                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",ex.currentAverageRir());
-            String previousRir=ex.previousRirCount==0?"—":
-                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",ex.previousAverageRir());
-            add(panel,text("Śr. RIR: "+currentRir+" ("+ex.currentRirCount+"/"+ex.currentSets+")"+
-                " vs "+previousRir+" ("+ex.previousRirCount+"/"+ex.previousSets+")",
-                12,MUTED,false));
+            else add(panel,text(ex.currentSets==0?
+                "Jeszcze niewykonane":"Brak dopasowanych numerów serii",12,MUTED,false));
 
             LinearLayout rows=col();
             boolean expanded=ongoing?ex.id.equals(defaultExpanded):first;
@@ -2674,15 +2732,31 @@ public final class MainActivity extends Activity {
                 header.setText(name+(visible?"  ⌃":"  ⌄"));
             });
             space(rows,8);
+            if(ex.matched>0) {
+                double d=ex.matchedCurrentVolume-ex.matchedPreviousVolume;
+                add(rows,text("Objętość porównanych serii: "+
+                    weight(ex.matchedCurrentVolume)+" vs "+
+                    weight(ex.matchedPreviousVolume)+" kg  ("+
+                    (d>0?"+":"")+weight(d)+" kg)",12,TEAL,false));
+            }
+            String currentRir=ex.currentRirCount==0?"—":
+                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",ex.currentAverageRir());
+            String previousRir=ex.previousRirCount==0?"—":
+                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",ex.previousAverageRir());
+            add(rows,text("Śr. RIR: "+currentRir+" ("+ex.currentRirCount+"/"+ex.currentSets+")"+
+                " vs "+previousRir+" ("+ex.previousRirCount+"/"+ex.previousSets+")",
+                11,MUTED,false));
+            add(rows,text("POPRZEDNIO  →  TERAZ",10,MUTED,true));
+            space(rows,4);
             for(WorkoutComparison.Row pair:ex.rows) {
-                add(rows,text("SERIA "+(pair.index+1),11,MUTED,true));
-                add(rows,text("Teraz:  "+comparisonSetText(pair.current),13,TEXT,false));
-                add(rows,text("Poprzednio:  "+comparisonSetText(pair.previous),12,MUTED,false));
+                add(rows,text(String.format(Locale.ROOT,"%02d",pair.index+1)+"   "+
+                    comparisonBriefSet(pair.previous)+"  →  "+
+                    comparisonBriefSet(pair.current),13,TEXT,true));
                 int color=pair.status==WorkoutComparison.IMPROVED?GREEN:
                     pair.status==WorkoutComparison.DECLINED?AMBER:
                     pair.status==WorkoutComparison.MIXED?SKY:MUTED;
-                add(rows,text(comparisonDelta(pair),12,color,true));
-                space(rows,8);
+                add(rows,text(comparisonDelta(pair),11,color,false));
+                space(rows,6);
             }
             add(panel,rows);
         }
