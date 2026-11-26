@@ -2616,6 +2616,10 @@ public final class MainActivity extends Activity {
         return weight(value.weight)+" kg × "+value.reps+
             (value.rir>=0?"  ·  RIR "+value.rir:"  ·  RIR —");
     }
+    private String comparisonBriefSet(WorkoutComparison.SetValue set) {
+        if(set==null)return "—";
+        return weight(set.weight)+"×"+set.reps+(set.rir>=0?" R"+set.rir:"");
+    }
     private String comparisonDelta(WorkoutComparison.Row row) {
         if(row.status==WorkoutComparison.MISSING)return "Brak dopasowanej serii — bez oceny";
         double kilos=row.current.weight-row.previous.weight;
@@ -2667,11 +2671,25 @@ public final class MainActivity extends Activity {
         add(totals,text("Poprzedni trening: "+
             new SimpleDateFormat("dd.MM.yyyy",Locale.forLanguageTag("pl-PL"))
                 .format(new Date(previous.startedAt)),12,MUTED,false));
-        if(ongoing)
-            add(totals,text("Bieżący trening nie jest jeszcze zakończony. Całkowita objętość będzie niepełna; zmiany oceniamy wyłącznie w seriach o tym samym numerze.",12,AMBER,false));
+        if(ongoing)add(totals,text("Trening trwa — wyniki bieżące są niepełne.",12,AMBER,false));
         else if(result.currentWorkingSets!=result.previousWorkingSets)
-            add(totals,text("Treningi mają różną liczbę serii. Porównanie objętości całych sesji może być mylące.",12,AMBER,false));
-        add(totals,text("Ocena ↑ / ↓ dotyczy wyłącznie ciężaru i powtórzeń. RIR pokazujemy osobno, nie oceniamy go jako automatycznej poprawy.",11,MUTED,false));
+            add(totals,text("Różna liczba serii — objętość całej sesji nie jest wprost porównywalna.",12,AMBER,false));
+        TextView methodology=actionLabel("ⓘ  Jak liczymy porównanie  ⌄",MUTED);
+        methodology.setTextSize(11);
+        methodology.setMinHeight(dp(30));
+        add(totals,methodology);
+        LinearLayout methodologyDetails=col();
+        methodologyDetails.setVisibility(View.GONE);
+        if(ongoing)
+            add(methodologyDetails,text("Bieżący trening nie jest jeszcze zakończony. Całkowita objętość będzie niepełna; zmiany oceniamy wyłącznie w seriach o tym samym numerze.",12,MUTED,false));
+        add(methodologyDetails,text("Ocena ↑ / ↓ dotyczy wyłącznie ciężaru i powtórzeń. RIR pokazujemy osobno, nie oceniamy go jako automatycznej poprawy.",11,MUTED,false));
+        add(totals,methodologyDetails);
+        methodology.setOnClickListener(v->{
+            boolean visible=methodologyDetails.getVisibility()!=View.VISIBLE;
+            methodologyDetails.setVisibility(visible?View.VISIBLE:View.GONE);
+            methodology.setText(visible?"ⓘ  Ukryj objaśnienia  ⌃":
+                "ⓘ  Jak liczymy porównanie  ⌄");
+        });
 
         String defaultExpanded=ongoing?expandedExerciseId:"";
         boolean first=true;
@@ -2684,25 +2702,13 @@ public final class MainActivity extends Activity {
             add(panel,header);
             add(panel,text(ex.currentSets+" teraz / "+ex.previousSets+
                 " poprzednio  ·  "+ex.matched+" wspólnych serii",12,MUTED,false));
-            if(ex.matched>0) {
-                String scores="↑ "+ex.improvements+"   = "+ex.stable+
-                    "   ↓ "+ex.declines;
-                if(ex.mixed>0)scores+="   ± "+ex.mixed;
+            String scores="↑ "+ex.improvements+"   = "+ex.stable+
+                "   ↓ "+ex.declines;
+            if(ex.mixed>0)scores+="   ± "+ex.mixed;
+            if(ex.matched>0)
                 add(panel,text(scores,12,ex.declines>0?AMBER:GREEN,true));
-                double d=ex.matchedCurrentVolume-ex.matchedPreviousVolume;
-                add(panel,text("Objętość porównanych serii: "+
-                    weight(ex.matchedCurrentVolume)+" vs "+
-                    weight(ex.matchedPreviousVolume)+" kg  ("+
-                    (d>0?"+":"")+weight(d)+" kg)",12,TEAL,false));
-            } else add(panel,text(ex.currentSets==0?
-                "Jeszcze niewykonane w bieżącej sesji":"Brak serii o tym samym numerze do porównania",12,MUTED,false));
-            String currentRir=ex.currentRirCount==0?"—":
-                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",ex.currentAverageRir());
-            String previousRir=ex.previousRirCount==0?"—":
-                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",ex.previousAverageRir());
-            add(panel,text("Śr. RIR: "+currentRir+" ("+ex.currentRirCount+"/"+ex.currentSets+")"+
-                " vs "+previousRir+" ("+ex.previousRirCount+"/"+ex.previousSets+")",
-                12,MUTED,false));
+            else add(panel,text(ex.currentSets==0?
+                "Jeszcze niewykonane":"Brak dopasowanych numerów serii",12,MUTED,false));
 
             LinearLayout rows=col();
             boolean expanded=ongoing?ex.id.equals(defaultExpanded):first;
@@ -2715,15 +2721,31 @@ public final class MainActivity extends Activity {
                 header.setText(name+(visible?"  ⌃":"  ⌄"));
             });
             space(rows,8);
+            if(ex.matched>0) {
+                double d=ex.matchedCurrentVolume-ex.matchedPreviousVolume;
+                add(rows,text("Objętość porównanych serii: "+
+                    weight(ex.matchedCurrentVolume)+" vs "+
+                    weight(ex.matchedPreviousVolume)+" kg  ("+
+                    (d>0?"+":"")+weight(d)+" kg)",12,TEAL,false));
+            }
+            String currentRir=ex.currentRirCount==0?"—":
+                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",ex.currentAverageRir());
+            String previousRir=ex.previousRirCount==0?"—":
+                String.format(Locale.forLanguageTag("pl-PL"),"%.1f",ex.previousAverageRir());
+            add(rows,text("Śr. RIR: "+currentRir+" ("+ex.currentRirCount+"/"+ex.currentSets+")"+
+                " vs "+previousRir+" ("+ex.previousRirCount+"/"+ex.previousSets+")",
+                11,MUTED,false));
+            add(rows,text("POPRZEDNIO  →  TERAZ",10,MUTED,true));
+            space(rows,4);
             for(WorkoutComparison.Row pair:ex.rows) {
-                add(rows,text("SERIA "+(pair.index+1),11,MUTED,true));
-                add(rows,text("Teraz:  "+comparisonSetText(pair.current),13,TEXT,false));
-                add(rows,text("Poprzednio:  "+comparisonSetText(pair.previous),12,MUTED,false));
+                add(rows,text(String.format(Locale.ROOT,"%02d",pair.index+1)+"   "+
+                    comparisonBriefSet(pair.previous)+"  →  "+
+                    comparisonBriefSet(pair.current),13,TEXT,true));
                 int color=pair.status==WorkoutComparison.IMPROVED?GREEN:
                     pair.status==WorkoutComparison.DECLINED?AMBER:
                     pair.status==WorkoutComparison.MIXED?SKY:MUTED;
-                add(rows,text(comparisonDelta(pair),12,color,true));
-                space(rows,8);
+                add(rows,text(comparisonDelta(pair),11,color,false));
+                space(rows,6);
             }
             add(panel,rows);
         }
