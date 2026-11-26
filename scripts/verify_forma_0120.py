@@ -7,7 +7,7 @@ db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encodin
 model=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutComparison.java").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
 timer=(root/"app/src/main/java/pl/pitsmich/forma/RestTimer.java").read_text(encoding="utf8")
-assert "versionCode 38" in gradle and "versionName '0.10.20'" in gradle
+assert "versionCode 39" in gradle and "versionName '0.10.21'" in gradle
 assert 'super(context, "forma_workouts.db", null, 11);' in db
 assert "public Session previousCompletedForCurrentPlan(Session current)" in db
 assert "for(Plan.Exercise exercise:workoutPlan(current.workout))" in db
