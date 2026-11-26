@@ -454,6 +454,32 @@ public final class WorkoutDb extends SQLiteOpenHelper {
         }
         return null;
     }
+    /**
+     * Compare an unfinished workout against the latest completed session of the
+     * same FBW day and saved workout label. Use the planned exercise IDs, not only
+     * the few sets already recorded in the unfinished workout.
+     */
+    public Session previousCompletedForCurrentPlan(Session current) {
+        if(current==null || isTestSession(current))return null;
+        String label=sessionWorkoutLabel(current);
+        java.util.Set<String> planned=new java.util.HashSet<>();
+        for(Plan.Exercise exercise:workoutPlan(current.workout))
+            planned.add(exercise.id);
+        if(planned.isEmpty())return null;
+        for(Session candidate:completed()) {
+            if(isTestSession(candidate)||candidate.workout!=current.workout||
+                candidate.id==current.id||candidate.startedAt>=current.startedAt||
+                !label.equals(sessionWorkoutLabel(candidate)))continue;
+            java.util.Set<String> before=new java.util.HashSet<>();
+            for(Entry e:sets(candidate.id))if(!e.warmup)before.add(e.exerciseId);
+            if(before.isEmpty())continue;
+            int common=0;
+            for(String id:planned)if(before.contains(id))common++;
+            if(common*2>=Math.max(planned.size(),before.size()))return candidate;
+        }
+        return null;
+    }
+
     public boolean isPersonalRecord(long session,String exercise,Entry candidate) {
         if(candidate==null||candidate.warmup)return false;
         Session own=byId(session);

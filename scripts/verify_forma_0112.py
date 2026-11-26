@@ -5,7 +5,7 @@ root=Path(__file__).resolve().parents[1]
 ui=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(encoding="utf8")
 timer=(root/"app/src/main/java/pl/pitsmich/forma/RestTimer.java").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
-assert "versionCode 37" in gradle and "versionName '0.10.19'" in gradle
+assert "versionCode 38" in gradle and "versionName '0.10.20'" in gradle
 assert "WorkoutDb.Entry sessionPrevious=null;" in ui
 assert "sessionPrevious=db.get(openSession,ex.id,prior);" in ui
 assert "WorkoutDb.Entry suggested=sessionPrevious!=null?sessionPrevious:previous;" in ui

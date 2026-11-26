@@ -5,7 +5,7 @@ root=Path(__file__).resolve().parents[1]
 ui=(root/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(encoding="utf8")
 db=(root/"app/src/main/java/pl/pitsmich/forma/WorkoutDb.java").read_text(encoding="utf8")
 gradle=(root/"app/build.gradle").read_text(encoding="utf8")
-assert "versionCode 37" in gradle and "versionName '0.10.19'" in gradle
+assert "versionCode 38" in gradle and "versionName '0.10.20'" in gradle
 assert "public int rirSum=0, rirCount=0" in db
 assert "return rirCount==0?-1.0:((double)rirSum)/rirCount;" in db
 assert "e.reps,e.rir FROM exercise_sets" in db

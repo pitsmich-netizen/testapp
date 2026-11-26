@@ -3,7 +3,7 @@ from pathlib import Path
 p=Path(__file__).resolve().parents[1]
 app=(p/"app/src/main/java/pl/pitsmich/forma/MainActivity.java").read_text(encoding="utf8")
 gradle=(p/"app/build.gradle").read_text(encoding="utf8")
-assert "versionCode 37" in gradle and "versionName '0.10.19'" in gradle
+assert "versionCode 38" in gradle and "versionName '0.10.20'" in gradle
 assert 'private void showPlanPreview()' in app
 assert 'page="planPreview"' in app
 assert 'openPlanPreview(workout)' in app
