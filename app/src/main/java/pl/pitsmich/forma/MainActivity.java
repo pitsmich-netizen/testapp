@@ -1560,7 +1560,20 @@ public final class MainActivity extends Activity {
                 choice.setBackground(rounded(CARD,14,BORDER));
             }
         });
+        // Keep the remaining-rest clock visible; hide infrequently used manual
+        // presets so the fixed header does not dominate the workout screen.
+        TextView timerOptions=actionLabel("⚙  Ręczna przerwa  ⌄",MUTED);
+        timerOptions.setTextSize(11);
+        timerOptions.setMinHeight(dp(27));
+        add(timerShell,timerOptions);
+        buttons.setVisibility(View.GONE);
         add(timerShell,buttons);
+        timerOptions.setOnClickListener(v->{
+            boolean visible=buttons.getVisibility()!=View.VISIBLE;
+            buttons.setVisibility(visible?View.VISIBLE:View.GONE);
+            timerOptions.setText(visible?"⚙  Ukryj ustawienia przerwy  ⌃":
+                "⚙  Ręczna przerwa  ⌄");
+        });
 
     }
 
@@ -1620,16 +1633,21 @@ public final class MainActivity extends Activity {
             if(expandedExerciseId.isEmpty())expandedExerciseId=exercises.get(0).id;
         }
 
-        space(content,5);
-        add(content,text("Ćwiczenia",19,TEXT,true));
-        TextView comparison=actionLabel("⇄  Porównaj z poprzednim treningiem  ›",TEAL);
-        comparison.setMinHeight(dp(38));
+        space(content,3);
+        LinearLayout sessionToolbar=row();
+        TextView section=text("ĆWICZENIA",14,TEXT,true);
+        section.setGravity(Gravity.CENTER_VERTICAL);
+        sessionToolbar.addView(section,new LinearLayout.LayoutParams(0,dp(35),1));
+        TextView comparison=actionLabel("⇄  Porównaj  ›",MUTED);
+        comparison.setTextSize(12);
+        comparison.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         comparison.setContentDescription("Porównaj bieżące ćwiczenia i serie z poprzednim treningiem FBW");
-        add(content,comparison);
+        sessionToolbar.addView(comparison,new LinearLayout.LayoutParams(-2,dp(35)));
+        add(content,sessionToolbar);
         comparison.setOnClickListener(v->{
             detailSession=openSession;page="compare";render();
         });
-        space(content,6);
+        space(content,3);
 
         for(int i=0;i<exercises.size();i++) {
             final Plan.Exercise ex=exercises.get(i);
@@ -1649,16 +1667,19 @@ public final class MainActivity extends Activity {
             title.setMaxLines(3);
             add(titleBox,title);
             String existingComment=db.exerciseComment(openSession,ex.id);
-            TextView commentLink=actionLabel(existingComment.isEmpty()?
-                "✎  Dodaj komentarz · maszyna / uchwyt":
-                "✎  "+existingComment,existingComment.isEmpty()?MUTED:TEAL);
+            // Keep collapsed cards to two useful lines at most. Editing the
+            // optional note stays available next to the technique shortcut.
+            TextView commentLink=actionLabel("✎  Notatka",MUTED);
             commentLink.setTextSize(12);
-            commentLink.setMaxLines(2);
-            commentLink.setMinHeight(dp(24));
+            commentLink.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
             commentLink.setContentDescription("Dodaj lub zmień komentarz do ćwiczenia "+ex.name);
-            add(titleBox,commentLink);
             commentLink.setOnClickListener(v->changeExerciseComment(openSession,ex.id,ex.name));
-            space(titleBox,2);
+            if(!existingComment.isEmpty()) {
+                TextView preview=text("✎  "+existingComment,11,TEAL,false);
+                preview.setMaxLines(1);
+                preview.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                add(titleBox,preview);
+            }
             int complete=db.countExerciseSets(openSession,ex.id);
             int target=db.expectedSets(openWorkout,ex);
             boolean finished=complete>=target;
@@ -1687,22 +1708,39 @@ public final class MainActivity extends Activity {
             String objective=expected+" × "+ex.minReps+"–"+ex.maxReps+
                 (ex.eachSide?" / stronę":"")+"  •  "+ex.restSeconds+" s przerwy";
             add(body,text(objective+"  •  RIR "+(ex.rirMin<0?"—":ex.rirMin==ex.rirMax?Integer.toString(ex.rirMin):ex.rirMin+"–"+ex.rirMax),12,TEAL,true));
+            // Exercise-specific explanations and technique no longer occupy
+            // multiple lines above the active set input.
+            LinearLayout shortcuts=row();
+            TextView detailsToggle=actionLabel("ⓘ  Technika i progresja  ⌄",MUTED);
+            detailsToggle.setTextSize(12);
+            detailsToggle.setMinHeight(dp(33));
+            shortcuts.addView(detailsToggle,new LinearLayout.LayoutParams(0,dp(33),1));
+            shortcuts.addView(commentLink,new LinearLayout.LayoutParams(-2,dp(33)));
+            add(body,shortcuts);
+            LinearLayout exerciseDetails=col();
+            exerciseDetails.setVisibility(View.GONE);
+            add(body,exerciseDetails);
+            detailsToggle.setOnClickListener(v->{
+                boolean visible=exerciseDetails.getVisibility()!=View.VISIBLE;
+                exerciseDetails.setVisibility(visible?View.VISIBLE:View.GONE);
+                detailsToggle.setText(visible?"ⓘ  Ukryj szczegóły  ⌃":
+                    "ⓘ  Technika i progresja  ⌄");
+            });
             Plan.Exercise proposed=new Plan.Exercise(ex.id,ex.name,ex.description,
                 expected,ex.minReps,ex.maxReps,ex.restSeconds,ex.eachSide,
                 ex.rirMin,ex.rirMax);
             ProgressionPolicy.Suggestion next=db.nextSetSuggestion(proposed,openWorkout,0);
             if(next!=null) {
-                space(body,8);
+                space(exerciseDetails,5);
                 TextView suggestion=text("↗  Propozycja na dziś, seria 1: "+
                     weight(next.weight)+" kg × "+next.reps+" powt.",13,GREEN,true);
-                add(body,suggestion);
-                add(body,text(next.explanation,11,MUTED,false));
+                add(exerciseDetails,suggestion);
+                add(exerciseDetails,text(next.explanation,11,MUTED,false));
             }
-            space(body,3);
             TextView help=actionLabel("ⓘ  Szybka instrukcja techniki  ⌄",TEAL);
             help.setMinHeight(dp(40));
             help.setContentDescription("Rozwiń instrukcję techniki ćwiczenia "+ex.name);
-            add(body,help);
+            add(exerciseDetails,help);
             LinearLayout guide=col();
             guide.setPadding(dp(12),dp(12),dp(12),dp(12));
             guide.setBackground(rounded(CARD2,11,BORDER));
@@ -1711,7 +1749,7 @@ public final class MainActivity extends Activity {
             desc.setLineSpacing(dp(4),1.08f);
             add(guide,desc);
             guide.setVisibility(View.GONE);
-            add(body,guide);
+            add(exerciseDetails,guide);
             help.setOnClickListener(v->{
                 boolean show=guide.getVisibility()!=View.VISIBLE;
                 guide.setVisibility(show?View.VISIBLE:View.GONE);
