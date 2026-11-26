@@ -8,8 +8,9 @@ gradle=(root/"app/build.gradle").read_text(encoding="utf8")
 assert "versionCode 38" in gradle and "versionName '0.10.20'" in gradle
 assert "WorkoutDb.Entry previous=db.previousWorkout(openWorkout,ex.id,index);" in ui
 assert '(previous.rir>=0?" · RIR "+previous.rir:"")' in ui
-assert 'String rirComparison=(current.rir>=0?"RIR teraz "+current.rir:"");' in ui
-assert '"poprz. RIR "+previous.rir' in ui
+assert '(current.rir>=0?"  R"+current.rir:"")' in ui
+assert 'comparisonBriefSet(pair.previous)' in ui
+assert 'comparisonBriefSet(pair.current)' in ui
 assert '(suggested.rir>=0?" · RIR "+suggested.rir:"")' in ui
 assert '"Poprz. trening · ta seria: RIR "+previous.rir' in ui
 assert 'final int[] rirDraft={current==null?-1:current.rir};' in ui
