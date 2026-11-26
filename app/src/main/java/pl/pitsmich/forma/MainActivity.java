@@ -2474,7 +2474,7 @@ public final class MainActivity extends Activity {
         }
 
         if(previous!=null) {
-            TextView detailed=actionLabel("⇄  Porównaj ciężar, powtórzenia i RIR seria po serii  ›",TEAL);
+            TextView detailed=actionLabel("⇄  Porównaj serie  ›",TEAL);
             detailed.setMinHeight(dp(43));
             add(content,detailed);
             detailed.setOnClickListener(v->{
@@ -2482,8 +2482,19 @@ public final class MainActivity extends Activity {
             });
         }
 
-        // Porównanie ćwiczeń opiera się na trwałych identyfikatorach, a nie nazwie planu.
+        // Keep the summary short: the expanded breakdown remains on demand.
+        TextView summaryToggle=actionLabel("ⓘ  Skrót zmian w ćwiczeniach  ⌄",MUTED);
+        summaryToggle.setMinHeight(dp(35));
+        add(content,summaryToggle);
         LinearLayout exerciseCompare=card(content);
+        exerciseCompare.setVisibility(View.GONE);
+        summaryToggle.setOnClickListener(v->{
+            boolean visible=exerciseCompare.getVisibility()!=View.VISIBLE;
+            exerciseCompare.setVisibility(visible?View.VISIBLE:View.GONE);
+            summaryToggle.setText(visible?"ⓘ  Ukryj skrót  ⌃":
+                "ⓘ  Skrót zmian w ćwiczeniach  ⌄");
+        });
+        // Porównanie ćwiczeń opiera się na trwałych identyfikatorach, a nie nazwie planu.
         smallLabel(exerciseCompare,"ZMIANY W ĆWICZENIACH");
         int improvements=0,stable=0,decreases=0,comparable=0;
         java.util.HashSet<String> observed=new java.util.HashSet<>();
